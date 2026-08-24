@@ -1,5 +1,6 @@
 {
   "app": { "name": "Overload", "tagline": "Sovraccarico progressivo. Nient'altro." },
+  "common": { "back": "Indietro" },
   "nav": {
     "workout": "Allenati",
     "history": "Storico",
@@ -122,8 +123,12 @@
     "exportJson": "Backup completo (JSON)",
     "exportCsv": "Esporta allenamenti (CSV)",
     "import": "Importa (CSV Hevy o backup JSON)",
+    "routines": "Schede",
+    "routinesHint": "Modifica giorni, esercizi e serie",
     "about": "Informazioni",
     "attribution": "Dati e immagini esercizi: free-exercise-db (dominio pubblico).",
+    "version": "v{{v}}",
+    "syncLabel": "Sincronizzazione",
     "sync": {
       "synced": "Sincronizzato",
       "pending": "In attesa di rete",
@@ -139,6 +144,41 @@
     "invalid": "File non valido: serve un CSV di Hevy o un backup di Overload.",
     "done": "Importati {{n}} allenamenti",
     "firstRunTitle": "Hai uno storico?",
-    "firstRunBody": "Importa il CSV di Hevy o un backup: niente inserimenti a mano."
+    "firstRunBody": "Importa il CSV di Hevy o un backup: niente inserimenti a mano.",
+    "pick": "Scegli un file",
+    "pickHint": "CSV di Hevy o backup JSON di Overload",
+    "routines": "{{n}} schede nel backup",
+    "export": "Esporta"
+  },
+  "routines": {
+    "title": "Schede",
+    "days": "{{n}} giorni",
+    "exercises": "{{n}} esercizi",
+    "new": "+ Nuova scheda",
+    "newName": "Nuova scheda",
+    "empty": "Nessuna scheda: creane una."
+  },
+  "editor": {
+    "title": "Modifica scheda",
+    "name": "Nome scheda",
+    "dayLabel": "Sigla",
+    "dayName": "Nome giorno",
+    "dayDefault": "Giorno {{label}}",
+    "sets": "serie",
+    "repMin": "rep min",
+    "repMax": "rep max",
+    "rest": "rec s",
+    "startWeight": "kg iniziali",
+    "addExercise": "+ Esercizio",
+    "removeExercise": "Rimuovi esercizio",
+    "moveUp": "Sposta su",
+    "moveDown": "Sposta giù",
+    "addDay": "+ Giorno",
+    "removeDay": "Rimuovi giorno",
+    "noExercises": "Nessun esercizio in questo giorno.",
+    "notFound": "Scheda non trovata.",
+    "importJson": "Importa scheda (JSON)",
+    "imported": "Scheda importata",
+    "invalid": "File scheda non valido."
   }
 }
