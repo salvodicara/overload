@@ -1,3 +1,4 @@
+import { IconBack } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, hevyAliasMap } from '../lib/exercises';
@@ -118,7 +119,7 @@ export function ImportExport() {
           aria-label={t('common.back')}
           onClick={() => nav({ view: 'settings' })}
         >
-          ←
+          <IconBack />
         </button>
         <div className="display" style={{ fontSize: 26 }}>
           {t('import.title')}

@@ -1,3 +1,4 @@
+import { IconForward } from '../components/Icons';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
@@ -74,7 +75,7 @@ export function Settings() {
           onClick={() => nav({ view: 'importExport' })}
         >
           <span>{t('settings.import')}</span>
-          <span className="muted">→</span>
+          <span className="muted"><IconForward /></span>
         </button>
         <button
           className="card-pad spread"
@@ -86,7 +87,7 @@ export function Settings() {
             <br />
             <span className="small muted">{t('settings.routinesHint')}</span>
           </span>
-          <span className="muted">→</span>
+          <span className="muted"><IconForward /></span>
         </button>
         <div className="card-pad spread" style={DIVIDER}>
           <span>{t('settings.syncLabel')}</span>

@@ -1,3 +1,4 @@
+
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../state/useStore';
 import type { Workout } from '../lib/types';
@@ -65,7 +66,7 @@ export function History() {
                         className="display"
                         style={{ fontSize: 19, color: w.dayLabel ? undefined : 'var(--muted)' }}
                       >
-                        {w.dayLabel ?? '—'}
+                        {w.dayLabel ?? '-'}
                       </div>
                       <div className="row" style={{ gap: 6, marginTop: 7, flexWrap: 'wrap' }}>
                         <span className="chip">{t('history.sets', { n: w.sets.length })}</span>

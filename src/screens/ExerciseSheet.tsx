@@ -1,3 +1,4 @@
+import { IconBack, IconPlay } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
@@ -32,7 +33,7 @@ export function ExerciseSheet({ id }: { id: string }) {
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
         <button className="iconbtn" aria-label={t('library.back')} onClick={() => nav({ view: 'library' })}>
-          ←
+          <IconBack />
         </button>
       </div>
 
@@ -71,7 +72,7 @@ export function ExerciseSheet({ id }: { id: string }) {
             >
               <iframe
                 src={`https://www.youtube-nocookie.com/embed/${ex.youtubeId}?autoplay=1&rel=0`}
-                title={`${name} — ${t('library.watch')}`}
+                title={`${name} - ${t('library.watch')}`}
                 loading="lazy"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -80,7 +81,7 @@ export function ExerciseSheet({ id }: { id: string }) {
             </div>
           ) : (
             <button className="btn btn-ghost btn-block" onClick={() => setShowVideo(true)}>
-              ▶ {t('library.watch')}
+              <IconPlay width={13} height={13} style={{ verticalAlign: '-2px' }} /> {t('library.watch')}
             </button>
           )}
         </div>

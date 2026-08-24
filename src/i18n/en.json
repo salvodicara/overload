@@ -1,6 +1,11 @@
 {
-  "app": { "name": "Overload", "tagline": "Progressive overload. Nothing else." },
-  "common": { "back": "Back" },
+  "app": {
+    "name": "Overload",
+    "tagline": "Progressive overload. Nothing else."
+  },
+  "common": {
+    "back": "Back"
+  },
   "nav": {
     "workout": "Train",
     "history": "History",
@@ -22,7 +27,7 @@
     "done": "Mesocycle complete",
     "hint": {
       "reactivation": "Reduced weights, one set fewer where there are 3+, never to failure.",
-      "rebuild": "Full volume, climbing loads. Last set 1–2 reps from failure.",
+      "rebuild": "Full volume, climbing loads. Last set 1-2 reps from failure.",
       "progress": "Full double progression: close the range, then add weight.",
       "deload": "Half the sets, 60% loads. This is where growth banks.",
       "done": "Program finished: time to update the plan."
@@ -137,7 +142,7 @@
     "sync": {
       "synced": "Synced",
       "pending": "Waiting for network",
-      "offline": "Offline: data safe on this device",
+      "offline": "Offline · data safe here",
       "error": "Sync error"
     }
   },

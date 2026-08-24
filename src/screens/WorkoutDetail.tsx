@@ -1,3 +1,4 @@
+import { IconBack } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
@@ -43,7 +44,7 @@ export function WorkoutDetail({ id }: { id: string }) {
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
         <button className="iconbtn" aria-label={t('history.title')} onClick={() => nav({ view: 'history' })}>
-          ←
+          <IconBack />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="mono small muted">{fmtDate(w.date, i18n.language)}</div>
@@ -51,7 +52,7 @@ export function WorkoutDetail({ id }: { id: string }) {
             className="display"
             style={{ fontSize: 22, color: w.dayLabel ? undefined : 'var(--muted)' }}
           >
-            {w.dayLabel ?? '—'}
+            {w.dayLabel ?? '-'}
           </div>
         </div>
       </div>

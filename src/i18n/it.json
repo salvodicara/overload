@@ -1,6 +1,11 @@
 {
-  "app": { "name": "Overload", "tagline": "Sovraccarico progressivo. Nient'altro." },
-  "common": { "back": "Indietro" },
+  "app": {
+    "name": "Overload",
+    "tagline": "Sovraccarico progressivo. Nient'altro."
+  },
+  "common": {
+    "back": "Indietro"
+  },
   "nav": {
     "workout": "Allenati",
     "history": "Storico",
@@ -22,7 +27,7 @@
     "done": "Mesociclo completato",
     "hint": {
       "reactivation": "Pesi ridotti, una serie in meno dove ce ne sono 3+, mai a cedimento.",
-      "rebuild": "Volume pieno, carichi in risalita. Ultima serie a 1–2 rep dal cedimento.",
+      "rebuild": "Volume pieno, carichi in risalita. Ultima serie a 1-2 rep dal cedimento.",
       "progress": "Doppia progressione piena: chiudi il range, poi sali di peso.",
       "deload": "Metà serie, carichi al 60%. La crescita si incassa adesso.",
       "done": "Programma finito: tempo di aggiornare la scheda."
@@ -137,7 +142,7 @@
     "sync": {
       "synced": "Sincronizzato",
       "pending": "In attesa di rete",
-      "offline": "Offline: dati al sicuro sul dispositivo",
+      "offline": "Offline · dati al sicuro",
       "error": "Errore di sincronizzazione"
     }
   },

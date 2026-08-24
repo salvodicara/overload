@@ -1,3 +1,4 @@
+import { IconBack, IconForward } from '../components/Icons';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../state/useStore';
 import type { Routine } from '../lib/types';
@@ -27,7 +28,7 @@ export function Routines() {
           aria-label={t('common.back')}
           onClick={() => nav({ view: 'settings' })}
         >
-          ←
+          <IconBack />
         </button>
         <div className="display" style={{ fontSize: 26 }}>
           {t('routines.title')}
@@ -55,7 +56,7 @@ export function Routines() {
                 })}
               </span>
             </span>
-            <span className="muted">→</span>
+            <span className="muted"><IconForward /></span>
           </button>
         ))}
       </div>

@@ -1,3 +1,4 @@
+import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
@@ -139,7 +140,7 @@ export function RoutineEditor({ id }: { id: string }) {
       aria-label={t('common.back')}
       onClick={() => nav({ view: 'routines' })}
     >
-      ←
+      <IconBack />
     </button>
   );
 
@@ -197,7 +198,7 @@ export function RoutineEditor({ id }: { id: string }) {
                   aria-label={t('editor.removeDay')}
                   onClick={() => commit((r) => void r.days.splice(di, 1), true)}
                 >
-                  ✕
+                  <IconX width={14} height={14} />
                 </button>
               )}
             </div>
@@ -229,7 +230,7 @@ export function RoutineEditor({ id }: { id: string }) {
                       }, true)
                     }
                   >
-                    ↑
+                    <IconUp width={14} height={14} />
                   </button>
                   <button
                     className="iconbtn"
@@ -243,7 +244,7 @@ export function RoutineEditor({ id }: { id: string }) {
                       }, true)
                     }
                   >
-                    ↓
+                    <IconDown width={14} height={14} />
                   </button>
                   <button
                     className="iconbtn"
@@ -251,7 +252,7 @@ export function RoutineEditor({ id }: { id: string }) {
                     aria-label={t('editor.removeExercise')}
                     onClick={() => commit((r) => void r.days[di].exercises.splice(xi, 1), true)}
                   >
-                    ✕
+                    <IconX width={14} height={14} />
                   </button>
                 </div>
                 <div

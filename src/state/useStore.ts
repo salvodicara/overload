@@ -136,6 +136,7 @@ export const useStore = create<Store>((set, get) => ({
   setUser(user) {
     const prev = get().user;
     set({ user });
+    if (import.meta.env.VITE_E2E === '1') return;
     if (user && user.uid !== prev?.uid) {
       stopSync?.();
       stopSync = startSync(user.uid, (s) => set({ syncState: s }));

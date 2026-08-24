@@ -1,3 +1,4 @@
+
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
@@ -116,7 +117,7 @@ export function Progress() {
       <div className="card card-pad" style={{ marginTop: 12 }}>
         <div
           role="img"
-          aria-label={`${selected ? exerciseName(selected, i18n.language) : ''} — ${t('progress.caption')}`}
+          aria-label={`${selected ? exerciseName(selected, i18n.language) : ''} - ${t('progress.caption')}`}
         >
           <LineChart points={points} />
         </div>
@@ -129,12 +130,12 @@ export function Progress() {
         {[
           {
             key: 'progress.best',
-            value: best ? kg(best.weightKg) : '—',
+            value: best ? kg(best.weightKg) : '-',
             sub: best ? `${t('workout.kg')} × ${best.reps}` : '',
           },
           {
             key: 'progress.last',
-            value: last ? kg(last.weightKg) : '—',
+            value: last ? kg(last.weightKg) : '-',
             sub: last ? `${t('workout.kg')} × ${last.reps}` : '',
           },
           { key: 'progress.sessions', value: sessions.length.toLocaleString(locale), sub: '' },

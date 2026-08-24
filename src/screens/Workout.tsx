@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { useStore } from '../state/useStore';
+import { IconCheck, IconMinus, IconPlay, IconX } from '../components/Icons';
 import type { Workout as WorkoutT } from '../lib/types';
 
 function fmtRest(sec: number): string {
@@ -65,7 +66,7 @@ export function Workout() {
         }}
       >
         <button className="iconbtn" aria-label={t('workout.abandonTitle')} onClick={() => setConfirming(true)}>
-          ✕
+          <IconX />
         </button>
         <div className="display" style={{ fontSize: 24, flex: 1 }}>
           {day.label} · {day.name}
@@ -104,14 +105,14 @@ export function Workout() {
                   </button>
                   {cat?.youtubeId && (
                     <span className="chip" style={{ color: 'var(--accent-text)' }}>
-                      ▶ {t('workout.video')}
+                      <IconPlay width={11} height={11} style={{ verticalAlign: '-1px' }} /> {t('workout.video')}
                     </span>
                   )}
                 </div>
                 <div className="row" style={{ flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
                   <span className="chip">
                     {rx.sets}×{rx.repMin}
-                    {rx.repMax ? `–${rx.repMax}` : '+'}
+                    {rx.repMax ? `-${rx.repMax}` : '+'}
                   </span>
                   <span className="chip">{t('workout.rest', { time: fmtRest(rx.restSec) })}</span>
                   <span className="chip chip-accent">{t(e.hintKey, { kg: firstW })}</span>
@@ -127,7 +128,7 @@ export function Workout() {
                 <span>#</span>
                 <span>{t('workout.kg')}</span>
                 <span>{t('workout.reps')}</span>
-                <span>✓</span>
+                <span><IconCheck width={12} height={12} /></span>
               </div>
               {e.sets.map((s, si) => (
                 <div key={si} className={`setgrid setrow${s.done ? ' done' : ''}`}>
@@ -162,7 +163,7 @@ export function Workout() {
                     aria-label={`${t('workout.set')} ${si + 1}`}
                     onClick={() => toggleDone(ei, si)}
                   >
-                    ✓
+                    <IconCheck />
                   </button>
                 </div>
               ))}
@@ -172,7 +173,7 @@ export function Workout() {
                 </button>
                 {e.sets.length > 1 && (
                   <button className="addset" style={{ flex: 0, paddingInline: 16 }} onClick={() => removeSet(ei)} aria-label={t('workout.removeSet')}>
-                    −
+                    <IconMinus />
                   </button>
                 )}
               </div>
