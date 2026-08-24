@@ -4,14 +4,19 @@ import {
   db,
   deleteFolder as dbDeleteFolder,
   deleteRoutine as dbDeleteRoutine,
+  deleteMeasurement as dbDeleteMeasurement,
   deleteWorkout as dbDeleteWorkout,
   getSettings,
   listFolders,
   listRoutines,
+  listMeasurements,
   listNotes,
+  listNutrition,
   listWorkouts,
   saveFolder,
+  saveMeasurement,
   saveNote,
+  saveNutrition,
   saveRoutine,
   saveSettings,
   saveWorkout,
@@ -24,7 +29,7 @@ import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
 import { loadCatalog } from '../lib/exercises';
-import type { ExerciseNote, Folder, Routine, Settings, Workout } from '../lib/types';
+import type { ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 
 export type Route =
@@ -120,6 +125,8 @@ export type Store = {
   routines: Routine[];
   folders: Folder[];
   notes: ExerciseNote[];
+  measurements: Measurement[];
+  nutrition: NutritionDay[];
   syncState: SyncState;
   active: ActiveSession | null;
   restUntil: number | null;
@@ -151,6 +158,9 @@ export type Store = {
   deleteFolder(id: string): Promise<void>;
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
   addNoteEntry(exerciseId: string, text: string): Promise<void>;
+  addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<void>;
+  deleteMeasurement(id: string): Promise<void>;
+  saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<void>;
   deleteWorkout(id: string): Promise<void>;
   importWorkouts(fresh: Workout[]): Promise<void>;
 };
@@ -165,6 +175,8 @@ export const useStore = create<Store>((set, get) => ({
   routines: [],
   folders: [],
   notes: [],
+  measurements: [],
+  nutrition: [],
   syncState: 'offline',
   active: initialActive,
   restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
@@ -221,14 +233,16 @@ export const useStore = create<Store>((set, get) => ({
 
   async reload() {
     await migrateLegacyRoutines(get().user?.uid);
-    const [workouts, routines, folders, notes, settings] = await Promise.all([
+    const [workouts, routines, folders, notes, measurements, nutrition, settings] = await Promise.all([
       listWorkouts(),
       listRoutines(),
       listFolders(),
       listNotes(),
+      listMeasurements(),
+      listNutrition(),
       getSettings(),
     ]);
-    set({ workouts, routines, folders, notes, settings });
+    set({ workouts, routines, folders, notes, measurements, nutrition, settings });
   },
 
   async updateSettings(patch) {
@@ -445,6 +459,37 @@ export const useStore = create<Store>((set, get) => ({
     set({ notes: [...get().notes.filter((n) => n.id !== exerciseId), next] });
     const uid = get().user?.uid;
     if (uid) void pushRecord(uid, 'notes', next);
+  },
+
+  async addMeasurement(metric, value, date) {
+    const m: Measurement = { id: crypto.randomUUID(), date, metric, value, updatedAt: Date.now() };
+    await saveMeasurement(m);
+    set({ measurements: [...get().measurements, m].sort((a, b) => a.date.localeCompare(b.date)) });
+    const uid = get().user?.uid;
+    if (uid) void pushRecord(uid, 'measurements', m);
+  },
+
+  async deleteMeasurement(id) {
+    await dbDeleteMeasurement(id);
+    set({ measurements: get().measurements.filter((m) => m.id !== id) });
+    const uid = get().user?.uid;
+    if (uid) void deleteRecord(uid, 'measurements', id);
+  },
+
+  async saveNutritionDay(date, patch) {
+    const existing = get().nutrition.find((n) => n.id === date);
+    const next: NutritionDay = {
+      id: date,
+      date,
+      kcal: existing?.kcal ?? null,
+      proteinG: existing?.proteinG ?? null,
+      ...patch,
+      updatedAt: Date.now(),
+    };
+    await saveNutrition(next);
+    set({ nutrition: [...get().nutrition.filter((n) => n.id !== date), next] });
+    const uid = get().user?.uid;
+    if (uid) void pushRecord(uid, 'nutrition', next);
   },
 
   async addExerciseToRoutine(routineId, exerciseId) {

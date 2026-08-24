@@ -1,5 +1,7 @@
 
 import { useMemo, useState } from 'react';
+import { ProgressBody } from './ProgressBody';
+import { ProgressDiet } from './ProgressDiet';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { exerciseName, getCatalog } from '../lib/exercises';
@@ -58,7 +60,7 @@ function topSets(
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function Progress() {
+function TrainingSection() {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady } = useStore();
   const [picked, setPicked] = useState<string | null>(null);
@@ -83,11 +85,10 @@ export function Progress() {
   if (options.length === 0) {
     return (
       <div className="screen">
-        <div className="display screen-title">{t('progress.title')}</div>
         <div className="empty">{t('history.empty')}</div>
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
   const points: ChartPoint[] = sessions.map((s) => ({
     date: s.date,
@@ -105,9 +106,7 @@ export function Progress() {
     new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'numeric' });
 
   return (
-    <div className="screen">
-      <div className="display screen-title">{t('progress.title')}</div>
-
+    <div>
       <label className="mono small muted" htmlFor="progress-exercise">
         {t('progress.pick')}
       </label>
@@ -203,6 +202,32 @@ export function Progress() {
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function Progress() {
+  const { t } = useTranslation();
+  const [segment, setSegment] = useState<'training' | 'body' | 'diet'>('training');
+  return (
+    <div className="screen">
+      <div className="display screen-title">{t('progress.title')}</div>
+      <div className="row seg" role="tablist" style={{ marginBottom: 14 }}>
+        {(['training', 'body', 'diet'] as const).map((k) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={segment === k}
+            className={`seg-btn${segment === k ? ' on' : ''}`}
+            onClick={() => setSegment(k)}
+          >
+            {t(`progress.seg.${k}`)}
+          </button>
+        ))}
+      </div>
+      {segment === 'training' && <TrainingSection />}
+      {segment === 'body' && <ProgressBody />}
+      {segment === 'diet' && <ProgressDiet />}
     </div>
   );
 }

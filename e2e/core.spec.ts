@@ -81,8 +81,10 @@ test('programs group routines and are manageable', async ({ page }) => {
 test('exercise notes accumulate across workouts', async ({ page }) => {
   await routineStart(page, /upper heavy/i).click();
   await page.getByRole('button', { name: /add note|aggiungi nota/i }).first().click();
+  // Today's row is read-only until tapped; typing autosaves (no save button).
+  await page.getByRole('button', { name: /note for next time|nota per la prossima/i }).first().click();
   await page.getByPlaceholder(/note for next time|nota per la prossima/i).fill('seat at 4');
-  await page.getByRole('button', { name: /save note|salva nota/i }).click();
+  await page.waitForTimeout(800);
   await page.locator('.setcheck').first().click();
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();

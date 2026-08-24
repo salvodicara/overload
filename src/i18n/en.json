@@ -113,7 +113,10 @@
     "last": "Last",
     "sessions": "Sessions",
     "caption": "Top-set weight per session, imported history included.",
-    "volumeWeek": "Weekly volume"
+    "volumeWeek": "Weekly volume",
+    "seg.training": "Training",
+    "seg.body": "Body",
+    "seg.diet": "Diet"
   },
   "library": {
     "title": "Exercises",
@@ -234,5 +237,32 @@
     "placeholder": "Note for next time (seat, grip, cues)…",
     "save": "Save note",
     "title": "Notes"
+  },
+  "body": {
+    "weight": "Weight",
+    "waist": "Waist",
+    "chest": "Chest",
+    "arm": "Arm",
+    "thigh": "Thigh",
+    "calf": "Calf",
+    "latest": "Latest",
+    "weeklyAvg": "Weekly avg",
+    "add": "Add measurement",
+    "empty": "No measurements yet: weekly average body weight is the compass of a bulk."
+  },
+  "diet": {
+    "today": "Today",
+    "targets": "Targets",
+    "kcalTarget": "kcal target",
+    "proteinTarget": "protein target (g)",
+    "protein": "protein (g)",
+    "hint": "Two numbers a day are enough: calories and protein. The bar turns green on target.",
+    "meals": "Meal examples",
+    "meal1Title": "Breakfast (~30g protein)",
+    "meal1Body": "Greek yogurt or skyr with fruit and a scoop of whey; or egg whites with bread and fruit.",
+    "meal2Title": "Post-workout (~350 kcal, 30g protein)",
+    "meal2Body": "Whey shake with a banana and milk. The simplest way to close the surplus.",
+    "meal3Title": "Typical meal (~700 kcal, 40g protein)",
+    "meal3Body": "150g pasta or rice, 150-200g chicken/fish/meat, vegetables and a spoon of olive oil."
   }
 }

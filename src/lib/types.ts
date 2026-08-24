@@ -69,6 +69,27 @@ export type Settings = {
   id: 'settings';
   programStartDate?: string;
   locale?: 'it' | 'en';
+  kcalTarget?: number;
+  proteinTarget?: number;
+  updatedAt: number;
+};
+
+export type MeasureMetric = 'weight' | 'waist' | 'chest' | 'arm' | 'thigh' | 'calf';
+
+export type Measurement = {
+  id: string;
+  date: string;
+  metric: MeasureMetric;
+  value: number;
+  updatedAt: number;
+};
+
+/** One nutrition row per day; id === date. */
+export type NutritionDay = {
+  id: string;
+  date: string;
+  kcal: number | null;
+  proteinG: number | null;
   updatedAt: number;
 };
 

@@ -1,11 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { ExerciseNote, Folder, Routine, Settings, Workout } from './types';
+import type { ExerciseNote, Folder, Measurement, NutritionDay, Routine, Settings, Workout } from './types';
 
 export type OverloadDb = Dexie & {
   workouts: EntityTable<Workout, 'id'>;
   routines: EntityTable<Routine, 'id'>;
   folders: EntityTable<Folder, 'id'>;
   notes: EntityTable<ExerciseNote, 'id'>;
+  measurements: EntityTable<Measurement, 'id'>;
+  nutrition: EntityTable<NutritionDay, 'id'>;
   settings: EntityTable<Settings, 'id'>;
 };
 
@@ -23,6 +25,11 @@ db.version(2).stores({
 
 db.version(3).stores({
   notes: 'id, updatedAt',
+});
+
+db.version(4).stores({
+  measurements: 'id, date, metric, updatedAt',
+  nutrition: 'id, updatedAt',
 });
 
 const SETTINGS_ID = 'settings';
@@ -67,6 +74,26 @@ export async function deleteFolder(id: string): Promise<void> {
 
 export async function listFolders(): Promise<Folder[]> {
   return db.folders.toArray();
+}
+
+export async function saveMeasurement(m: Measurement): Promise<void> {
+  await db.measurements.put(m);
+}
+
+export async function deleteMeasurement(id: string): Promise<void> {
+  await db.measurements.delete(id);
+}
+
+export async function listMeasurements(): Promise<Measurement[]> {
+  return db.measurements.orderBy('date').toArray();
+}
+
+export async function saveNutrition(n: NutritionDay): Promise<void> {
+  await db.nutrition.put(n);
+}
+
+export async function listNutrition(): Promise<NutritionDay[]> {
+  return db.nutrition.toArray();
 }
 
 export async function saveNote(n: ExerciseNote): Promise<void> {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { lastTimeLine } from '../lib/format';
@@ -27,7 +27,15 @@ export function Workout() {
   const notes = useStore((s) => s.notes);
   const addNoteEntry = useStore((s) => s.addNoteEntry);
   const [notesOpen, setNotesOpen] = useState<string | null>(null);
-  const [noteDraft, setNoteDraft] = useState('');
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const noteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const queueNote = (exerciseId: string, text: string): void => {
+    clearTimeout(noteTimers.current.get(exerciseId));
+    noteTimers.current.set(
+      exerciseId,
+      setTimeout(() => void addNoteEntry(exerciseId, text), 500),
+    );
+  };
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -101,14 +109,18 @@ export function Workout() {
                 <div className="row" style={{ flexWrap: 'wrap' }}>
                   <button
                     style={{ fontWeight: 700, fontSize: 16, textAlign: 'left' }}
-                    onClick={() => nav({ view: 'exercise', id: e.exerciseId })}
+                    onClick={() => nav({ view: 'exercise', id: e.exerciseId, from: 'workout' })}
                   >
                     {exerciseName(e.exerciseId, i18n.language)}
                   </button>
                   {cat?.youtubeId && (
-                    <span className="chip" style={{ color: 'var(--accent-text)' }}>
-                      <IconPlay width={11} height={11} style={{ verticalAlign: '-1px' }} /> {t('workout.video')}
-                    </span>
+                    <button
+                      className="chip"
+                      style={{ color: 'var(--accent-text)', fontWeight: 600 }}
+                      onClick={() => nav({ view: 'exercise', id: e.exerciseId, from: 'workout' })}
+                    >
+                      <IconPlay width={11} height={11} style={{ verticalAlign: '-1px' }} aria-hidden /> {t('workout.video')}
+                    </button>
                   )}
                 </div>
                 <div className="row" style={{ flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
@@ -124,32 +136,36 @@ export function Workout() {
                   <span className="chip chip-accent">{t(e.hintKey, { kg: firstW })}</span>
                 </div>
                 {rx?.note && <div className="small muted" style={{ marginTop: 6 }}>{rx.note}</div>}
-                <div className="mono small muted" style={{ marginTop: 6 }}>
-                  {last
-                    ? t('workout.lastTime', { date: last.date.slice(5), sets: last.sets })
-                    : t('workout.firstTime')}
-                </div>
+                {last && (
+                  <div className="mono small muted" style={{ marginTop: 6 }}>
+                    {t('workout.lastTime', { date: last.date.slice(5), sets: last.sets })}
+                  </div>
+                )}
                 {(() => {
                   const note = notes.find((n) => n.id === e.exerciseId);
+                  const todayDate = new Date().toLocaleDateString('sv');
+                  const todayEntry = note?.entries.find((x) => x.date === todayDate);
+                  const past = (note?.entries ?? []).filter((x) => x.date !== todayDate);
                   const latest = note?.entries[note.entries.length - 1];
                   const open = notesOpen === e.exerciseId;
+                  const editing = editingNote === e.exerciseId;
                   return (
                     <div style={{ marginTop: 8 }}>
                       <button
                         className="row small"
-                        style={{ gap: 6, color: latest ? 'var(--warn)' : 'var(--muted)', fontWeight: 600, minHeight: 32 }}
+                        style={{ gap: 6, color: latest ? 'var(--warn)' : 'var(--muted)', fontWeight: 600, minHeight: 32, textAlign: 'left' }}
                         aria-expanded={open}
                         onClick={() => {
                           setNotesOpen(open ? null : e.exerciseId);
-                          setNoteDraft('');
+                          setEditingNote(null);
                         }}
                       >
-                        <IconNote width={14} height={14} aria-hidden />
+                        <IconNote width={14} height={14} aria-hidden style={{ flex: 'none' }} />
                         {latest ? latest.text.slice(0, 60) + (latest.text.length > 60 ? '…' : '') : t('notes.add')}
                       </button>
                       {open && (
                         <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-                          {(note?.entries ?? [])
+                          {past
                             .slice()
                             .reverse()
                             .map((entry) => (
@@ -158,33 +174,42 @@ export function Workout() {
                                 <div>{entry.text}</div>
                               </div>
                             ))}
-                          <textarea
-                            rows={2}
-                            placeholder={t('notes.placeholder')}
-                            aria-label={t('notes.add')}
-                            value={noteDraft}
-                            style={{
-                              fontFamily: 'inherit',
-                              fontSize: 14,
-                              background: 'var(--surface2)',
-                              border: '1px solid var(--line)',
-                              borderRadius: 'var(--r-control)',
-                              padding: 10,
-                              color: 'var(--ink)',
-                              resize: 'vertical',
-                            }}
-                            onChange={(ev) => setNoteDraft(ev.target.value)}
-                          />
-                          <button
-                            className="btn btn-ghost"
-                            disabled={!noteDraft.trim()}
-                            onClick={() => {
-                              void addNoteEntry(e.exerciseId, noteDraft);
-                              setNoteDraft('');
-                            }}
-                          >
-                            {t('notes.save')}
-                          </button>
+                          {editing ? (
+                            <textarea
+                              rows={2}
+                              autoFocus
+                              placeholder={t('notes.placeholder')}
+                              aria-label={t('notes.add')}
+                              defaultValue={todayEntry?.text ?? ''}
+                              style={{
+                                fontFamily: 'inherit',
+                                fontSize: 14,
+                                background: 'var(--surface2)',
+                                border: '1px solid var(--accent-text)',
+                                borderRadius: 'var(--r-control)',
+                                padding: 10,
+                                color: 'var(--ink)',
+                                resize: 'vertical',
+                              }}
+                              onChange={(ev) => queueNote(e.exerciseId, ev.target.value)}
+                              onBlur={() => setEditingNote(null)}
+                            />
+                          ) : (
+                            <button
+                              className="small"
+                              style={{
+                                textAlign: 'left',
+                                borderLeft: '2px solid var(--accent)',
+                                paddingLeft: 10,
+                                minHeight: 34,
+                                color: todayEntry ? 'var(--ink)' : 'var(--muted)',
+                              }}
+                              onClick={() => setEditingNote(e.exerciseId)}
+                            >
+                              <span className="mono muted" style={{ fontSize: 11, display: 'block' }}>{todayDate}</span>
+                              {todayEntry?.text ?? t('notes.placeholder')}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

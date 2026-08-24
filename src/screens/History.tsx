@@ -24,7 +24,7 @@ function exerciseLines(w: Workout, locale: string): { label: string; extra: numb
 
 export function History() {
   const { t, i18n } = useTranslation();
-  const { workouts, user } = useStore();
+  const { workouts } = useStore();
   const nav = useStore((s) => s.nav);
 
   const weekKey = isoWeekKey(new Date().toLocaleDateString('sv'));
@@ -39,13 +39,7 @@ export function History() {
         <div className="display" style={{ fontSize: 30 }}>
           {t('app.name')}
         </div>
-        <button
-          className="account-btn"
-          onClick={() => nav({ view: 'profile' })}
-          aria-label={t('nav.profile')}
-        >
-          <span className="account-avatar">{(user?.name ?? 'O').charAt(0).toUpperCase()}</span>
-        </button>
+
       </div>
 
       <div className="card card-pad row" style={{ marginBottom: 6 }}>

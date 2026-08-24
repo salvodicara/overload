@@ -113,7 +113,10 @@
     "last": "Ultimo",
     "sessions": "Sessioni",
     "caption": "Peso del miglior set per sessione, storico importato incluso.",
-    "volumeWeek": "Volume settimanale"
+    "volumeWeek": "Volume settimanale",
+    "seg.training": "Allenamento",
+    "seg.body": "Corpo",
+    "seg.diet": "Dieta"
   },
   "library": {
     "title": "Esercizi",
@@ -234,5 +237,32 @@
     "placeholder": "Nota per la prossima volta (sedile, presa, sensazioni)…",
     "save": "Salva nota",
     "title": "Note"
+  },
+  "body": {
+    "weight": "Peso",
+    "waist": "Girovita",
+    "chest": "Petto",
+    "arm": "Braccio",
+    "thigh": "Coscia",
+    "calf": "Polpaccio",
+    "latest": "Ultimo",
+    "weeklyAvg": "Media settimana",
+    "add": "Aggiungi misurazione",
+    "empty": "Nessuna misura ancora: la media settimanale del peso è la bussola della massa."
+  },
+  "diet": {
+    "today": "Oggi",
+    "targets": "Obiettivi",
+    "kcalTarget": "kcal obiettivo",
+    "proteinTarget": "proteine obiettivo (g)",
+    "protein": "proteine (g)",
+    "hint": "Due numeri al giorno bastano: calorie e proteine. La barra diventa verde quando sei a bersaglio.",
+    "meals": "Esempi di pasti",
+    "meal1Title": "Colazione (~30g proteine)",
+    "meal1Body": "Yogurt greco o skyr con frutta e un misurino di whey; oppure albumi con pane e frutta.",
+    "meal2Title": "Post-workout (~350 kcal, 30g proteine)",
+    "meal2Body": "Shake di whey con banana e latte. Il modo più semplice di chiudere il surplus.",
+    "meal3Title": "Pasto tipo (~700 kcal, 40g proteine)",
+    "meal3Body": "150g di pasta o riso, 150-200g di pollo/pesce/carne, verdura e un cucchiaio d'olio."
   }
 }

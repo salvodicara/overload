@@ -16,7 +16,7 @@ function lastTimeLine(workouts: Workout[], exerciseId: string): { date: string; 
   return null;
 }
 
-export function ExerciseSheet({ id }: { id: string }) {
+export function ExerciseSheet({ id, from }: { id: string; from?: 'workout' }) {
   const { t, i18n } = useTranslation();
   const catalogReady = useStore((s) => s.catalogReady);
   const workouts = useStore((s) => s.workouts);
@@ -33,7 +33,7 @@ export function ExerciseSheet({ id }: { id: string }) {
   return (
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('library.back')} onClick={() => nav({ view: 'library' })}>
+        <button className="iconbtn" aria-label={t('library.back')} onClick={() => nav(from === 'workout' ? { view: 'workout' } : { view: 'library' })}>
           <IconBack />
         </button>
       </div>
