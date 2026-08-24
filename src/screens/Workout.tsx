@@ -33,10 +33,13 @@ export function Workout() {
 
   const routine = routines.find((r) => r.id === active?.routineId);
   const day = routine?.days[active?.dayIndex ?? -1];
-  if (!active || !routine || !day) {
-    nav({ view: 'home' });
-    return null;
-  }
+  const broken = routines.length > 0 && (!active || !routine || !day);
+  useEffect(() => {
+    // The routine (or its day) was deleted while this session was running:
+    // clear the phantom session instead of bouncing between screens forever.
+    if (broken) abandon();
+  }, [broken, abandon]);
+  if (!active || !routine || !day) return null;
 
   const elapsed = Math.floor((Date.now() - active.startTs) / 1000);
 
@@ -76,7 +79,8 @@ export function Workout() {
 
       <div className="stack">
         {active.ex.map((e, ei) => {
-          const rx = day.exercises[ei];
+          // Resolve by id: the routine may have been edited mid-session.
+          const rx = day.exercises.find((x) => x.exerciseId === e.exerciseId);
           const last = lastTimeLine(workouts, e.exerciseId);
           const firstW = e.sets[0]?.weightKg ?? 0;
           const cat = catalogReady ? getCatalog().get(e.exerciseId) : undefined;
@@ -97,14 +101,18 @@ export function Workout() {
                   )}
                 </div>
                 <div className="row" style={{ flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
-                  <span className="chip">
-                    {rx.sets}×{rx.repMin}
-                    {rx.repMax ? `-${rx.repMax}` : '+'}
-                  </span>
-                  <span className="chip">{t('workout.rest', { time: fmtRest(rx.restSec) })}</span>
+                  {rx && (
+                    <>
+                      <span className="chip">
+                        {rx.sets}×{rx.repMin}
+                        {rx.repMax ? `-${rx.repMax}` : '+'}
+                      </span>
+                      <span className="chip">{t('workout.rest', { time: fmtRest(rx.restSec) })}</span>
+                    </>
+                  )}
                   <span className="chip chip-accent">{t(e.hintKey, { kg: firstW })}</span>
                 </div>
-                {rx.note && <div className="small muted" style={{ marginTop: 6 }}>{rx.note}</div>}
+                {rx?.note && <div className="small muted" style={{ marginTop: 6 }}>{rx.note}</div>}
                 <div className="mono small muted" style={{ marginTop: 6 }}>
                   {last
                     ? t('workout.lastTime', { date: last.date.slice(5), sets: last.sets })

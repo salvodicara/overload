@@ -12,7 +12,10 @@ export function Home() {
   const phase = useStore((s) => s.phase)();
   const [pickDate, setPickDate] = useState(false);
 
-  const routine = routines[0];
+  // Prefer a routine that actually has content; a freshly created empty
+  // routine must not hijack the home screen after a relaunch.
+  const routine =
+    routines.find((r) => r.days.some((d) => d.exercises.length > 0)) ?? routines[0];
   const lastApp = workouts.find((w) => w.source === 'app' && w.routineId === routine?.id);
   const lastDayIndex = lastApp
     ? routine?.days.findIndex((d) => lastApp.dayLabel?.startsWith(d.label)) ?? -1

@@ -21,10 +21,20 @@ function weeklyVolume(workouts: Workout[]): { week: string; volumeKg: number }[]
     const key = isoWeekStart(w.date);
     totals.set(key, (totals.get(key) ?? 0) + w.volumeKg);
   }
-  return [...totals.entries()]
-    .map(([week, volumeKg]) => ({ week, volumeKg }))
-    .sort((a, b) => a.week.localeCompare(b.week))
-    .slice(-12);
+  const weeks = [...totals.keys()].sort();
+  if (weeks.length === 0) return [];
+  // Materialise empty weeks too: a layoff must read as a gap, not be collapsed.
+  const filled: { week: string; volumeKg: number }[] = [];
+  const cursor = new Date(`${weeks[0]}T12:00:00`);
+  const last = weeks[weeks.length - 1];
+  for (let key = weeks[0]; key <= last; ) {
+    filled.push({ week: key, volumeKg: totals.get(key) ?? 0 });
+    cursor.setDate(cursor.getDate() + 7);
+    key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(
+      cursor.getDate(),
+    ).padStart(2, '0')}`;
+  }
+  return filled.slice(-12);
 }
 
 /** Heaviest completed set of `exerciseId` per session, chronological. */

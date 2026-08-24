@@ -40,9 +40,14 @@ export function diffForSync<T extends Synced>(local: T[], remote: T[]): { push: 
 
 const isBrowser = (): boolean => typeof window !== 'undefined';
 
-async function syncAll(uid: string): Promise<void> {
+/** Firestore rejects `undefined` field values; strip them before writing. */
+const sanitize = <T,>(rec: T): T => JSON.parse(JSON.stringify(rec)) as T;
+
+async function syncAll(uid: string): Promise<{ pulled: number; pushFailures: number }> {
   const { getFirestore, collection, getDocs, setDoc, doc } = await import('firebase/firestore');
   const fs = getFirestore();
+  let pulled = 0;
+  let pushFailures = 0;
 
   const syncOne = async <T extends Synced>(
     name: SyncCollection,
@@ -53,9 +58,18 @@ async function syncAll(uid: string): Promise<void> {
     const remote = snapshot.docs.map((d) => d.data() as T);
     const { push, pull } = diffForSync(local, remote);
 
-    if (pull.length > 0) await writeLocal(pull);
+    if (pull.length > 0) {
+      await writeLocal(pull);
+      pulled += pull.length;
+    }
+    // One unwritable record must not block the rest of the queue.
     for (const record of push) {
-      await setDoc(doc(fs, 'users', uid, name, record.id), record);
+      try {
+        await setDoc(doc(fs, 'users', uid, name, record.id), sanitize(record));
+      } catch (err) {
+        pushFailures += 1;
+        console.warn(`sync push failed: ${name}/${record.id}`, err);
+      }
     }
   };
 
@@ -66,6 +80,7 @@ async function syncAll(uid: string): Promise<void> {
   await syncOne('settings', settings.updatedAt > 0 ? [settings] : [], (rows) =>
     db.settings.bulkPut(rows),
   );
+  return { pulled, pushFailures };
 }
 
 /**
@@ -74,7 +89,11 @@ async function syncAll(uid: string): Promise<void> {
  * whenever connectivity returns or the tab becomes visible. Returns an
  * unsubscribe that removes the listeners.
  */
-export function startSync(uid: string, onState?: (s: SyncState) => void): () => void {
+export function startSync(
+  uid: string,
+  onState?: (s: SyncState) => void,
+  onPulled?: () => void,
+): () => void {
   const report = (s: SyncState): void => onState?.(s);
 
   const run = (): void => {
@@ -84,7 +103,10 @@ export function startSync(uid: string, onState?: (s: SyncState) => void): () => 
     }
     report('pending');
     void syncAll(uid).then(
-      () => report('synced'),
+      ({ pulled, pushFailures }) => {
+        report(pushFailures > 0 ? 'error' : 'synced');
+        if (pulled > 0) onPulled?.();
+      },
       () => report('error'),
     );
   };
@@ -117,8 +139,18 @@ export function startSync(uid: string, onState?: (s: SyncState) => void): () => 
 export async function pushRecord(uid: string, col: SyncCollection, rec: Synced): Promise<void> {
   try {
     const { getFirestore, setDoc, doc } = await import('firebase/firestore');
-    await setDoc(doc(getFirestore(), 'users', uid, col, rec.id), rec);
+    await setDoc(doc(getFirestore(), 'users', uid, col, rec.id), sanitize(rec));
   } catch {
     console.warn(`sync pending: ${col}/${rec.id}`);
+  }
+}
+
+/** Fire-and-forget remote delete mirroring a local delete. */
+export async function deleteRecord(uid: string, col: SyncCollection, id: string): Promise<void> {
+  try {
+    const { getFirestore, deleteDoc, doc } = await import('firebase/firestore');
+    await deleteDoc(doc(getFirestore(), 'users', uid, col, id));
+  } catch {
+    console.warn(`remote delete pending: ${col}/${id}`);
   }
 }

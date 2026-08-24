@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   applyImport as dbApplyImport,
+  db,
   deleteWorkout as dbDeleteWorkout,
   getSettings,
   listRoutines,
@@ -9,7 +10,7 @@ import {
   saveSettings,
   saveWorkout,
 } from '../lib/db';
-import { pushRecord, startSync, type SyncState } from '../lib/sync';
+import { deleteRecord, pushRecord, startSync, type SyncState } from '../lib/sync';
 import { computeVolume, flagPrs } from '../lib/volume';
 import { getPhase, suggest, type Phase } from '../lib/progression';
 import { workoutId } from '../lib/ids';
@@ -42,9 +43,13 @@ export type ActiveSession = {
   dayIndex: number;
   startTs: number;
   ex: { exerciseId: string; sets: ActiveSet[]; hintKey: string }[];
+  /** Persisted so a running rest timer survives reloads and PWA eviction. */
+  restUntil?: number | null;
+  restExerciseId?: string | null;
 };
 
 const ACTIVE_KEY = 'overload_active';
+const UID_KEY = 'overload_uid';
 
 function readActive(): ActiveSession | null {
   try {
@@ -73,6 +78,19 @@ export function toast(msg: string): void {
 }
 
 let stopSync: (() => void) | null = null;
+
+// Editor keystrokes save on every change; batch the remote writes per routine.
+const routinePushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function debouncedPushRoutine(uid: string, routineId: string): void {
+  clearTimeout(routinePushTimers.get(routineId));
+  routinePushTimers.set(
+    routineId,
+    setTimeout(() => {
+      const rec = useStore.getState().routines.find((x) => x.id === routineId);
+      if (rec) void pushRecord(uid, 'routines', rec);
+    }, 600),
+  );
+}
 
 export type Store = {
   route: Route;
@@ -110,6 +128,8 @@ export type Store = {
   importWorkouts(fresh: Workout[]): Promise<void>;
 };
 
+const initialActive = readActive();
+
 export const useStore = create<Store>((set, get) => ({
   route: { view: 'home' },
   user: undefined,
@@ -117,9 +137,9 @@ export const useStore = create<Store>((set, get) => ({
   workouts: [],
   routines: [],
   syncState: 'offline',
-  active: readActive(),
-  restUntil: null,
-  restExerciseId: null,
+  active: initialActive,
+  restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
+  restExerciseId: initialActive?.restExerciseId ?? null,
   catalogReady: false,
 
   nav(route) {
@@ -132,8 +152,29 @@ export const useStore = create<Store>((set, get) => ({
     set({ user });
     if (import.meta.env.VITE_E2E === '1') return;
     if (user && user.uid !== prev?.uid) {
-      stopSync?.();
-      stopSync = startSync(user.uid, (s) => set({ syncState: s }));
+      // A different Google account on this device must never inherit (or
+      // upload) the previous account's local data.
+      let lastUid: string | null = null;
+      try {
+        lastUid = localStorage.getItem(UID_KEY);
+        localStorage.setItem(UID_KEY, user.uid);
+      } catch {
+        /* storage unavailable */
+      }
+      const boot = async (): Promise<void> => {
+        if (lastUid && lastUid !== user.uid) {
+          persistActive(null);
+          await Promise.all([db.workouts.clear(), db.routines.clear(), db.settings.clear()]);
+          set({ workouts: [], routines: [], settings: { id: 'settings', updatedAt: 0 }, active: null });
+        }
+        stopSync?.();
+        stopSync = startSync(
+          user.uid,
+          (s) => set({ syncState: s }),
+          () => void get().reload(),
+        );
+      };
+      void boot();
     }
     if (!user) {
       stopSync?.();
@@ -211,13 +252,16 @@ export const useStore = create<Store>((set, get) => ({
     if (!active) return;
     const next = structuredClone(active);
     const s = next.ex[ei].sets[si];
+    const exerciseId = next.ex[ei].exerciseId;
     s.done = !s.done;
+    // Resolve by exercise id, not position: the routine may have been
+    // edited/reordered while this session was in progress.
     const routine = get().routines.find((r) => r.id === active.routineId);
-    const rx = routine?.days[active.dayIndex]?.exercises[ei];
-    if (s.done && s.reps == null && rx) s.reps = rx.repMin;
+    const rx = routine?.days[active.dayIndex]?.exercises.find((x) => x.exerciseId === exerciseId);
+    if (s.done && s.reps == null) s.reps = rx?.repMin ?? null;
     persistActive(next);
     set({ active: next });
-    if (s.done && rx) get().startRest(rx.restSec, rx.exerciseId);
+    if (s.done) get().startRest(rx?.restSec ?? 90, exerciseId);
   },
 
   addSet(ei) {
@@ -252,6 +296,7 @@ export const useStore = create<Store>((set, get) => ({
     const routine = get().routines.find((r) => r.id === active.routineId);
     const day = routine?.days[active.dayIndex];
     const date = todayISO();
+    const dayLabel = day ? `${day.label} · ${day.name}` : undefined;
     const doneSets = active.ex.flatMap((e) =>
       e.sets
         .filter((s) => s.done)
@@ -267,7 +312,7 @@ export const useStore = create<Store>((set, get) => ({
     const workout: Workout = {
       id: workoutId('app', date, `${day?.label ?? 'x'}-${active.startTs}`),
       routineId: active.routineId,
-      dayLabel: day ? `${day.label} · ${day.name}` : undefined,
+      ...(dayLabel ? { dayLabel } : {}),
       date,
       startTs: active.startTs,
       endTs: Date.now(),
@@ -292,11 +337,16 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   startRest(sec, exerciseId) {
-    set({ restUntil: Date.now() + sec * 1000, restExerciseId: exerciseId });
+    const restUntil = Date.now() + sec * 1000;
+    set({ restUntil, restExerciseId: exerciseId });
+    const active = get().active;
+    if (active) persistActive({ ...active, restUntil, restExerciseId: exerciseId });
   },
 
   stopRest() {
     set({ restUntil: null, restExerciseId: null });
+    const active = get().active;
+    if (active) persistActive({ ...active, restUntil: null, restExerciseId: null });
   },
 
   async saveRoutine(r) {
@@ -309,7 +359,7 @@ export const useStore = create<Store>((set, get) => ({
         : [...list, next],
     });
     const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'routines', next);
+    if (uid) debouncedPushRoutine(uid, next.id);
   },
 
   async addExerciseToRoutineDay(routineId, dayIndex, exerciseId) {
@@ -330,6 +380,8 @@ export const useStore = create<Store>((set, get) => ({
   async deleteWorkout(id) {
     await dbDeleteWorkout(id);
     set({ workouts: get().workouts.filter((w) => w.id !== id) });
+    const uid = get().user?.uid;
+    if (uid) void deleteRecord(uid, 'workouts', id);
   },
 
   async importWorkouts(fresh) {
