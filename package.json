@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:e2e": "VITE_E2E=1 vite --port 5199 --strictPort",
     "build": "node scripts/check-i18n.mjs && tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
