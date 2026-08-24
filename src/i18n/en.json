@@ -16,7 +16,8 @@
   "login": {
     "subtitle": "Your training, your data. No ads, no social feed, no subscriptions.",
     "google": "Continue with Google",
-    "loading": "Signing in…"
+    "loading": "Signing in…",
+    "error": "Sign-in failed. Try again; tell me if it persists."
   },
   "phase": {
     "week": "week {{n}}",

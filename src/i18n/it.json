@@ -16,7 +16,8 @@
   "login": {
     "subtitle": "Il tuo allenamento, i tuoi dati. Senza pubblicità, senza social, senza abbonamenti.",
     "google": "Continua con Google",
-    "loading": "Accesso in corso…"
+    "loading": "Accesso in corso…",
+    "error": "Accesso non riuscito. Riprova: se il problema resta, dimmelo."
   },
   "phase": {
     "week": "settimana {{n}}",

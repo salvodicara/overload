@@ -5,6 +5,7 @@ import { signInWithGoogle } from '../lib/firebase';
 export function Login() {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
   return (
     <div
       className="screen"
@@ -35,11 +36,15 @@ export function Login() {
         disabled={busy}
         onClick={() => {
           setBusy(true);
-          void signInWithGoogle().finally(() => setBusy(false));
+          setError(false);
+          signInWithGoogle()
+            .catch(() => setError(true))
+            .finally(() => setBusy(false));
         }}
       >
         {busy ? t('login.loading') : t('login.google')}
       </button>
+      {error && <div className="banner banner-warn">{t('login.error')}</div>}
     </div>
   );
 }
