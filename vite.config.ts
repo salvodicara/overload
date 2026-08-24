@@ -8,6 +8,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        // Never intercept Firebase Auth's reserved /__/* endpoints: serving the
+        // SPA there breaks the sign-in popup/redirect handler.
+        navigateFallbackDenylist: [/^\/__\//],
         globPatterns: ['**/*.{js,css,html,woff2,png}', 'data/exercises.json'],
         globIgnores: ['exercise-media/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
