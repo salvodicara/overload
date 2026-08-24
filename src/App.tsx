@@ -78,7 +78,19 @@ export default function App() {
       setUser({ uid: 'e2e-user', name: 'E2E' });
       return;
     }
-    return onUser((u) => setUser(u ? { uid: u.uid, name: u.displayName } : null));
+    // If auth never resolves (blocked iframe, hostile embedder), fall through
+    // to the login screen instead of an infinite blank splash.
+    const bailOut = setTimeout(() => {
+      if (useStore.getState().user === undefined) setUser(null);
+    }, 5000);
+    const off = onUser((u) => {
+      clearTimeout(bailOut);
+      setUser(u ? { uid: u.uid, name: u.displayName } : null);
+    });
+    return () => {
+      clearTimeout(bailOut);
+      off();
+    };
   }, [setUser]);
 
   useEffect(() => {
@@ -89,7 +101,17 @@ export default function App() {
     if (locale && locale !== i18n.language) setLocale(locale);
   }, [locale, i18n.language]);
 
-  if (user === undefined && import.meta.env.VITE_E2E !== '1') return null;
+  if (user === undefined && import.meta.env.VITE_E2E !== '1') {
+    return (
+      <div
+        className="screen display"
+        style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', fontSize: 34 }}
+        aria-busy="true"
+      >
+        {t('app.name')}
+      </div>
+    );
+  }
   if (!user) return <Login />;
 
   return (
