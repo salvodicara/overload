@@ -1,1 +1,144 @@
-{}
+{
+  "app": { "name": "Overload", "tagline": "Progressive overload. Nothing else." },
+  "nav": {
+    "workout": "Train",
+    "history": "History",
+    "progress": "Progress",
+    "library": "Exercises",
+    "settings": "More"
+  },
+  "login": {
+    "subtitle": "Your training, your data. No ads, no social feed, no subscriptions.",
+    "google": "Continue with Google",
+    "loading": "Signing in…"
+  },
+  "phase": {
+    "week": "week {{n}}",
+    "reactivation": "Reactivation",
+    "rebuild": "Rebuild",
+    "progress": "Progression",
+    "deload": "Deload",
+    "done": "Mesocycle complete",
+    "hint": {
+      "reactivation": "Reduced weights, one set fewer where there are 3+, never to failure.",
+      "rebuild": "Full volume, climbing loads. Last set 1–2 reps from failure.",
+      "progress": "Full double progression: close the range, then add weight.",
+      "deload": "Half the sets, 60% loads. This is where growth banks.",
+      "done": "Program finished: time to update the plan."
+    }
+  },
+  "home": {
+    "upNext": "Up next",
+    "start": "Start",
+    "exercises": "{{n}} exercises",
+    "lastDone": "Last: {{date}} · {{vol}} kg",
+    "never": "Never done",
+    "setStartTitle": "When does your program start?",
+    "setStartBody": "From the start date I compute your week and phase, and suggest the right weights.",
+    "startToday": "Start today",
+    "pickDate": "Pick a date",
+    "resume": "Resume workout in progress"
+  },
+  "workout": {
+    "warmup": "Warm-up",
+    "set": "Set",
+    "kg": "kg",
+    "reps": "reps",
+    "addSet": "+ set",
+    "removeSet": "Remove last set",
+    "finish": "Finish workout",
+    "abandonTitle": "Abandon this workout?",
+    "abandonBody": "Checked sets will be lost.",
+    "abandonConfirm": "Abandon",
+    "cancel": "Cancel",
+    "lastTime": "Last time ({{date}}): {{sets}}",
+    "firstTime": "First time doing this exercise",
+    "video": "Technique",
+    "rest": "rest {{time}}"
+  },
+  "suggest": {
+    "start": "Start at {{kg}} kg",
+    "increase": "Range closed last time: go up to {{kg}} kg",
+    "repeat": "Keep the loads and add reps",
+    "phase1": "Phase 1: restart light at {{kg}} kg",
+    "deload": "Deload: drop to {{kg}} kg"
+  },
+  "timer": {
+    "rest": "Rest",
+    "plus15": "+15\"",
+    "skip": "Skip"
+  },
+  "summary": {
+    "title": "Done.",
+    "volume": "kg of volume",
+    "sets": "{{n}} sets",
+    "duration": "{{min}} min",
+    "vsLastUp": "+{{diff}} kg vs your last {{day}}",
+    "vsLastDown": "−{{diff}} kg vs your last {{day}}",
+    "pr": "Personal record: {{exercise}}",
+    "home": "Back home"
+  },
+  "history": {
+    "title": "History",
+    "empty": "No workouts yet.",
+    "sets": "{{n}} sets",
+    "imported": "imported",
+    "delete": "Delete workout",
+    "deleteBody": "This cannot be undone."
+  },
+  "progress": {
+    "title": "Progress",
+    "pick": "Pick an exercise",
+    "best": "Best",
+    "last": "Last",
+    "sessions": "Sessions",
+    "caption": "Top-set weight per session, imported history included.",
+    "volumeWeek": "Weekly volume"
+  },
+  "library": {
+    "title": "Exercises",
+    "search": "Search exercises…",
+    "all": "All",
+    "muscle": {
+      "chest": "Chest",
+      "back": "Back",
+      "legs": "Legs",
+      "shoulders": "Shoulders",
+      "arms": "Arms",
+      "core": "Core",
+      "calves": "Calves"
+    },
+    "watch": "Watch technique on YouTube",
+    "noResults": "No exercises found"
+  },
+  "settings": {
+    "title": "More",
+    "language": "Language",
+    "it": "Italiano",
+    "en": "English",
+    "programStart": "Program start",
+    "signOut": "Sign out",
+    "data": "Your data",
+    "exportJson": "Full backup (JSON)",
+    "exportCsv": "Export workouts (CSV)",
+    "import": "Import (Hevy CSV or JSON backup)",
+    "about": "About",
+    "attribution": "Exercise data and images: free-exercise-db (public domain).",
+    "sync": {
+      "synced": "Synced",
+      "pending": "Waiting for network",
+      "offline": "Offline: data safe on this device",
+      "error": "Sync error"
+    }
+  },
+  "import": {
+    "title": "Import workouts",
+    "preview": "{{fresh}} new · {{dup}} duplicates skipped",
+    "unknown": "{{n}} unrecognized exercises (created automatically)",
+    "confirm": "Import",
+    "invalid": "Invalid file: expected a Hevy CSV or an Overload backup.",
+    "done": "Imported {{n}} workouts",
+    "firstRunTitle": "Got history?",
+    "firstRunBody": "Import your Hevy CSV or a backup: no manual entry."
+  }
+}

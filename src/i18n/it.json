@@ -1,1 +1,144 @@
-{}
+{
+  "app": { "name": "Overload", "tagline": "Sovraccarico progressivo. Nient'altro." },
+  "nav": {
+    "workout": "Allenati",
+    "history": "Storico",
+    "progress": "Progressi",
+    "library": "Esercizi",
+    "settings": "Altro"
+  },
+  "login": {
+    "subtitle": "Il tuo allenamento, i tuoi dati. Senza pubblicità, senza social, senza abbonamenti.",
+    "google": "Continua con Google",
+    "loading": "Accesso in corso…"
+  },
+  "phase": {
+    "week": "settimana {{n}}",
+    "reactivation": "Riattivazione",
+    "rebuild": "Ricostruzione",
+    "progress": "Progressione",
+    "deload": "Deload",
+    "done": "Mesociclo completato",
+    "hint": {
+      "reactivation": "Pesi ridotti, una serie in meno dove ce ne sono 3+, mai a cedimento.",
+      "rebuild": "Volume pieno, carichi in risalita. Ultima serie a 1–2 rep dal cedimento.",
+      "progress": "Doppia progressione piena: chiudi il range, poi sali di peso.",
+      "deload": "Metà serie, carichi al 60%. La crescita si incassa adesso.",
+      "done": "Programma finito: tempo di aggiornare la scheda."
+    }
+  },
+  "home": {
+    "upNext": "Tocca a lui",
+    "start": "Inizia",
+    "exercises": "{{n}} esercizi",
+    "lastDone": "Ultimo: {{date}} · {{vol}} kg",
+    "never": "Mai fatto",
+    "setStartTitle": "Quando inizi il programma?",
+    "setStartBody": "Dalla data d'inizio calcolo settimana e fase, e ti suggerisco i pesi giusti.",
+    "startToday": "Inizio oggi",
+    "pickDate": "Scegli una data",
+    "resume": "Riprendi l'allenamento in corso"
+  },
+  "workout": {
+    "warmup": "Riscaldamento",
+    "set": "Serie",
+    "kg": "kg",
+    "reps": "reps",
+    "addSet": "+ serie",
+    "removeSet": "Rimuovi ultima serie",
+    "finish": "Termina allenamento",
+    "abandonTitle": "Abbandonare l'allenamento?",
+    "abandonBody": "Le serie spuntate andranno perse.",
+    "abandonConfirm": "Abbandona",
+    "cancel": "Annulla",
+    "lastTime": "Ultima volta ({{date}}): {{sets}}",
+    "firstTime": "Prima volta con questo esercizio",
+    "video": "Tecnica",
+    "rest": "rec {{time}}"
+  },
+  "suggest": {
+    "start": "Parti da {{kg}} kg",
+    "increase": "Range chiuso l'ultima volta: sali a {{kg}} kg",
+    "repeat": "Conferma i carichi e aggiungi ripetizioni",
+    "phase1": "Fase 1: riparti leggero a {{kg}} kg",
+    "deload": "Deload: scarica a {{kg}} kg"
+  },
+  "timer": {
+    "rest": "Recupero",
+    "plus15": "+15\"",
+    "skip": "Salta"
+  },
+  "summary": {
+    "title": "Fatto.",
+    "volume": "kg di volume",
+    "sets": "{{n}} serie",
+    "duration": "{{min}} min",
+    "vsLastUp": "+{{diff}} kg rispetto all'ultimo {{day}}",
+    "vsLastDown": "−{{diff}} kg rispetto all'ultimo {{day}}",
+    "pr": "Record personale: {{exercise}}",
+    "home": "Torna alla home"
+  },
+  "history": {
+    "title": "Storico",
+    "empty": "Ancora nessun allenamento.",
+    "sets": "{{n}} serie",
+    "imported": "importato",
+    "delete": "Elimina allenamento",
+    "deleteBody": "Non si può annullare."
+  },
+  "progress": {
+    "title": "Progressi",
+    "pick": "Scegli un esercizio",
+    "best": "Best",
+    "last": "Ultimo",
+    "sessions": "Sessioni",
+    "caption": "Peso del miglior set per sessione, storico importato incluso.",
+    "volumeWeek": "Volume settimanale"
+  },
+  "library": {
+    "title": "Esercizi",
+    "search": "Cerca esercizio…",
+    "all": "Tutti",
+    "muscle": {
+      "chest": "Petto",
+      "back": "Schiena",
+      "legs": "Gambe",
+      "shoulders": "Spalle",
+      "arms": "Braccia",
+      "core": "Core",
+      "calves": "Polpacci"
+    },
+    "watch": "Guarda la tecnica su YouTube",
+    "noResults": "Nessun esercizio trovato"
+  },
+  "settings": {
+    "title": "Altro",
+    "language": "Lingua",
+    "it": "Italiano",
+    "en": "English",
+    "programStart": "Inizio programma",
+    "signOut": "Esci",
+    "data": "I tuoi dati",
+    "exportJson": "Backup completo (JSON)",
+    "exportCsv": "Esporta allenamenti (CSV)",
+    "import": "Importa (CSV Hevy o backup JSON)",
+    "about": "Informazioni",
+    "attribution": "Dati e immagini esercizi: free-exercise-db (dominio pubblico).",
+    "sync": {
+      "synced": "Sincronizzato",
+      "pending": "In attesa di rete",
+      "offline": "Offline: dati al sicuro sul dispositivo",
+      "error": "Errore di sincronizzazione"
+    }
+  },
+  "import": {
+    "title": "Importa allenamenti",
+    "preview": "{{fresh}} nuovi · {{dup}} duplicati ignorati",
+    "unknown": "{{n}} esercizi non riconosciuti (creati automaticamente)",
+    "confirm": "Importa",
+    "invalid": "File non valido: serve un CSV di Hevy o un backup di Overload.",
+    "done": "Importati {{n}} allenamenti",
+    "firstRunTitle": "Hai uno storico?",
+    "firstRunBody": "Importa il CSV di Hevy o un backup: niente inserimenti a mano."
+  }
+}
