@@ -142,7 +142,7 @@
     "sync": {
       "synced": "Synced",
       "pending": "Waiting for network",
-      "offline": "Offline · data safe here",
+      "offline": "Offline",
       "error": "Sync error"
     }
   },

@@ -142,7 +142,7 @@
     "sync": {
       "synced": "Sincronizzato",
       "pending": "In attesa di rete",
-      "offline": "Offline · dati al sicuro",
+      "offline": "Offline",
       "error": "Errore di sincronizzazione"
     }
   },
