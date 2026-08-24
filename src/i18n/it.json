@@ -78,7 +78,7 @@
     "start": "Parti da {{kg}} kg",
     "increase": "Range chiuso l'ultima volta: sali a {{kg}} kg",
     "repeat": "Conferma i carichi e aggiungi ripetizioni",
-    "phase1": "Fase 1: riparti leggero a {{kg}} kg",
+    "phase1": "Ripresa: riparti leggero a {{kg}} kg",
     "deload": "Deload: scarica a {{kg}} kg"
   },
   "timer": {
@@ -264,5 +264,15 @@
     "meal2Body": "Shake di whey con banana e latte. Il modo più semplice di chiudere il surplus.",
     "meal3Title": "Pasto tipo (~700 kcal, 40g proteine)",
     "meal3Body": "150g di pasta o riso, 150-200g di pollo/pesce/carne, verdura e un cucchiaio d'olio."
+  },
+  "momentum": {
+    "title": "Questa settimana: {{done}}/{{goal}} allenamenti",
+    "streak": "{{n}} sett. di fila",
+    "hint": "Lo slancio batte la perfezione.",
+    "hit": "Obiettivo della settimana centrato.",
+    "edit": "obiettivo",
+    "less": "riduci obiettivo",
+    "more": "aumenta obiettivo",
+    "done": "ok"
   }
 }

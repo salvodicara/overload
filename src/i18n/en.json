@@ -78,7 +78,7 @@
     "start": "Start at {{kg}} kg",
     "increase": "Range closed last time: go up to {{kg}} kg",
     "repeat": "Keep the loads and add reps",
-    "phase1": "Phase 1: restart light at {{kg}} kg",
+    "phase1": "Comeback: restart light at {{kg}} kg",
     "deload": "Deload: drop to {{kg}} kg"
   },
   "timer": {
@@ -264,5 +264,15 @@
     "meal2Body": "Whey shake with a banana and milk. The simplest way to close the surplus.",
     "meal3Title": "Typical meal (~700 kcal, 40g protein)",
     "meal3Body": "150g pasta or rice, 150-200g chicken/fish/meat, vegetables and a spoon of olive oil."
+  },
+  "momentum": {
+    "title": "This week: {{done}}/{{goal}} workouts",
+    "streak": "{{n}}-week streak",
+    "hint": "Momentum beats perfection.",
+    "hit": "Weekly goal hit.",
+    "edit": "goal",
+    "less": "lower goal",
+    "more": "raise goal",
+    "done": "ok"
   }
 }

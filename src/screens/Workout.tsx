@@ -22,7 +22,6 @@ export function Workout() {
   const removeSet = useStore((s) => s.removeSet);
   const abandon = useStore((s) => s.abandonWorkout);
   const finish = useStore((s) => s.finishWorkout);
-  const phase = useStore((s) => s.phase)();
   const [confirming, setConfirming] = useState(false);
   const notes = useStore((s) => s.notes);
   const addNoteEntry = useStore((s) => s.addNoteEntry);
@@ -85,11 +84,6 @@ export function Workout() {
         </span>
       </div>
 
-      {phase?.key === 'reactivation' && (
-        <div className="banner banner-warn" style={{ marginBottom: 10 }}>
-          <b>{t('phase.reactivation')}:</b> {t('phase.hint.reactivation')}
-        </div>
-      )}
       {routine.warmup && (
         <div className="banner banner-good" style={{ marginBottom: 10 }}>
           <b>{t('workout.warmup')}:</b> {routine.warmup}
@@ -153,15 +147,25 @@ export function Workout() {
                     <div style={{ marginTop: 8 }}>
                       <button
                         className="row small"
-                        style={{ gap: 6, color: latest ? 'var(--warn)' : 'var(--muted)', fontWeight: 600, minHeight: 32, textAlign: 'left' }}
+                        style={{
+                          gap: 6,
+                          alignItems: 'flex-start',
+                          color: latest ? 'var(--warn)' : 'var(--muted)',
+                          fontWeight: 600,
+                          minHeight: 32,
+                          textAlign: 'left',
+                          width: '100%',
+                        }}
                         aria-expanded={open}
                         onClick={() => {
                           setNotesOpen(open ? null : e.exerciseId);
                           setEditingNote(null);
                         }}
                       >
-                        <IconNote width={14} height={14} aria-hidden style={{ flex: 'none' }} />
-                        {latest ? latest.text.slice(0, 60) + (latest.text.length > 60 ? '…' : '') : t('notes.add')}
+                        <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                        <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}>
+                          {latest ? latest.text : t('notes.add')}
+                        </span>
                       </button>
                       {open && (
                         <div className="stack" style={{ gap: 8, marginTop: 8 }}>

@@ -5,6 +5,7 @@ import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
 import { useStore } from '../state/useStore';
 import type { Folder, Routine } from '../lib/types';
+import { MomentumCard } from '../components/MomentumCard';
 
 function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boolean }) {
   const { t, i18n } = useTranslation();
@@ -55,7 +56,6 @@ export function Train() {
   const saveFolder = useStore((s) => s.saveFolder);
   const deleteFolder = useStore((s) => s.deleteFolder);
   const updateSettings = useStore((s) => s.updateSettings);
-  const phase = useStore((s) => s.phase)();
   const [pickDate, setPickDate] = useState(false);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [nameDraft, setNameDraft] = useState('');
@@ -135,27 +135,9 @@ export function Train() {
             </button>
           )}
         </div>
-      ) : phase ? (
-        <div className="card card-pad" style={{ margin: '8px 0 14px' }}>
-          <div className="spread">
-            <strong style={{ fontSize: 14 }}>{t(`phase.${phase.key}`)}</strong>
-            <span className="mono small muted">{t('phase.week', { n: phase.week })}</span>
-          </div>
-          <div className="row" style={{ gap: 3, marginTop: 8 }}>
-            {Array.from({ length: 9 }, (_, i) => (
-              <span
-                key={i}
-                style={{
-                  flex: 1,
-                  height: 4,
-                  borderRadius: 2,
-                  background: i < Math.min(phase.week, 9) ? 'var(--accent)' : 'var(--surface2)',
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
+      ) : (
+        <MomentumCard />
+      )}
 
       {active && (
         <button className="btn btn-solid btn-block" style={{ marginBottom: 14 }} onClick={() => nav({ view: 'workout' })}>

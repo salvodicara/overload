@@ -71,6 +71,7 @@ export type Settings = {
   locale?: 'it' | 'en';
   kcalTarget?: number;
   proteinTarget?: number;
+  weeklyGoal?: number;
   updatedAt: number;
 };
 
