@@ -67,7 +67,7 @@ function Toast() {
 }
 
 export default function App() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
   const init = useStore((s) => s.init);
