@@ -43,20 +43,43 @@ test('empty session is discarded, not recorded', async ({ page }) => {
 });
 
 test('routines are fully editable and deletable', async ({ page }) => {
-  await page.getByRole('button', { name: /new routine|nuova/i }).click();
+  await page.getByRole('button', { name: /\+ (create|crea)/i }).click();
+  await page.getByRole('button', { name: /^(new routine|nuova scheda)$/i }).click();
+  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
-  await page.getByRole('button', { name: /exercise|esercizio/i }).click();
+  await page.getByRole('button', { name: /^\+ (exercise|esercizio)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('squat');
   await page.locator('.card', { hasText: /barbell squat/i }).first().click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await expect(page.getByText(/barbell squat/i).first()).toBeVisible();
   await page.getByRole('button', { name: /delete routine|elimina routine/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
-  await expect(page.getByRole('button', { name: /new routine|nuova/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /\+ (create|crea)/i })).toBeVisible();
+});
+
+test('programs group routines and are manageable', async ({ page }) => {
+  await page.getByRole('button', { name: /\+ (create|crea)/i }).click();
+  await page.getByRole('button', { name: /^(new program|nuovo programma)$/i }).click();
+  await page.getByLabel(/routine name|nome/i).fill('Test Program');
+  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  // Empty program invites adding its first routine.
+  await page.getByRole('button', { name: /empty program|programma vuoto/i }).click();
+  await page.getByLabel(/routine name|nome/i).fill('Day X');
+  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
+  await page.getByRole('button', { name: /back|indietro/i }).first().click();
+  await expect(page.getByText(/test program/i)).toBeVisible();
+  await expect(page.getByText(/day x/i)).toBeVisible();
+  // Delete the program: routine survives as standalone.
+  await page.getByRole('button', { name: /test program.*(program options|opzioni programma)/i }).click();
+  await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
+  await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
+  await expect(page.getByText(/test program/i)).toHaveCount(0);
+  await expect(page.getByText(/day x/i)).toBeVisible();
 });
 
 test('no horizontal overflow on any tab', async ({ page }) => {
-  for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
+  for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(exercises|esercizi)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
     await page.getByRole('button', { name: tab }).click();
     await page.waitForTimeout(250);
     const overflow = await page.evaluate(

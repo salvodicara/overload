@@ -35,7 +35,6 @@ export type Route =
   | { view: 'progress' }
   | { view: 'library'; pickFor?: { routineId: string } }
   | { view: 'exercise'; id: string; from?: 'workout' }
-  | { view: 'settings' }
   | { view: 'importExport' }
   | { view: 'routineEditor'; id: string };
 

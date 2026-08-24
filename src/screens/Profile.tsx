@@ -1,15 +1,35 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconForward, IconLibrary } from '../components/Icons';
+import { version } from '../../package.json';
+import { IconForward } from '../components/Icons';
+import { signOutUser } from '../lib/firebase';
 import { useStore } from '../state/useStore';
+import { ExportRows } from './ImportExport';
+
+const DIVIDER = { borderTop: '1px solid var(--line)' };
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section style={{ marginTop: 20 }}>
+      <div
+        className="mono small muted"
+        style={{ textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}
+      >
+        {title}
+      </div>
+      <div className="card">{children}</div>
+    </section>
+  );
+}
 
 export function Profile() {
   const { t, i18n } = useTranslation();
-  const { workouts, user, syncState } = useStore();
+  const { workouts, user, syncState, settings } = useStore();
   const nav = useStore((s) => s.nav);
-  const mine = workouts.filter((w) => w.source === 'app');
-  const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
+  const updateSettings = useStore((s) => s.updateSettings);
 
-  const rows = [{ key: 'library.title', view: 'library' as const, Icon: IconLibrary }];
+  const locale = settings.locale ?? (i18n.language.startsWith('it') ? 'it' : 'en');
+  const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
 
   return (
     <div className="screen">
@@ -22,7 +42,7 @@ export function Profile() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 17 }}>{user?.name ?? t('app.name')}</div>
           <div className="mono small muted">
-            {t('profile.workouts', { n: mine.length + (workouts.length - mine.length) })} ·{' '}
+            {t('profile.workouts', { n: workouts.length })} ·{' '}
             {Math.round(totalVolume / 1000).toLocaleString(i18n.language)}t
           </div>
         </div>
@@ -40,41 +60,70 @@ export function Profile() {
         />
       </div>
 
-      <div className="card" style={{ marginTop: 14 }}>
-        {rows.map(({ key, view, Icon }, i) => (
-          <button
-            key={view}
-            className="spread card-pad"
-            style={{
-              width: '100%',
-              textAlign: 'left',
-              borderTop: i ? '1px solid var(--line)' : 'none',
-              minHeight: 56,
+      <Section title={t('settings.title')}>
+        <div className="card-pad spread">
+          <span>{t('settings.language')}</span>
+          <div className="row" style={{ gap: 6 }}>
+            {(['it', 'en'] as const).map((l) => (
+              <button
+                key={l}
+                className={`btn ${locale === l ? 'btn-accent' : 'btn-ghost'}`}
+                style={{ padding: '9px 14px', fontSize: 14, minHeight: 40 }}
+                aria-pressed={locale === l}
+                onClick={() => void updateSettings({ locale: l })}
+              >
+                {t(`settings.${l}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="card-pad spread" style={DIVIDER}>
+          <span>{t('settings.programStart')}</span>
+          <input
+            type="date"
+            aria-label={t('settings.programStart')}
+            value={settings.programStartDate ?? ''}
+            style={{ width: 'auto' }}
+            onChange={(e) => {
+              if (e.target.value) void updateSettings({ programStartDate: e.target.value });
             }}
-            onClick={() => nav({ view })}
-          >
-            <span className="row" style={{ gap: 12 }}>
-              <span className="muted" style={{ display: 'flex' }}>
-                <Icon width={20} height={20} />
-              </span>
-              <span style={{ fontWeight: 600 }}>{t(key)}</span>
-            </span>
-            <span className="muted">
-              <IconForward />
-            </span>
-          </button>
-        ))}
-      </div>
+          />
+        </div>
+      </Section>
+
+      <Section title={t('settings.data')}>
+        <ExportRows />
+        <button
+          className="card-pad spread"
+          style={{ ...DIVIDER, width: '100%', textAlign: 'left' }}
+          onClick={() => nav({ view: 'importExport' })}
+        >
+          <span>{t('settings.import')}</span>
+          <span className="muted"><IconForward aria-hidden /></span>
+        </button>
+        <div className="card-pad spread" style={DIVIDER}>
+          <span>{t('settings.syncLabel')}</span>
+          <span className="chip">{t(`settings.sync.${syncState}`)}</span>
+        </div>
+      </Section>
+
+      <Section title={t('settings.about')}>
+        <div className="card-pad stack">
+          <div className="spread">
+            <strong>{t('app.name')}</strong>
+            <span className="mono small muted">{t('settings.version', { v: version })}</span>
+          </div>
+          <span className="muted small">{t('app.tagline')}</span>
+          <span className="muted small">{t('settings.attribution')}</span>
+        </div>
+      </Section>
 
       <button
-        className="card card-pad spread"
-        style={{ width: '100%', textAlign: 'left', marginTop: 14, minHeight: 56 }}
-        onClick={() => nav({ view: 'settings' })}
+        className="btn btn-danger btn-block"
+        style={{ marginTop: 22 }}
+        onClick={() => void signOutUser()}
       >
-        <span style={{ fontWeight: 600 }}>{t('settings.title')}</span>
-        <span className="muted">
-          <IconForward />
-        </span>
+        {t('settings.signOut')}
       </button>
     </div>
   );

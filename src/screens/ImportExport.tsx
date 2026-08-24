@@ -117,7 +117,7 @@ export function ImportExport() {
         <button
           className="iconbtn"
           aria-label={t('common.back')}
-          onClick={() => nav({ view: 'settings' })}
+          onClick={() => nav({ view: 'profile' })}
         >
           <IconBack />
         </button>

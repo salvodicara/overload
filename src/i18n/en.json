@@ -174,7 +174,7 @@
   },
   "routines": {
     "title": "Routines",
-    "days": "{{n}} days",
+    "days": "{{n}} routines",
     "exercises": "{{n}} exercises",
     "new": "+ New routine",
     "newName": "New routine",
@@ -212,7 +212,19 @@
   "train": {
     "manage": "Manage",
     "deleteFolder": "Delete program",
-    "deleteFolderBody": "Routines inside are not deleted: they move back to standalone routines."
+    "deleteFolderBody": "Routines inside are not deleted: they move back to standalone routines.",
+    "create": "+ Create",
+    "newRoutine": "New routine",
+    "newProgram": "New program",
+    "programHint": "A program is a set of routines (e.g. A, B, C, D): group them and Overload suggests which one is up.",
+    "renameProgram": "Rename program",
+    "addToProgram": "Add routine to program",
+    "emptyProgram": "Empty program: tap to add its first routine",
+    "programOptions": "program options",
+    "routineNamePh": "e.g. Upper A, Push…",
+    "programNamePh": "e.g. Fall bulk…",
+    "createConfirm": "Create",
+    "save": "Save"
   },
   "profile": {
     "workouts": "{{n}} workouts"

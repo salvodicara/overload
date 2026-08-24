@@ -174,7 +174,7 @@
   },
   "routines": {
     "title": "Schede",
-    "days": "{{n}} giorni",
+    "days": "{{n}} schede",
     "exercises": "{{n}} esercizi",
     "new": "+ Nuova scheda",
     "newName": "Nuova scheda",
@@ -212,7 +212,19 @@
   "train": {
     "manage": "Gestisci",
     "deleteFolder": "Elimina programma",
-    "deleteFolderBody": "Le routine al suo interno non vengono eliminate: tornano fra le routine singole."
+    "deleteFolderBody": "Le routine al suo interno non vengono eliminate: tornano fra le routine singole.",
+    "create": "+ Crea",
+    "newRoutine": "Nuova scheda",
+    "newProgram": "Nuovo programma",
+    "programHint": "Un programma è una serie di schede (es. A, B, C, D): raggruppale e Overload ti suggerisce quale tocca.",
+    "renameProgram": "Rinomina programma",
+    "addToProgram": "Aggiungi scheda al programma",
+    "emptyProgram": "Programma vuoto: tocca per aggiungere la prima scheda",
+    "programOptions": "opzioni programma",
+    "routineNamePh": "es. Upper A, Push…",
+    "programNamePh": "es. Massa autunno…",
+    "createConfirm": "Crea",
+    "save": "Salva"
   },
   "profile": {
     "workouts": "{{n}} allenamenti"

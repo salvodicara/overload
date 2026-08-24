@@ -15,7 +15,6 @@ import { WorkoutDetail } from './screens/WorkoutDetail';
 import { Progress } from './screens/Progress';
 import { Library } from './screens/Library';
 import { ExerciseSheet } from './screens/ExerciseSheet';
-import { Settings } from './screens/Settings';
 import { ImportExport } from './screens/ImportExport';
 import { RoutineEditor } from './screens/RoutineEditor';
 
@@ -42,8 +41,6 @@ function Screen() {
       return <Library pickFor={route.pickFor} />;
     case 'exercise':
       return <ExerciseSheet id={route.id} />;
-    case 'settings':
-      return <Settings />;
     case 'importExport':
       return <ImportExport />;
     case 'routineEditor':

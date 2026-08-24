@@ -35,12 +35,14 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
 
   return (
     <div className="screen">
-      <div className="row" style={{ padding: '18px 0 0' }}>
-        <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav(pickFor ? { view: 'routineEditor', id: pickFor.routineId } : { view: 'profile' })}>
-          <IconBack />
-        </button>
-      </div>
-      <div className="display screen-title" style={{ paddingTop: 6 }}>{t(pickFor ? 'library.pickTitle' : 'library.title')}</div>
+      {pickFor && (
+        <div className="row" style={{ padding: '18px 0 0' }}>
+          <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav({ view: 'routineEditor', id: pickFor.routineId })}>
+            <IconBack />
+          </button>
+        </div>
+      )}
+      <div className="display screen-title" style={{ paddingTop: pickFor ? 6 : undefined }}>{t(pickFor ? 'library.pickTitle' : 'library.title')}</div>
 
       <div
         className="stack"

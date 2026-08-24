@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconX } from '../components/Icons';
+import { IconForward } from '../components/Icons';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
 import { useStore } from '../state/useStore';
-import type { Routine } from '../lib/types';
+import type { Folder, Routine } from '../lib/types';
 
 function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boolean }) {
   const { t, i18n } = useTranslation();
@@ -38,9 +38,18 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
   );
 }
 
+type SheetState =
+  | { kind: 'create' }
+  | { kind: 'newRoutine'; folderId?: string }
+  | { kind: 'newProgram' }
+  | { kind: 'program'; folder: Folder }
+  | { kind: 'renameProgram'; folder: Folder }
+  | { kind: 'deleteProgram'; folder: Folder }
+  | null;
+
 export function Train() {
   const { t } = useTranslation();
-  const { settings, routines, folders, active } = useStore();
+  const { settings, routines, folders, workouts, active } = useStore();
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const saveFolder = useStore((s) => s.saveFolder);
@@ -48,12 +57,15 @@ export function Train() {
   const updateSettings = useStore((s) => s.updateSettings);
   const phase = useStore((s) => s.phase)();
   const [pickDate, setPickDate] = useState(false);
-  const [confirmFolder, setConfirmFolder] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const [nameDraft, setNameDraft] = useState('');
 
-  const workouts = useStore((s) => s.workouts);
   const ungrouped = routines.filter((r) => !r.folderId || !folders.some((f) => f.id === r.folderId));
+  const missingPacks = TEMPLATES.filter(
+    (p) => !p.routines.every((r) => routines.some((x) => x.id === r.id)),
+  );
 
-  // Within a program (folder), suggest the routine trained least recently:
+  // Within a program, suggest the routine trained least recently:
   // did A, C, D this week -> B is up.
   function suggestedIn(group: Routine[]): string | null {
     if (group.length < 2) return null;
@@ -70,27 +82,39 @@ export function Train() {
     }
     return pick;
   }
-  const missingPacks = TEMPLATES.filter(
-    (p) => !p.routines.every((r) => routines.some((x) => x.id === r.id)),
-  );
 
-  async function createRoutine(): Promise<void> {
+  async function createRoutine(name: string, folderId?: string): Promise<void> {
     const routine: Routine = {
       id: crypto.randomUUID(),
-      name: t('routines.newName'),
+      name: name.trim() || t('routines.newName'),
+      folderId,
       exercises: [],
       updatedAt: 0,
     };
     await saveRoutine(routine);
+    setSheet(null);
     nav({ view: 'routineEditor', id: routine.id });
+  }
+
+  async function createProgram(name: string): Promise<void> {
+    const folder: Folder = { id: crypto.randomUUID(), name: name.trim() || t('train.newProgram'), updatedAt: 0 };
+    await saveFolder(folder);
+    setSheet(null);
   }
 
   return (
     <div className="screen">
-      <div className="display screen-title">{t('nav.workout')}</div>
+      <div className="spread" style={{ padding: '22px 0 6px' }}>
+        <div className="display" style={{ fontSize: 30 }}>
+          {t('nav.workout')}
+        </div>
+        <button className="btn btn-accent" style={{ padding: '10px 16px' }} onClick={() => { setNameDraft(''); setSheet({ kind: 'create' }); }}>
+          {t('train.create')}
+        </button>
+      </div>
 
       {!settings.programStartDate ? (
-        <div className="card card-pad stack" style={{ marginBottom: 14 }}>
+        <div className="card card-pad stack" style={{ margin: '8px 0 14px' }}>
           <strong>{t('home.setStartTitle')}</strong>
           <span className="muted small">{t('home.setStartBody')}</span>
           <button
@@ -112,7 +136,7 @@ export function Train() {
           )}
         </div>
       ) : phase ? (
-        <div className="card card-pad" style={{ marginBottom: 14 }}>
+        <div className="card card-pad" style={{ margin: '8px 0 14px' }}>
           <div className="spread">
             <strong style={{ fontSize: 14 }}>{t(`phase.${phase.key}`)}</strong>
             <span className="mono small muted">{t('phase.week', { n: phase.week })}</span>
@@ -139,16 +163,7 @@ export function Train() {
         </button>
       )}
 
-      <div className="spread" style={{ margin: '6px 0 10px' }}>
-        <span className="mono small muted" style={{ letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          {t('routines.title')}
-        </span>
-        <button className="small" style={{ color: 'var(--accent-text)', fontWeight: 700 }} onClick={() => void createRoutine()}>
-          {t('routines.new')}
-        </button>
-      </div>
-
-      {routines.length === 0 && (
+      {routines.length === 0 && folders.length === 0 && (
         <div className="card card-pad stack">
           <strong>{t('home.welcomeTitle')}</strong>
           <span className="muted small">{t('home.welcomeBody')}</span>
@@ -156,30 +171,38 @@ export function Train() {
       )}
 
       <div className="stack">
+        {ungrouped.length > 0 && (
+          <div className="mono small muted" style={{ letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
+            {t('routines.title')}
+          </div>
+        )}
         {ungrouped.map((r) => (
           <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedIn(ungrouped)} />
         ))}
+
         {folders.map((f) => {
           const inFolder = routines.filter((r) => r.folderId === f.id);
-          if (inFolder.length === 0) return null;
           return (
             <div key={f.id} style={{ display: 'contents' }}>
-              <div className="spread" style={{ margin: '10px 0 0' }}>
+              <button
+                className="spread"
+                style={{ margin: '10px 0 0', width: '100%', minHeight: 44 }}
+                aria-label={`${f.name} · ${t('train.programOptions')}`}
+                onClick={() => { setNameDraft(f.name); setSheet({ kind: 'program', folder: f }); }}
+              >
                 <span className="mono small muted" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  {f.name}
+                  {f.name} · {t('routines.days', { n: inFolder.length })}
                 </span>
-                <button
-                  className="iconbtn"
-                  style={{ width: 34, height: 34 }}
-                  aria-label={t('train.deleteFolder')}
-                  onClick={() => setConfirmFolder(f.id)}
-                >
-                  <IconX width={13} height={13} />
-                </button>
-              </div>
+                <span className="muted"><IconForward width={15} height={15} aria-hidden /></span>
+              </button>
               {inFolder.map((r) => (
                 <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedIn(inFolder)} />
               ))}
+              {inFolder.length === 0 && (
+                <button className="card card-pad small muted" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setNameDraft(''); setSheet({ kind: 'newRoutine', folderId: f.id }); }}>
+                  {t('train.emptyProgram')}
+                </button>
+              )}
             </div>
           );
         })}
@@ -195,9 +218,7 @@ export function Train() {
               <div key={pack.folder.id} className="card card-pad spread">
                 <span style={{ minWidth: 0 }}>
                   <span style={{ fontWeight: 700, display: 'block' }}>{pack.folder.name}</span>
-                  <span className="mono small muted">
-                    {t('routines.days', { n: pack.routines.length })}
-                  </span>
+                  <span className="mono small muted">{t('routines.days', { n: pack.routines.length })}</span>
                 </span>
                 <button
                   className="btn btn-ghost"
@@ -216,23 +237,91 @@ export function Train() {
         </>
       )}
 
-      {confirmFolder && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true">
+      {sheet && (
+        <div className="sheet-scrim" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setSheet(null)}>
           <div className="sheet card card-pad stack">
-            <strong>{t('train.deleteFolder')}</strong>
-            <span className="muted small">{t('train.deleteFolderBody')}</span>
-            <button
-              className="btn btn-danger btn-block"
-              onClick={() => {
-                void deleteFolder(confirmFolder);
-                setConfirmFolder(null);
-              }}
-            >
-              {t('history.deleteConfirm')}
-            </button>
-            <button className="btn btn-ghost btn-block" onClick={() => setConfirmFolder(null)}>
-              {t('workout.cancel')}
-            </button>
+            {sheet.kind === 'create' && (
+              <>
+                <strong>{t('train.create')}</strong>
+                <button className="btn btn-ghost btn-block" onClick={() => setSheet({ kind: 'newRoutine' })}>
+                  {t('train.newRoutine')}
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={() => setSheet({ kind: 'newProgram' })}>
+                  {t('train.newProgram')}
+                </button>
+                <span className="muted small">{t('train.programHint')}</span>
+              </>
+            )}
+            {(sheet.kind === 'newRoutine' || sheet.kind === 'newProgram' || sheet.kind === 'renameProgram') && (
+              <>
+                <strong>
+                  {sheet.kind === 'newRoutine'
+                    ? t('train.newRoutine')
+                    : sheet.kind === 'newProgram'
+                      ? t('train.newProgram')
+                      : t('train.renameProgram')}
+                </strong>
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  placeholder={sheet.kind === 'newRoutine' ? t('train.routineNamePh') : t('train.programNamePh')}
+                  aria-label={t('editor.name')}
+                  style={{ fontFamily: 'inherit' }}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                />
+                <button
+                  className="btn btn-accent btn-block"
+                  onClick={() => {
+                    if (sheet.kind === 'newRoutine') void createRoutine(nameDraft, sheet.folderId);
+                    else if (sheet.kind === 'newProgram') void createProgram(nameDraft);
+                    else {
+                      void saveFolder({ ...sheet.folder, name: nameDraft.trim() || sheet.folder.name });
+                      setSheet(null);
+                    }
+                  }}
+                >
+                  {sheet.kind === 'renameProgram' ? t('train.save') : t('train.createConfirm')}
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                  {t('workout.cancel')}
+                </button>
+              </>
+            )}
+            {sheet.kind === 'program' && (
+              <>
+                <strong>{sheet.folder.name}</strong>
+                <button className="btn btn-ghost btn-block" onClick={() => { setNameDraft(''); setSheet({ kind: 'newRoutine', folderId: sheet.folder.id }); }}>
+                  {t('train.addToProgram')}
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={() => { setNameDraft(sheet.folder.name); setSheet({ kind: 'renameProgram', folder: sheet.folder }); }}>
+                  {t('train.renameProgram')}
+                </button>
+                <button className="btn btn-danger btn-block" onClick={() => setSheet({ kind: 'deleteProgram', folder: sheet.folder })}>
+                  {t('train.deleteFolder')}
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                  {t('workout.cancel')}
+                </button>
+              </>
+            )}
+            {sheet.kind === 'deleteProgram' && (
+              <>
+                <strong>{t('train.deleteFolder')}</strong>
+                <span className="muted small">{t('train.deleteFolderBody')}</span>
+                <button
+                  className="btn btn-danger btn-block"
+                  onClick={() => {
+                    void deleteFolder(sheet.folder.id);
+                    setSheet(null);
+                  }}
+                >
+                  {t('history.deleteConfirm')}
+                </button>
+                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                  {t('workout.cancel')}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
