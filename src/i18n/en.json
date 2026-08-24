@@ -45,7 +45,8 @@
     "setStartBody": "From the start date I compute your week and phase, and suggest the right weights.",
     "startToday": "Start today",
     "pickDate": "Pick a date",
-    "resume": "Resume workout in progress"
+    "resume": "Resume workout in progress",
+    "suggested": "suggested"
   },
   "workout": {
     "warmup": "Warm-up",

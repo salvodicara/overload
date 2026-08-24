@@ -5,7 +5,7 @@ import { fmtDate, todayISO } from '../lib/format';
 
 export function Home() {
   const { t, i18n } = useTranslation();
-  const { settings, workouts, routines, active, syncState } = useStore();
+  const { settings, workouts, routines, active, syncState, user } = useStore();
   const nav = useStore((s) => s.nav);
   const startWorkout = useStore((s) => s.startWorkout);
   const updateSettings = useStore((s) => s.updateSettings);
@@ -28,7 +28,25 @@ export function Home() {
         <div className="display" style={{ fontSize: 30 }}>
           {t('app.name')}
         </div>
-        <span className="chip">{t(`settings.sync.${syncState}`)}</span>
+        <button
+          className="account-btn"
+          onClick={() => nav({ view: 'settings' })}
+          aria-label={t('settings.title')}
+        >
+          <span className="account-avatar">{(user?.name ?? 'O').charAt(0).toUpperCase()}</span>
+          <span
+            className="account-dot"
+            title={t(`settings.sync.${syncState}`)}
+            style={{
+              background:
+                syncState === 'synced'
+                  ? 'var(--good)'
+                  : syncState === 'error'
+                    ? 'var(--danger)'
+                    : 'var(--muted)',
+            }}
+          />
+        </button>
       </div>
 
       {!settings.programStartDate ? (
@@ -103,8 +121,11 @@ export function Home() {
                 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="mono small muted">
-                  {day.label} · {t('home.exercises', { n: day.exercises.length })}
+                <div className="mono small muted row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {day.label} · {t('home.exercises', { n: day.exercises.length })}
+                  </span>
+                  {isNext && <span className="chip chip-accent">{t('home.suggested')}</span>}
                 </div>
                 <div className="display" style={{ fontSize: 22 }}>
                   {day.name}
@@ -122,7 +143,7 @@ export function Home() {
                 className={`btn ${isNext ? 'btn-accent' : 'btn-ghost'}`}
                 onClick={() => startWorkout(routine.id, di)}
               >
-                {isNext ? t('home.upNext') : t('home.start')}
+                {t('home.start')}
               </button>
             </div>
           );

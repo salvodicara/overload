@@ -45,7 +45,8 @@
     "setStartBody": "Dalla data d'inizio calcolo settimana e fase, e ti suggerisco i pesi giusti.",
     "startToday": "Inizio oggi",
     "pickDate": "Scegli una data",
-    "resume": "Riprendi l'allenamento in corso"
+    "resume": "Riprendi l'allenamento in corso",
+    "suggested": "consigliato"
   },
   "workout": {
     "warmup": "Riscaldamento",
