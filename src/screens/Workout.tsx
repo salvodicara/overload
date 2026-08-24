@@ -137,83 +137,87 @@ export function Workout() {
                 )}
                 {(() => {
                   const note = notes.find((n) => n.id === e.exerciseId);
-                  const todayDate = new Date().toLocaleDateString('sv');
-                  const todayEntry = note?.entries.find((x) => x.date === todayDate);
-                  const past = (note?.entries ?? []).filter((x) => x.date !== todayDate);
-                  const latest = note?.entries[note.entries.length - 1];
-                  const open = notesOpen === e.exerciseId;
+                  const entries = note?.entries ?? [];
+                  const latest = entries[entries.length - 1];
+                  const history = entries.slice(0, -1);
                   const editing = editingNote === e.exerciseId;
+                  const historyOpen = notesOpen === e.exerciseId;
                   return (
                     <div style={{ marginTop: 8 }}>
-                      <button
-                        className="row small"
-                        style={{
-                          gap: 6,
-                          alignItems: 'flex-start',
-                          color: latest ? 'var(--warn)' : 'var(--muted)',
-                          fontWeight: 600,
-                          minHeight: 32,
-                          textAlign: 'left',
-                          width: '100%',
-                        }}
-                        aria-expanded={open}
-                        onClick={() => {
-                          setNotesOpen(open ? null : e.exerciseId);
-                          setEditingNote(null);
-                        }}
-                      >
-                        <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-                        <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}>
-                          {latest ? latest.text : t('notes.add')}
-                        </span>
-                      </button>
-                      {open && (
-                        <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-                          {past
-                            .slice()
-                            .reverse()
-                            .map((entry) => (
-                              <div key={entry.date} className="small" style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10 }}>
-                                <span className="mono muted" style={{ fontSize: 11 }}>{entry.date}</span>
-                                <div>{entry.text}</div>
-                              </div>
-                            ))}
-                          {editing ? (
-                            <textarea
-                              rows={2}
-                              autoFocus
-                              placeholder={t('notes.placeholder')}
-                              aria-label={t('notes.add')}
-                              defaultValue={todayEntry?.text ?? ''}
-                              style={{
-                                fontFamily: 'inherit',
-                                fontSize: 14,
-                                background: 'var(--surface2)',
-                                border: '1px solid var(--accent-text)',
-                                borderRadius: 'var(--r-control)',
-                                padding: 10,
-                                color: 'var(--ink)',
-                                resize: 'vertical',
-                              }}
-                              onChange={(ev) => queueNote(e.exerciseId, ev.target.value)}
-                              onBlur={() => setEditingNote(null)}
-                            />
-                          ) : (
-                            <button
-                              className="small"
-                              style={{
-                                textAlign: 'left',
-                                borderLeft: '2px solid var(--accent)',
-                                paddingLeft: 10,
-                                minHeight: 34,
-                                color: todayEntry ? 'var(--ink)' : 'var(--muted)',
-                              }}
-                              onClick={() => setEditingNote(e.exerciseId)}
-                            >
-                              <span className="mono muted" style={{ fontSize: 11, display: 'block' }}>{todayDate}</span>
-                              {todayEntry?.text ?? t('notes.placeholder')}
-                            </button>
-                          )}
+                      {editing ? (
+                        <textarea
+                          rows={2}
+                          autoFocus
+                          placeholder={t('notes.placeholder')}
+                          aria-label={t('notes.add')}
+                          defaultValue={latest?.text ?? ''}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = 'auto';
+                              el.style.height = `${el.scrollHeight}px`;
+                              el.setSelectionRange(el.value.length, el.value.length);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            fontFamily: 'inherit',
+                            fontSize: 14,
+                            background: 'var(--surface2)',
+                            border: '1px solid var(--accent-text)',
+                            borderRadius: 'var(--r-control)',
+                            padding: 10,
+                            color: 'var(--ink)',
+                            resize: 'none',
+                            overflow: 'hidden',
+                          }}
+                          onInput={(ev) => {
+                            const el = ev.currentTarget;
+                            el.style.height = 'auto';
+                            el.style.height = `${el.scrollHeight}px`;
+                            queueNote(e.exerciseId, el.value);
+                          }}
+                          onBlur={() => setEditingNote(null)}
+                        />
+                      ) : (
+                        <button
+                          className="row small"
+                          style={{
+                            gap: 6,
+                            alignItems: 'flex-start',
+                            color: latest ? 'var(--warn)' : 'var(--muted)',
+                            fontWeight: 600,
+                            minHeight: 32,
+                            textAlign: 'left',
+                            width: '100%',
+                          }}
+                          onClick={() => setEditingNote(e.exerciseId)}
+                        >
+                          <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                          <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}>
+                            {latest ? latest.text : t('notes.add')}
+                          </span>
+                        </button>
+                      )}
+                      {history.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          <button
+                            className="mono muted"
+                            style={{ fontSize: 11, padding: '4px 0' }}
+                            aria-expanded={historyOpen}
+                            onClick={() => setNotesOpen(historyOpen ? null : e.exerciseId)}
+                          >
+                            {t('notes.history', { n: history.length })}
+                          </button>
+                          {historyOpen &&
+                            history
+                              .slice()
+                              .reverse()
+                              .map((entry) => (
+                                <div key={entry.date} className="small muted" style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10, marginTop: 6 }}>
+                                  <span className="mono" style={{ fontSize: 11 }}>{entry.date}</span>
+                                  <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{entry.text}</div>
+                                </div>
+                              ))}
                         </div>
                       )}
                     </div>
