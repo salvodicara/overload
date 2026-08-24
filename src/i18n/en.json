@@ -83,6 +83,7 @@
     "empty": "No workouts yet.",
     "sets": "{{n}} sets",
     "imported": "imported",
+    "pr": "PR",
     "delete": "Delete workout",
     "deleteBody": "This cannot be undone."
   },

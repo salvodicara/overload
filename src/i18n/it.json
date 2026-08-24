@@ -83,6 +83,7 @@
     "empty": "Ancora nessun allenamento.",
     "sets": "{{n}} serie",
     "imported": "importato",
+    "pr": "record",
     "delete": "Elimina allenamento",
     "deleteBody": "Non si può annullare."
   },
