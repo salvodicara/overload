@@ -61,7 +61,10 @@ export function History() {
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="mono small muted">{fmtDate(w.date, i18n.language)}</div>
-                      <div className="display" style={{ fontSize: 19 }}>
+                      <div
+                        className="display"
+                        style={{ fontSize: 19, color: w.dayLabel ? undefined : 'var(--muted)' }}
+                      >
                         {w.dayLabel ?? '—'}
                       </div>
                       <div className="row" style={{ gap: 6, marginTop: 7, flexWrap: 'wrap' }}>

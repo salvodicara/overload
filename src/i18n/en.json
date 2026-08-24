@@ -85,7 +85,8 @@
     "imported": "imported",
     "pr": "PR",
     "delete": "Delete workout",
-    "deleteBody": "This cannot be undone."
+    "deleteBody": "This cannot be undone.",
+    "deleteConfirm": "Delete"
   },
   "progress": {
     "title": "Progress",

@@ -47,7 +47,10 @@ export function WorkoutDetail({ id }: { id: string }) {
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="mono small muted">{fmtDate(w.date, i18n.language)}</div>
-          <div className="display" style={{ fontSize: 22 }}>
+          <div
+            className="display"
+            style={{ fontSize: 22, color: w.dayLabel ? undefined : 'var(--muted)' }}
+          >
             {w.dayLabel ?? '—'}
           </div>
         </div>
@@ -120,7 +123,7 @@ export function WorkoutDetail({ id }: { id: string }) {
                 nav({ view: 'history' });
               }}
             >
-              {t('history.delete')}
+              {t('history.deleteConfirm')}
             </button>
             <button className="btn btn-ghost btn-block" onClick={() => setConfirming(false)}>
               {t('workout.cancel')}

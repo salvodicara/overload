@@ -85,7 +85,8 @@
     "imported": "importato",
     "pr": "record",
     "delete": "Elimina allenamento",
-    "deleteBody": "Non si può annullare."
+    "deleteBody": "Non si può annullare.",
+    "deleteConfirm": "Elimina"
   },
   "progress": {
     "title": "Progressi",
