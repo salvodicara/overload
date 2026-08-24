@@ -27,6 +27,18 @@ test('log a workout end to end', async ({ page }) => {
   await expect(page.locator('.card').first()).toBeVisible();
 });
 
+test('no horizontal overflow on any tab', async ({ page }) => {
+  await page.getByRole('button', { name: /start today|inizio oggi/i }).click();
+  for (const tab of [/history|storico/i, /progress|progressi/i, /exercises|esercizi/i, /more|altro/i, /train|allenati/i]) {
+    await page.getByRole('button', { name: tab }).click();
+    await page.waitForTimeout(250);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow, `overflow on ${tab}`).toBeLessThanOrEqual(0);
+  }
+});
+
 test('workout in progress survives reload', async ({ page }) => {
   await page.getByRole('button', { name: /start today|inizio oggi/i }).click();
   await page.getByRole('button', { name: /up next|tocca a lui/i }).click();
