@@ -34,7 +34,7 @@ pnpm build
 firebase deploy
 ```
 
-Personal workout data never lives in this repo: import it at first run (`scripts/prepare-personal-history.mjs <hevy.csv>` → `data/personal/`, gitignored).
+Personal workout data never lives in this repo: import your Hevy CSV (or a JSON backup) directly in the app at first run.
 
 ## License
 

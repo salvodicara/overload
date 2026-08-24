@@ -9,14 +9,13 @@ export function detectLocale(): Locale {
   return navigator.language?.toLowerCase().startsWith('it') ? 'it' : 'en';
 }
 
-export function initI18n(locale?: Locale): typeof i18n {
+export function initI18n(): void {
   void i18n.use(initReactI18next).init({
     resources: { it: { translation: it }, en: { translation: en } },
-    lng: locale ?? detectLocale(),
+    lng: detectLocale(),
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
   });
-  return i18n;
 }
 
 export function setLocale(l: Locale): void {

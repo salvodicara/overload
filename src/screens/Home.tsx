@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../state/useStore';
-
-function fmtDate(iso: string, locale: string): string {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', {
-    day: 'numeric',
-    month: 'short',
-  });
-}
+import { fmtDate, todayISO } from '../lib/format';
 
 export function Home() {
   const { t, i18n } = useTranslation();
@@ -40,7 +34,7 @@ export function Home() {
           <span className="muted small">{t('home.setStartBody')}</span>
           <button
             className="btn btn-accent btn-block"
-            onClick={() => void updateSettings({ programStartDate: new Date().toISOString().slice(0, 10) })}
+            onClick={() => void updateSettings({ programStartDate: todayISO() })}
           >
             {t('home.startToday')}
           </button>

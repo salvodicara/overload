@@ -43,7 +43,6 @@ let catalog: Map<string, CatalogExercise> | null = null;
 let loading: Promise<Map<string, CatalogExercise>> | null = null;
 
 export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
-  if (catalog) return Promise.resolve(catalog);
   loading ??= fetch('/data/exercises.json')
     .then((r) => r.json() as Promise<FedbExercise[]>)
     .then((rows) => {

@@ -18,7 +18,7 @@ export type Workout = {
   volumeKg: number;
   note?: string;
   updatedAt: number;
-  source: 'app' | 'hevy' | 'import';
+  source: 'app' | 'hevy';
 };
 
 export type RoutineExercise = {

@@ -16,6 +16,7 @@ import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { SEED_ROUTINE } from '../data/seedRoutine';
+import { todayISO } from '../lib/format';
 import { loadCatalog } from '../lib/exercises';
 import type { Routine, Settings, Workout } from '../lib/types';
 
@@ -60,13 +61,6 @@ function persistActive(a: ActiveSession | null): void {
   } catch {
     /* storage full/unavailable: session survives in memory */
   }
-}
-
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`;
 }
 
 type ToastListener = (msg: string) => void;
@@ -308,10 +302,12 @@ export const useStore = create<Store>((set, get) => ({
   async saveRoutine(r) {
     const next = { ...r, updatedAt: Date.now() };
     await saveRoutine(next);
-    set({ routines: get().routines.map((x) => (x.id === next.id ? next : x)) });
-    if (!get().routines.some((x) => x.id === next.id)) {
-      set({ routines: [...get().routines, next] });
-    }
+    const list = get().routines;
+    set({
+      routines: list.some((x) => x.id === next.id)
+        ? list.map((x) => (x.id === next.id ? next : x))
+        : [...list, next],
+    });
     const uid = get().user?.uid;
     if (uid) void pushRecord(uid, 'routines', next);
   },

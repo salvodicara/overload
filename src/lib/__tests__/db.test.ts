@@ -29,7 +29,6 @@ beforeEach(async () => {
   await db.workouts.clear();
   await db.routines.clear();
   await db.settings.clear();
-  await db.meta.clear();
 });
 
 describe('workouts repository', () => {

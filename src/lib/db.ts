@@ -1,14 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Routine, Settings, Workout } from './types';
 
-/** Small key/value table for sync bookkeeping (e.g. `lastSyncTs`). */
-export type Meta = { key: string; value: number | string };
-
 export type OverloadDb = Dexie & {
   workouts: EntityTable<Workout, 'id'>;
   routines: EntityTable<Routine, 'id'>;
   settings: EntityTable<Settings, 'id'>;
-  meta: EntityTable<Meta, 'key'>;
 };
 
 export const db = new Dexie('overload') as OverloadDb;
@@ -17,7 +13,6 @@ db.version(1).stores({
   workouts: 'id, date, updatedAt',
   routines: 'id, updatedAt',
   settings: 'id',
-  meta: 'key',
 });
 
 const SETTINGS_ID = 'settings';
@@ -58,6 +53,5 @@ export async function listRoutines(): Promise<Routine[]> {
 
 /** Writes an already-deduplicated import batch (see `planImport`). */
 export async function applyImport(fresh: Workout[]): Promise<void> {
-  if (fresh.length === 0) return;
   await db.workouts.bulkPut(fresh);
 }

@@ -1,28 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
+import { lastTimeLine } from '../lib/format';
 import { useStore } from '../state/useStore';
 import { IconCheck, IconMinus, IconPlay, IconX } from '../components/Icons';
-import type { Workout as WorkoutT } from '../lib/types';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return s ? `${m}′${s}″` : `${m}′`;
-}
-
-function lastTimeLine(workouts: WorkoutT[], exerciseId: string): { date: string; sets: string } | null {
-  for (const w of workouts) {
-    const sets = w.sets.filter((s) => s.exerciseId === exerciseId && s.done);
-    if (sets.length) {
-      return {
-        date: w.date,
-        sets: sets.map((s) => `${s.weightKg}×${s.reps}`).join('  '),
-      };
-    }
-  }
-  return null;
 }
 
 export function Workout() {
