@@ -17,7 +17,8 @@
     "subtitle": "Your training, your data. No ads, no social feed, no subscriptions.",
     "google": "Continue with Google",
     "loading": "Signing in…",
-    "error": "Sign-in failed. Try again; tell me if it persists."
+    "error": "Sign-in failed. Try again; tell me if it persists.",
+    "reset": "Sign-in trouble? Clean the app and retry"
   },
   "phase": {
     "week": "week {{n}}",

@@ -45,6 +45,20 @@ export function Login() {
         {busy ? t('login.loading') : t('login.google')}
       </button>
       {error && <div className="banner banner-warn">{t('login.error')}</div>}
+      <button
+        className="small muted"
+        style={{ textDecoration: 'underline', alignSelf: 'center' }}
+        onClick={() => {
+          void (async () => {
+            const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+            await Promise.all(regs.map((r) => r.unregister()));
+            await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+            location.reload();
+          })();
+        }}
+      >
+        {t('login.reset')}
+      </button>
     </div>
   );
 }
