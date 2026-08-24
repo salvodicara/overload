@@ -1,5 +1,6 @@
 {
   "app": { "name": "Overload", "tagline": "Progressive overload. Nothing else." },
+  "common": { "back": "Back" },
   "nav": {
     "workout": "Train",
     "history": "History",
@@ -127,8 +128,12 @@
     "exportJson": "Full backup (JSON)",
     "exportCsv": "Export workouts (CSV)",
     "import": "Import (Hevy CSV or JSON backup)",
+    "routines": "Routines",
+    "routinesHint": "Edit days, exercises and sets",
     "about": "About",
     "attribution": "Exercise data and images: free-exercise-db (public domain).",
+    "version": "v{{v}}",
+    "syncLabel": "Sync",
     "sync": {
       "synced": "Synced",
       "pending": "Waiting for network",
@@ -144,6 +149,41 @@
     "invalid": "Invalid file: expected a Hevy CSV or an Overload backup.",
     "done": "Imported {{n}} workouts",
     "firstRunTitle": "Got history?",
-    "firstRunBody": "Import your Hevy CSV or a backup: no manual entry."
+    "firstRunBody": "Import your Hevy CSV or a backup: no manual entry.",
+    "pick": "Choose a file",
+    "pickHint": "Hevy CSV or Overload JSON backup",
+    "routines": "{{n}} routines in the backup",
+    "export": "Export"
+  },
+  "routines": {
+    "title": "Routines",
+    "days": "{{n}} days",
+    "exercises": "{{n}} exercises",
+    "new": "+ New routine",
+    "newName": "New routine",
+    "empty": "No routines yet: create one."
+  },
+  "editor": {
+    "title": "Edit routine",
+    "name": "Routine name",
+    "dayLabel": "Label",
+    "dayName": "Day name",
+    "dayDefault": "Day {{label}}",
+    "sets": "sets",
+    "repMin": "rep min",
+    "repMax": "rep max",
+    "rest": "rest s",
+    "startWeight": "start kg",
+    "addExercise": "+ Exercise",
+    "removeExercise": "Remove exercise",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "addDay": "+ Day",
+    "removeDay": "Remove day",
+    "noExercises": "No exercises in this day.",
+    "notFound": "Routine not found.",
+    "importJson": "Import routine (JSON)",
+    "imported": "Routine imported",
+    "invalid": "Invalid routine file."
   }
 }
