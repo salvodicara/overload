@@ -7,6 +7,7 @@ import { useStore } from '../state/useStore';
 export function RestBar() {
   const { t, i18n } = useTranslation();
   const restUntil = useStore((s) => s.restUntil);
+  const restTotalSec = useStore((s) => s.restTotalSec);
   const restExerciseId = useStore((s) => s.restExerciseId);
   const stopRest = useStore((s) => s.stopRest);
   const startRest = useStore((s) => s.startRest);
@@ -49,7 +50,15 @@ export function RestBar() {
 
   return (
     <div className="restbar" role="timer" aria-live="off">
-      <div className="restbar-inner">
+      <div className="restbar-inner" style={{ position: 'relative', paddingTop: 16 }}>
+        {restTotalSec ? (
+          <div className="rest-track">
+            <div
+              className="rest-fill"
+              style={{ width: `${Math.max(0, Math.min(100, (left / restTotalSec) * 100))}%` }}
+            />
+          </div>
+        ) : null}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="small" style={{ opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {t('timer.rest')} · {label}

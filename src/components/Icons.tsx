@@ -63,3 +63,40 @@ export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5.5 12h13" />
   </svg>
 );
+
+export const IconBarbell = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M3 12h2.2M18.8 12H21M8.6 12h6.8" />
+    <rect x="5.2" y="7.5" width="3.4" height="9" rx="1.2" />
+    <rect x="15.4" y="7.5" width="3.4" height="9" rx="1.2" />
+  </svg>
+);
+
+export const IconHistory = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="8.2" />
+    <path d="M12 7.5V12l3.2 2" />
+  </svg>
+);
+
+export const IconChart = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4.5 19.5V13M10 19.5V8M15.5 19.5v-8.5M21 19.5v-15" />
+  </svg>
+);
+
+export const IconLibrary = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <rect x="4" y="4" width="7" height="7" rx="1.6" />
+    <rect x="13" y="4" width="7" height="7" rx="1.6" />
+    <rect x="4" y="13" width="7" height="7" rx="1.6" />
+    <rect x="13" y="13" width="7" height="7" rx="1.6" />
+  </svg>
+);
+
+export const IconUser = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="8.4" r="3.6" />
+    <path d="M4.8 19.6c1.5-3.2 4.1-4.6 7.2-4.6s5.7 1.4 7.2 4.6" />
+  </svg>
+);

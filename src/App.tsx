@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { initI18n, setLocale } from './i18n';
 import { onUser } from './lib/firebase';
-import { onToast, useStore } from './state/useStore';
+import { onToast, registerTranslator, useStore } from './state/useStore';
 import { Nav } from './components/Nav';
 import { RestBar } from './components/RestBar';
 import { Login } from './screens/Login';
@@ -68,6 +68,7 @@ function Toast() {
 
 export default function App() {
   const { t, i18n } = useTranslation();
+  registerTranslator(t);
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
   const init = useStore((s) => s.init);

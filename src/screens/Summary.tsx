@@ -20,7 +20,7 @@ export function Summary({ workoutId }: { workoutId: string }) {
 
   return (
     <div className="screen">
-      <div style={{ textAlign: 'center', padding: '56px 0 8px' }}>
+      <div className="summary-pop" style={{ textAlign: 'center', padding: '56px 0 8px' }}>
         <div className="display" style={{ fontSize: 40 }}>
           {t('summary.title')}
         </div>
@@ -43,8 +43,8 @@ export function Summary({ workoutId }: { workoutId: string }) {
       )}
 
       <div className="stack" style={{ marginTop: 14 }}>
-        {prs.map((id) => (
-          <div key={id} className="banner banner-good">
+        {prs.map((id, i) => (
+          <div key={id} className="banner banner-good" style={{ animationDelay: `${0.12 + i * 0.07}s` }}>
             {t('summary.pr', { exercise: exerciseName(id, i18n.language) })}
           </div>
         ))}

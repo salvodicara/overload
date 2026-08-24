@@ -2,6 +2,7 @@
 
 :root {
   color-scheme: dark;
+  --card-sheen: rgb(255 255 255 / 0.045);
   --bg: #0c0e10;
   --surface: #14171a;
   --surface2: #1b1f24;
@@ -30,6 +31,7 @@
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     color-scheme: light;
+    --card-sheen: rgb(255 255 255 / 0.6);
     --bg: #f2f3f0;
     --surface: #ffffff;
     --surface2: #e9ebe5;
@@ -112,13 +114,13 @@ body {
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .spread {
@@ -132,6 +134,15 @@ body {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
+  box-shadow: inset 0 1px 0 var(--card-sheen);
+}
+
+button.card {
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+button.card:active {
+  transform: scale(0.99);
 }
 
 .card-pad {
@@ -158,14 +169,28 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 48px;
   border-radius: var(--r-control);
   font-weight: 700;
-  padding: 13px 20px;
-  transition: transform 0.06s ease;
+  padding: 12px 20px;
+  transition:
+    transform 0.1s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    filter 0.15s ease;
 }
 
 .btn:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+}
+
+@media (hover: hover) {
+  .btn-accent:hover {
+    filter: brightness(1.06);
+  }
+  .btn-ghost:hover {
+    border-color: color-mix(in srgb, var(--line) 40%, var(--muted));
+  }
 }
 
 .btn-accent {
@@ -206,6 +231,17 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+.iconbtn:active {
+  transform: scale(0.94);
+}
+
+.iconbtn-legacy {
   width: 40px;
   height: 40px;
   border-radius: var(--r-control);
@@ -338,18 +374,30 @@ input[type='number']::-webkit-inner-spin-button {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 9px 0 calc(9px + env(safe-area-inset-bottom));
-  font-size: 11px;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.nav-icon {
+  display: flex;
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.4);
 }
 
 .nav-btn.on {
   color: var(--ink);
 }
 
+.nav-btn.on .nav-icon {
+  transform: translateY(-1px);
+  color: var(--accent-text);
+}
+
 .nav-btn.on .nav-dot {
   background: var(--accent);
+  transform: scaleX(1);
 }
 
 .nav-dot {
@@ -357,6 +405,8 @@ input[type='number']::-webkit-inner-spin-button {
   height: 3px;
   border-radius: 2px;
   background: transparent;
+  transform: scaleX(0.3);
+  transition: transform 0.18s ease, background 0.18s ease;
 }
 
 /* ---------- account button ---------- */
@@ -398,8 +448,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .setgrid {
   display: grid;
-  grid-template-columns: 30px 1fr 1fr 56px;
-  gap: 8px;
+  grid-template-columns: 30px 1fr 1fr 60px;
+  gap: 10px;
   align-items: center;
   padding: 6px 14px;
 }
@@ -430,13 +480,18 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .setcheck {
-  height: 42px;
+  height: 46px;
   border-radius: var(--r-control);
   border: 1px solid var(--line);
   background: var(--surface2);
   color: var(--muted);
   font-size: 16px;
   font-weight: 700;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+}
+
+.setcheck:active {
+  transform: scale(0.93);
 }
 
 .setrow.done .setcheck {
@@ -509,6 +564,99 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: 13px;
   color: var(--bg);
   white-space: nowrap;
+}
+
+/* ---------- motion ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .screen {
+    animation: screen-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes screen-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .setrow.done .setcheck {
+    animation: check-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+  }
+
+  @keyframes check-pop {
+    0% {
+      transform: scale(0.85);
+    }
+    60% {
+      transform: scale(1.12);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .restbar-inner {
+    animation: rise 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .sheet {
+    animation: rise 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  }
+
+  .summary-pop {
+    animation: summary-pop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  }
+
+  @keyframes summary-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.92) translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .banner {
+    animation: screen-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+}
+
+/* ---------- rest progress ---------- */
+
+.rest-track {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 6px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--bg) 25%, transparent);
+  overflow: hidden;
+}
+
+.rest-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.25s linear;
 }
 
 /* ---------- misc ---------- */

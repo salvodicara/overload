@@ -6,7 +6,7 @@ import { toast, useStore } from '../state/useStore';
 import type { Routine, RoutineDay, RoutineExercise } from '../lib/types';
 
 const DIVIDER = { borderTop: '1px solid var(--line)' };
-const SMALL_ICON = { width: 32, height: 32, fontSize: 14 };
+const SMALL_ICON = { width: 44, height: 44 } as const;
 
 /** Validates a hand-written / exported routine file, normalising it to the `Routine` shape. */
 function parseRoutine(json: string): Routine {
@@ -198,7 +198,7 @@ export function RoutineEditor({ id }: { id: string }) {
                   aria-label={t('editor.removeDay')}
                   onClick={() => commit((r) => void r.days.splice(di, 1), true)}
                 >
-                  <IconX width={14} height={14} />
+                  <IconX width={16} height={16} />
                 </button>
               )}
             </div>
@@ -230,7 +230,7 @@ export function RoutineEditor({ id }: { id: string }) {
                       }, true)
                     }
                   >
-                    <IconUp width={14} height={14} />
+                    <IconUp width={16} height={16} />
                   </button>
                   <button
                     className="iconbtn"
@@ -244,7 +244,7 @@ export function RoutineEditor({ id }: { id: string }) {
                       }, true)
                     }
                   >
-                    <IconDown width={14} height={14} />
+                    <IconDown width={16} height={16} />
                   </button>
                   <button
                     className="iconbtn"
@@ -252,7 +252,7 @@ export function RoutineEditor({ id }: { id: string }) {
                     aria-label={t('editor.removeExercise')}
                     onClick={() => commit((r) => void r.days[di].exercises.splice(xi, 1), true)}
                   >
-                    <IconX width={14} height={14} />
+                    <IconX width={16} height={16} />
                   </button>
                 </div>
                 <div

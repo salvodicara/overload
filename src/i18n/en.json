@@ -46,7 +46,10 @@
     "startToday": "Start today",
     "pickDate": "Pick a date",
     "resume": "Resume workout in progress",
-    "suggested": "suggested"
+    "suggested": "suggested",
+    "welcomeTitle": "Build your plan",
+    "welcomeBody": "Start from a ready template or create your own routine from scratch: days, exercises and progression are yours.",
+    "welcomeCta": "Pick a plan"
   },
   "workout": {
     "warmup": "Warm-up",
@@ -63,7 +66,8 @@
     "lastTime": "Last time ({{date}}): {{sets}}",
     "firstTime": "First time doing this exercise",
     "video": "Technique",
-    "rest": "rest {{time}}"
+    "rest": "rest {{time}}",
+    "discarded": "Session discarded: nothing to log"
   },
   "suggest": {
     "start": "Start at {{kg}} kg",
@@ -169,7 +173,9 @@
     "exercises": "{{n}} exercises",
     "new": "+ New routine",
     "newName": "New routine",
-    "empty": "No routines yet: create one."
+    "empty": "No routines yet: create one.",
+    "templates": "Templates",
+    "useTemplate": "Use"
   },
   "editor": {
     "title": "Edit routine",

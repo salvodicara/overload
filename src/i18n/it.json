@@ -46,7 +46,10 @@
     "startToday": "Inizio oggi",
     "pickDate": "Scegli una data",
     "resume": "Riprendi l'allenamento in corso",
-    "suggested": "consigliato"
+    "suggested": "consigliato",
+    "welcomeTitle": "Costruisci la tua scheda",
+    "welcomeBody": "Parti da un template pronto o crea la tua routine da zero: giorni, esercizi e progressione sono tuoi.",
+    "welcomeCta": "Scegli una scheda"
   },
   "workout": {
     "warmup": "Riscaldamento",
@@ -63,7 +66,8 @@
     "lastTime": "Ultima volta ({{date}}): {{sets}}",
     "firstTime": "Prima volta con questo esercizio",
     "video": "Tecnica",
-    "rest": "rec {{time}}"
+    "rest": "rec {{time}}",
+    "discarded": "Sessione scartata: niente da registrare"
   },
   "suggest": {
     "start": "Parti da {{kg}} kg",
@@ -169,7 +173,9 @@
     "exercises": "{{n}} esercizi",
     "new": "+ Nuova scheda",
     "newName": "Nuova scheda",
-    "empty": "Nessuna scheda: creane una."
+    "empty": "Nessuna scheda: creane una.",
+    "templates": "Template",
+    "useTemplate": "Usa"
   },
   "editor": {
     "title": "Modifica scheda",

@@ -55,7 +55,15 @@ export function Workout() {
           padding: '14px 0 8px',
         }}
       >
-        <button className="iconbtn" aria-label={t('workout.abandonTitle')} onClick={() => setConfirming(true)}>
+        <button
+          className="iconbtn"
+          aria-label={t('workout.abandonTitle')}
+          onClick={() => {
+            const anyDone = active.ex.some((e) => e.sets.some((s) => s.done));
+            if (anyDone) setConfirming(true);
+            else abandon();
+          }}
+        >
           <IconX />
         </button>
         <div className="display" style={{ fontSize: 24, flex: 1 }}>

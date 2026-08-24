@@ -16,7 +16,6 @@ import { getPhase, suggest, type Phase } from '../lib/progression';
 import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
-import { SEED_ROUTINE } from '../data/seedRoutine';
 import { todayISO } from '../lib/format';
 import { loadCatalog } from '../lib/exercises';
 import type { Routine, Settings, Workout } from '../lib/types';
@@ -46,6 +45,7 @@ export type ActiveSession = {
   /** Persisted so a running rest timer survives reloads and PWA eviction. */
   restUntil?: number | null;
   restExerciseId?: string | null;
+  restTotalSec?: number | null;
 };
 
 const ACTIVE_KEY = 'overload_active';
@@ -77,6 +77,15 @@ export function toast(msg: string): void {
   toastListener?.(msg);
 }
 
+// Store code has no hook context; screens register the translator at boot.
+let translate: ((key: string) => string) | null = null;
+export function registerTranslator(fn: (key: string) => string): void {
+  translate = fn;
+}
+function i18nToast(key: string): string {
+  return translate ? translate(key) : key;
+}
+
 let stopSync: (() => void) | null = null;
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
@@ -102,6 +111,7 @@ export type Store = {
   active: ActiveSession | null;
   restUntil: number | null;
   restExerciseId: string | null;
+  restTotalSec: number | null;
   catalogReady: boolean;
 
   nav(route: Route): void;
@@ -140,6 +150,7 @@ export const useStore = create<Store>((set, get) => ({
   active: initialActive,
   restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
   restExerciseId: initialActive?.restExerciseId ?? null,
+  restTotalSec: initialActive?.restTotalSec ?? null,
   catalogReady: false,
 
   nav(route) {
@@ -184,10 +195,6 @@ export const useStore = create<Store>((set, get) => ({
 
   async init() {
     void loadCatalog().then(() => set({ catalogReady: true }));
-    const routines = await listRoutines();
-    if (routines.length === 0) {
-      await saveRoutine(SEED_ROUTINE);
-    }
     await get().reload();
     if (get().active) set({ route: { view: 'workout' } });
   },
@@ -307,7 +314,15 @@ export const useStore = create<Store>((set, get) => ({
           done: true,
         })),
     );
-    if (doneSets.length === 0) return null;
+    if (doneSets.length === 0) {
+      // Hevy behavior: an accidental session with nothing logged is discarded,
+      // not recorded and not nagged about.
+      persistActive(null);
+      releaseWakeLock();
+      set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
+      toast(i18nToast('workout.discarded'));
+      return null;
+    }
     const flagged = flagPrs(doneSets, get().workouts, date);
     const workout: Workout = {
       id: workoutId('app', date, `${day?.label ?? 'x'}-${active.startTs}`),
@@ -338,15 +353,15 @@ export const useStore = create<Store>((set, get) => ({
 
   startRest(sec, exerciseId) {
     const restUntil = Date.now() + sec * 1000;
-    set({ restUntil, restExerciseId: exerciseId });
+    set({ restUntil, restExerciseId: exerciseId, restTotalSec: sec });
     const active = get().active;
-    if (active) persistActive({ ...active, restUntil, restExerciseId: exerciseId });
+    if (active) persistActive({ ...active, restUntil, restExerciseId: exerciseId, restTotalSec: sec });
   },
 
   stopRest() {
-    set({ restUntil: null, restExerciseId: null });
+    set({ restUntil: null, restExerciseId: null, restTotalSec: null });
     const active = get().active;
-    if (active) persistActive({ ...active, restUntil: null, restExerciseId: null });
+    if (active) persistActive({ ...active, restUntil: null, restExerciseId: null, restTotalSec: null });
   },
 
   async saveRoutine(r) {

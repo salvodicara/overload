@@ -104,6 +104,16 @@ export function Home() {
         </button>
       )}
 
+      {!routine && (
+        <div className="card card-pad stack" style={{ marginTop: 16 }}>
+          <span className="display" style={{ fontSize: 24 }}>{t('home.welcomeTitle')}</span>
+          <span className="muted small">{t('home.welcomeBody')}</span>
+          <button className="btn btn-accent btn-block" onClick={() => nav({ view: 'routines' })}>
+            {t('home.welcomeCta')}
+          </button>
+        </div>
+      )}
+
       <div className="stack" style={{ marginTop: 20 }}>
         {routine?.days.map((day, di) => {
           const last = workouts.find(
