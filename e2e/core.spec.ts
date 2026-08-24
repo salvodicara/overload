@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 
 test('log a workout end to end', async ({ page }) => {
   await page.getByRole('button', { name: /start today|inizio oggi/i }).click();
-  await page.getByRole('button', { name: /up next|tocca a lui/i }).click();
+  await page.getByRole('button', { name: /^(start|inizia)$/i }).first().click();
   await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
 
   const checks = page.locator('.setcheck');
@@ -41,7 +41,7 @@ test('no horizontal overflow on any tab', async ({ page }) => {
 
 test('workout in progress survives reload', async ({ page }) => {
   await page.getByRole('button', { name: /start today|inizio oggi/i }).click();
-  await page.getByRole('button', { name: /up next|tocca a lui/i }).click();
+  await page.getByRole('button', { name: /^(start|inizia)$/i }).first().click();
   await page.locator('.setcheck').first().click();
   await page.reload();
   await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
