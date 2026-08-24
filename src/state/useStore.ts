@@ -8,8 +8,10 @@ import {
   getSettings,
   listFolders,
   listRoutines,
+  listNotes,
   listWorkouts,
   saveFolder,
+  saveNote,
   saveRoutine,
   saveSettings,
   saveWorkout,
@@ -22,7 +24,7 @@ import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
 import { loadCatalog } from '../lib/exercises';
-import type { Folder, Routine, Settings, Workout } from '../lib/types';
+import type { ExerciseNote, Folder, Routine, Settings, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 
 export type Route =
@@ -117,6 +119,7 @@ export type Store = {
   workouts: Workout[];
   routines: Routine[];
   folders: Folder[];
+  notes: ExerciseNote[];
   syncState: SyncState;
   active: ActiveSession | null;
   restUntil: number | null;
@@ -147,6 +150,7 @@ export type Store = {
   saveFolder(f: Folder): Promise<void>;
   deleteFolder(id: string): Promise<void>;
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
+  addNoteEntry(exerciseId: string, text: string): Promise<void>;
   deleteWorkout(id: string): Promise<void>;
   importWorkouts(fresh: Workout[]): Promise<void>;
 };
@@ -160,6 +164,7 @@ export const useStore = create<Store>((set, get) => ({
   workouts: [],
   routines: [],
   folders: [],
+  notes: [],
   syncState: 'offline',
   active: initialActive,
   restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
@@ -216,13 +221,14 @@ export const useStore = create<Store>((set, get) => ({
 
   async reload() {
     await migrateLegacyRoutines(get().user?.uid);
-    const [workouts, routines, folders, settings] = await Promise.all([
+    const [workouts, routines, folders, notes, settings] = await Promise.all([
       listWorkouts(),
       listRoutines(),
       listFolders(),
+      listNotes(),
       getSettings(),
     ]);
-    set({ workouts, routines, folders, settings });
+    set({ workouts, routines, folders, notes, settings });
   },
 
   async updateSettings(patch) {
@@ -420,6 +426,25 @@ export const useStore = create<Store>((set, get) => ({
     set({ folders: get().folders.filter((f) => f.id !== id) });
     const uid = get().user?.uid;
     if (uid) void deleteRecord(uid, 'folders', id);
+  },
+
+  async addNoteEntry(exerciseId, text) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const date = todayISO();
+    const existing = get().notes.find((n) => n.id === exerciseId);
+    const next: ExerciseNote = existing
+      ? structuredClone(existing)
+      : { id: exerciseId, entries: [], updatedAt: 0 };
+    const today = next.entries.find((e) => e.date === date);
+    // Same-day additions update today's entry; past entries are never touched.
+    if (today) today.text = trimmed;
+    else next.entries.push({ date, text: trimmed });
+    next.updatedAt = Date.now();
+    await saveNote(next);
+    set({ notes: [...get().notes.filter((n) => n.id !== exerciseId), next] });
+    const uid = get().user?.uid;
+    if (uid) void pushRecord(uid, 'notes', next);
   },
 
   async addExerciseToRoutine(routineId, exerciseId) {

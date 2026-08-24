@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { lastTimeLine } from '../lib/format';
 import { useStore } from '../state/useStore';
-import { IconCheck, IconMinus, IconPlay, IconX } from '../components/Icons';
+import { IconCheck, IconMinus, IconNote, IconPlay, IconX } from '../components/Icons';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
@@ -24,6 +24,10 @@ export function Workout() {
   const finish = useStore((s) => s.finishWorkout);
   const phase = useStore((s) => s.phase)();
   const [confirming, setConfirming] = useState(false);
+  const notes = useStore((s) => s.notes);
+  const addNoteEntry = useStore((s) => s.addNoteEntry);
+  const [notesOpen, setNotesOpen] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -125,6 +129,67 @@ export function Workout() {
                     ? t('workout.lastTime', { date: last.date.slice(5), sets: last.sets })
                     : t('workout.firstTime')}
                 </div>
+                {(() => {
+                  const note = notes.find((n) => n.id === e.exerciseId);
+                  const latest = note?.entries[note.entries.length - 1];
+                  const open = notesOpen === e.exerciseId;
+                  return (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="row small"
+                        style={{ gap: 6, color: latest ? 'var(--warn)' : 'var(--muted)', fontWeight: 600, minHeight: 32 }}
+                        aria-expanded={open}
+                        onClick={() => {
+                          setNotesOpen(open ? null : e.exerciseId);
+                          setNoteDraft('');
+                        }}
+                      >
+                        <IconNote width={14} height={14} aria-hidden />
+                        {latest ? latest.text.slice(0, 60) + (latest.text.length > 60 ? '…' : '') : t('notes.add')}
+                      </button>
+                      {open && (
+                        <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+                          {(note?.entries ?? [])
+                            .slice()
+                            .reverse()
+                            .map((entry) => (
+                              <div key={entry.date} className="small" style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10 }}>
+                                <span className="mono muted" style={{ fontSize: 11 }}>{entry.date}</span>
+                                <div>{entry.text}</div>
+                              </div>
+                            ))}
+                          <textarea
+                            rows={2}
+                            placeholder={t('notes.placeholder')}
+                            aria-label={t('notes.add')}
+                            value={noteDraft}
+                            style={{
+                              fontFamily: 'inherit',
+                              fontSize: 14,
+                              background: 'var(--surface2)',
+                              border: '1px solid var(--line)',
+                              borderRadius: 'var(--r-control)',
+                              padding: 10,
+                              color: 'var(--ink)',
+                              resize: 'vertical',
+                            }}
+                            onChange={(ev) => setNoteDraft(ev.target.value)}
+                          />
+                          <button
+                            className="btn btn-ghost"
+                            disabled={!noteDraft.trim()}
+                            onClick={() => {
+                              void addNoteEntry(e.exerciseId, noteDraft);
+                              setNoteDraft('');
+                            }}
+                          >
+                            {t('notes.save')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="setgrid setgrid-head mono small muted">
                 <span>#</span>

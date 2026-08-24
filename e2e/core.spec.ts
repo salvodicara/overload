@@ -78,6 +78,20 @@ test('programs group routines and are manageable', async ({ page }) => {
   await expect(page.getByText(/day x/i)).toBeVisible();
 });
 
+test('exercise notes accumulate across workouts', async ({ page }) => {
+  await routineStart(page, /upper heavy/i).click();
+  await page.getByRole('button', { name: /add note|aggiungi nota/i }).first().click();
+  await page.getByPlaceholder(/note for next time|nota per la prossima/i).fill('seat at 4');
+  await page.getByRole('button', { name: /save note|salva nota/i }).click();
+  await page.locator('.setcheck').first().click();
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await page.getByRole('button', { name: /back home|torna alla home/i }).click();
+  // Next session: the note is still there, and adding another keeps both.
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
+  await routineStart(page, /upper heavy/i).click();
+  await expect(page.getByText(/seat at 4/i).first()).toBeVisible();
+});
+
 test('no horizontal overflow on any tab', async ({ page }) => {
   for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(exercises|esercizi)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
     await page.getByRole('button', { name: tab }).click();

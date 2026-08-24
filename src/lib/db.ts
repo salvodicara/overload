@@ -1,10 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Folder, Routine, Settings, Workout } from './types';
+import type { ExerciseNote, Folder, Routine, Settings, Workout } from './types';
 
 export type OverloadDb = Dexie & {
   workouts: EntityTable<Workout, 'id'>;
   routines: EntityTable<Routine, 'id'>;
   folders: EntityTable<Folder, 'id'>;
+  notes: EntityTable<ExerciseNote, 'id'>;
   settings: EntityTable<Settings, 'id'>;
 };
 
@@ -18,6 +19,10 @@ db.version(1).stores({
 
 db.version(2).stores({
   folders: 'id, updatedAt',
+});
+
+db.version(3).stores({
+  notes: 'id, updatedAt',
 });
 
 const SETTINGS_ID = 'settings';
@@ -62,6 +67,14 @@ export async function deleteFolder(id: string): Promise<void> {
 
 export async function listFolders(): Promise<Folder[]> {
   return db.folders.toArray();
+}
+
+export async function saveNote(n: ExerciseNote): Promise<void> {
+  await db.notes.put(n);
+}
+
+export async function listNotes(): Promise<ExerciseNote[]> {
+  return db.notes.toArray();
 }
 
 export async function deleteRoutine(id: string): Promise<void> {

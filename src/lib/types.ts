@@ -43,6 +43,14 @@ export type Routine = {
   updatedAt: number;
 };
 
+/** Per-exercise training notes: dated entries that accumulate, never overwrite. */
+export type ExerciseNote = {
+  /** exerciseId */
+  id: string;
+  entries: { date: string; text: string }[];
+  updatedAt: number;
+};
+
 export type Folder = {
   id: string;
   name: string;

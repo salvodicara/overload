@@ -228,5 +228,11 @@
   },
   "profile": {
     "workouts": "{{n}} allenamenti"
+  },
+  "notes": {
+    "add": "Aggiungi nota",
+    "placeholder": "Nota per la prossima volta (sedile, presa, sensazioni)…",
+    "save": "Salva nota",
+    "title": "Note"
   }
 }

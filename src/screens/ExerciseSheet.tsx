@@ -20,6 +20,7 @@ export function ExerciseSheet({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   const catalogReady = useStore((s) => s.catalogReady);
   const workouts = useStore((s) => s.workouts);
+  const notes = useStore((s) => s.notes);
   const nav = useStore((s) => s.nav);
   const [showVideo, setShowVideo] = useState(false);
 
@@ -101,6 +102,28 @@ export function ExerciseSheet({ id }: { id: string }) {
           </ol>
         </div>
       )}
+      {(() => {
+        const note = notes.find((n) => n.id === id);
+        if (!note || note.entries.length === 0) return null;
+        return (
+          <section style={{ marginTop: 20 }}>
+            <div className="mono small muted" style={{ textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
+              {t('notes.title')}
+            </div>
+            <div className="stack" style={{ gap: 8 }}>
+              {note.entries
+                .slice()
+                .reverse()
+                .map((entry) => (
+                  <div key={entry.date} className="small" style={{ borderLeft: '2px solid var(--line)', paddingLeft: 10 }}>
+                    <span className="mono muted" style={{ fontSize: 11 }}>{entry.date}</span>
+                    <div>{entry.text}</div>
+                  </div>
+                ))}
+            </div>
+          </section>
+        );
+      })()}
     </div>
   );
 }
