@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/personal/
+.env
+.env.*
+.firebase/
+playwright-report/
+test-results/
+.DS_Store
