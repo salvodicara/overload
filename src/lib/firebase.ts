@@ -1,0 +1,43 @@
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import {
+  GoogleAuthProvider,
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  type User,
+} from 'firebase/auth';
+
+// Public client configuration (safe to commit by design).
+const config = {
+  projectId: 'overload-sdc',
+  appId: '1:640495363837:web:9b07e3de023cefa6f50094',
+  apiKey: 'AIzaSyC_tRgPFaGkhvwU1X2YcQEJiu1jdCMAvAk',
+  authDomain: 'overload-sdc.firebaseapp.com',
+};
+
+let app: FirebaseApp | undefined;
+
+export function initFirebase(): FirebaseApp {
+  app ??= initializeApp(config);
+  return app;
+}
+
+export function onUser(cb: (user: User | null) => void): () => void {
+  return onAuthStateChanged(getAuth(initFirebase()), cb);
+}
+
+export async function signInWithGoogle(): Promise<void> {
+  const auth = getAuth(initFirebase());
+  const provider = new GoogleAuthProvider();
+  try {
+    await signInWithPopup(auth, provider);
+  } catch {
+    await signInWithRedirect(auth, provider);
+  }
+}
+
+export function signOutUser(): Promise<void> {
+  return signOut(getAuth(initFirebase()));
+}
