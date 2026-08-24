@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -7,16 +7,19 @@ test.beforeEach(async ({ page }) => {
     indexedDB.deleteDatabase('overload');
   });
   await page.reload();
-  // First run: pick a starter template, then set the program date.
-  await page.getByRole('button', { name: /pick a plan|scegli una scheda/i }).click();
+  // First run: Workout tab → add a starter pack → set the program date.
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /^(use|usa)$/i }).first().click();
-  await expect(page.getByText(/edit routine|modifica scheda/i).first()).toBeVisible();
-  await page.getByRole('button', { name: /train|allenati/i }).click();
   await page.getByRole('button', { name: /start today|inizio oggi/i }).click();
+  await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
 });
 
+function routineStart(page: Page, name: RegExp) {
+  return page.locator('.card', { hasText: name }).getByRole('button', { name: /^(start|inizia)$/i });
+}
+
 test('log a workout end to end', async ({ page }) => {
-  await page.getByRole('button', { name: /^(start|inizia)$/i }).first().click();
+  await routineStart(page, /upper heavy/i).click();
   await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
 
   const checks = page.locator('.setcheck');
@@ -27,23 +30,33 @@ test('log a workout end to end', async ({ page }) => {
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await expect(page.getByText(/kg of volume|kg di volume/i)).toBeVisible();
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
-
-  await page.getByRole('button', { name: /history|storico/i }).click();
-  await expect(page.locator('.card').first()).toBeVisible();
+  await expect(page.getByText(/this week|questa settimana/i)).toBeVisible();
+  await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
 });
 
 test('empty session is discarded, not recorded', async ({ page }) => {
-  await page.getByRole('button', { name: /^(start|inizia)$/i }).first().click();
-  await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
-  // Leave without completing any set: no confirmation, nothing recorded.
+  await routineStart(page, /upper heavy/i).click();
   await page.locator('.iconbtn').first().click();
-  await expect(page.getByRole('button', { name: /^(start|inizia)$/i }).first()).toBeVisible();
-  await page.getByRole('button', { name: /history|storico/i }).click();
+  await expect(page.getByRole('button', { name: /^(train|allenati)$/i })).toBeVisible();
+  await page.getByRole('button', { name: /^home$/i }).click();
   await expect(page.getByText(/no workouts yet|ancora nessun allenamento/i)).toBeVisible();
 });
 
+test('routines are fully editable and deletable', async ({ page }) => {
+  await page.getByRole('button', { name: /new routine|nuova/i }).click();
+  await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
+  await page.getByRole('button', { name: /exercise|esercizio/i }).click();
+  await page.getByPlaceholder(/search|cerca/i).fill('squat');
+  await page.locator('.card', { hasText: /barbell squat/i }).first().click();
+  await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
+  await expect(page.getByText(/barbell squat/i).first()).toBeVisible();
+  await page.getByRole('button', { name: /delete routine|elimina routine/i }).click();
+  await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
+  await expect(page.getByRole('button', { name: /new routine|nuova/i })).toBeVisible();
+});
+
 test('no horizontal overflow on any tab', async ({ page }) => {
-  for (const tab of [/history|storico/i, /progress|progressi/i, /exercises|esercizi/i, /more|altro/i, /train|allenati/i]) {
+  for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
     await page.getByRole('button', { name: tab }).click();
     await page.waitForTimeout(250);
     const overflow = await page.evaluate(
@@ -54,7 +67,7 @@ test('no horizontal overflow on any tab', async ({ page }) => {
 });
 
 test('workout in progress survives reload', async ({ page }) => {
-  await page.getByRole('button', { name: /^(start|inizia)$/i }).first().click();
+  await routineStart(page, /upper heavy/i).click();
   await page.locator('.setcheck').first().click();
   await page.reload();
   await expect(page.getByText(/upper heavy/i).first()).toBeVisible();

@@ -64,6 +64,13 @@ export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const IconHome = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M4.5 10.5 12 4l7.5 6.5" />
+    <path d="M6.3 9.4v9.1a1.2 1.2 0 0 0 1.2 1.2h9a1.2 1.2 0 0 0 1.2-1.2V9.4" />
+  </svg>
+);
+
 export const IconBarbell = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M3 12h2.2M18.8 12H21M8.6 12h6.8" />

@@ -33,7 +33,7 @@ export function WorkoutDetail({ id }: { id: string }) {
 
   const w = workouts.find((x) => x.id === id);
   if (!w) {
-    nav({ view: 'history' });
+    nav({ view: 'home' });
     return null;
   }
   void catalogReady; // re-render exercise names once the catalog resolves
@@ -43,7 +43,7 @@ export function WorkoutDetail({ id }: { id: string }) {
   return (
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('history.title')} onClick={() => nav({ view: 'history' })}>
+        <button className="iconbtn" aria-label={t('history.title')} onClick={() => nav({ view: 'home' })}>
           <IconBack />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -121,7 +121,7 @@ export function WorkoutDetail({ id }: { id: string }) {
               className="btn btn-danger btn-block"
               onClick={() => {
                 void deleteWorkout(w.id);
-                nav({ view: 'history' });
+                nav({ view: 'home' });
               }}
             >
               {t('history.deleteConfirm')}

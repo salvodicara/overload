@@ -1,9 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Routine, Settings, Workout } from './types';
+import type { Folder, Routine, Settings, Workout } from './types';
 
 export type OverloadDb = Dexie & {
   workouts: EntityTable<Workout, 'id'>;
   routines: EntityTable<Routine, 'id'>;
+  folders: EntityTable<Folder, 'id'>;
   settings: EntityTable<Settings, 'id'>;
 };
 
@@ -13,6 +14,10 @@ db.version(1).stores({
   workouts: 'id, date, updatedAt',
   routines: 'id, updatedAt',
   settings: 'id',
+});
+
+db.version(2).stores({
+  folders: 'id, updatedAt',
 });
 
 const SETTINGS_ID = 'settings';
@@ -45,6 +50,22 @@ export async function saveSettings(patch: Partial<Omit<Settings, 'id'>>): Promis
 
 export async function saveRoutine(r: Routine): Promise<void> {
   await db.routines.put(r);
+}
+
+export async function saveFolder(f: Folder): Promise<void> {
+  await db.folders.put(f);
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  await db.folders.delete(id);
+}
+
+export async function listFolders(): Promise<Folder[]> {
+  return db.folders.toArray();
+}
+
+export async function deleteRoutine(id: string): Promise<void> {
+  await db.routines.delete(id);
 }
 
 export async function listRoutines(): Promise<Routine[]> {

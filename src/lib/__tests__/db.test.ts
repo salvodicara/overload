@@ -101,7 +101,7 @@ describe('routines repository', () => {
     const routine: Routine = {
       id: 'r1',
       name: 'Operazione Rientro',
-      days: [{ label: 'A', name: 'Upper', exercises: [] }],
+      exercises: [],
       updatedAt: 5,
     };
 

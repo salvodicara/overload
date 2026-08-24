@@ -32,14 +32,13 @@ export function Workout() {
   }, []);
 
   const routine = routines.find((r) => r.id === active?.routineId);
-  const day = routine?.days[active?.dayIndex ?? -1];
-  const broken = routines.length > 0 && (!active || !routine || !day);
+  const broken = routines.length > 0 && (!active || !routine);
   useEffect(() => {
     // The routine (or its day) was deleted while this session was running:
     // clear the phantom session instead of bouncing between screens forever.
     if (broken) abandon();
   }, [broken, abandon]);
-  if (!active || !routine || !day) return null;
+  if (!active || !routine) return null;
 
   const elapsed = Math.floor((Date.now() - active.startTs) / 1000);
 
@@ -67,7 +66,7 @@ export function Workout() {
           <IconX />
         </button>
         <div className="display" style={{ fontSize: 24, flex: 1 }}>
-          {day.label} · {day.name}
+          {routine.name}
         </div>
         <span className="mono small muted">
           {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
@@ -79,16 +78,16 @@ export function Workout() {
           <b>{t('phase.reactivation')}:</b> {t('phase.hint.reactivation')}
         </div>
       )}
-      {day.warmup && (
+      {routine.warmup && (
         <div className="banner banner-good" style={{ marginBottom: 10 }}>
-          <b>{t('workout.warmup')}:</b> {day.warmup}
+          <b>{t('workout.warmup')}:</b> {routine.warmup}
         </div>
       )}
 
       <div className="stack">
         {active.ex.map((e, ei) => {
           // Resolve by id: the routine may have been edited mid-session.
-          const rx = day.exercises.find((x) => x.exerciseId === e.exerciseId);
+          const rx = routine.exercises.find((x) => x.exerciseId === e.exerciseId);
           const last = lastTimeLine(workouts, e.exerciseId);
           const firstW = e.sets[0]?.weightKg ?? 0;
           const cat = catalogReady ? getCatalog().get(e.exerciseId) : undefined;

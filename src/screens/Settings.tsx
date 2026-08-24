@@ -1,4 +1,4 @@
-import { IconForward } from '../components/Icons';
+import { IconBack, IconForward } from '../components/Icons';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
@@ -34,7 +34,12 @@ export function Settings() {
 
   return (
     <div className="screen">
-      <div className="display screen-title">{t('settings.title')}</div>
+      <div className="row" style={{ padding: '18px 0 0' }}>
+        <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav({ view: 'profile' })}>
+          <IconBack />
+        </button>
+      </div>
+      <div className="display screen-title" style={{ paddingTop: 6 }}>{t('settings.title')}</div>
 
       <div className="card">
         <div className="card-pad spread">
@@ -75,18 +80,6 @@ export function Settings() {
           onClick={() => nav({ view: 'importExport' })}
         >
           <span>{t('settings.import')}</span>
-          <span className="muted"><IconForward /></span>
-        </button>
-        <button
-          className="card-pad spread"
-          style={{ ...DIVIDER, width: '100%', textAlign: 'left' }}
-          onClick={() => nav({ view: 'routines' })}
-        >
-          <span>
-            {t('settings.routines')}
-            <br />
-            <span className="small muted">{t('settings.routinesHint')}</span>
-          </span>
           <span className="muted"><IconForward /></span>
         </button>
         <div className="card-pad spread" style={DIVIDER}>

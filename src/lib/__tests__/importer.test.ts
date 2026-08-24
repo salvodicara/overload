@@ -17,7 +17,7 @@ function workout(id: string, date = '2026-06-01'): Workout {
 const ROUTINE: Routine = {
   id: 'r1',
   name: 'Operazione Rientro',
-  days: [{ label: 'A', name: 'Upper', exercises: [] }],
+  exercises: [],
   updatedAt: 2,
 };
 

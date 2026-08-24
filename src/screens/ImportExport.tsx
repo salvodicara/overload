@@ -108,7 +108,7 @@ export function ImportExport() {
     setBusy(false);
     setPreview(null);
     toast(t('import.done', { n: preview.fresh.length }));
-    nav({ view: 'history' });
+    nav({ view: 'home' });
   }
 
   return (
@@ -183,7 +183,6 @@ export function ImportExport() {
         {t('import.export')}
       </div>
       <div className="card">
-        <ExportRows />
       </div>
     </div>
   );

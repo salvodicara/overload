@@ -6,17 +6,17 @@ import { onToast, registerTranslator, useStore } from './state/useStore';
 import { Nav } from './components/Nav';
 import { RestBar } from './components/RestBar';
 import { Login } from './screens/Login';
-import { Home } from './screens/Home';
+import { History } from './screens/History';
+import { Train } from './screens/Train';
+import { Profile } from './screens/Profile';
 import { Workout } from './screens/Workout';
 import { Summary } from './screens/Summary';
-import { History } from './screens/History';
 import { WorkoutDetail } from './screens/WorkoutDetail';
 import { Progress } from './screens/Progress';
 import { Library } from './screens/Library';
 import { ExerciseSheet } from './screens/ExerciseSheet';
 import { Settings } from './screens/Settings';
 import { ImportExport } from './screens/ImportExport';
-import { Routines } from './screens/Routines';
 import { RoutineEditor } from './screens/RoutineEditor';
 
 initI18n();
@@ -25,13 +25,15 @@ function Screen() {
   const route = useStore((s) => s.route);
   switch (route.view) {
     case 'home':
-      return <Home />;
+      return <History />;
+    case 'train':
+      return <Train />;
+    case 'profile':
+      return <Profile />;
     case 'workout':
       return <Workout />;
     case 'summary':
       return <Summary workoutId={route.workoutId} />;
-    case 'history':
-      return <History />;
     case 'workoutDetail':
       return <WorkoutDetail id={route.id} />;
     case 'progress':
@@ -44,8 +46,6 @@ function Screen() {
       return <Settings />;
     case 'importExport':
       return <ImportExport />;
-    case 'routines':
-      return <Routines />;
     case 'routineEditor':
       return <RoutineEditor id={route.id} />;
   }

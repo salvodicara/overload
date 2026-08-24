@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
+import { IconBack } from '../components/Icons';
 import { muscleGroup, searchExercises, type MuscleGroup } from '../lib/exercises';
 import { useStore } from '../state/useStore';
 
@@ -9,11 +10,11 @@ const GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms', 'co
 /** Long lists stay responsive on phones without a virtualiser. */
 const MAX_RESULTS = 60;
 
-export function Library({ pickFor }: { pickFor?: { routineId: string; dayIndex: number } }) {
+export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const { t, i18n } = useTranslation();
   const catalogReady = useStore((s) => s.catalogReady);
   const nav = useStore((s) => s.nav);
-  const addExerciseToRoutineDay = useStore((s) => s.addExerciseToRoutineDay);
+  const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<MuscleGroup | null>(null);
 
@@ -28,13 +29,18 @@ export function Library({ pickFor }: { pickFor?: { routineId: string; dayIndex: 
       nav({ view: 'exercise', id });
       return;
     }
-    await addExerciseToRoutineDay(pickFor.routineId, pickFor.dayIndex, id);
+    await addExerciseToRoutine(pickFor.routineId, id);
     nav({ view: 'routineEditor', id: pickFor.routineId });
   }
 
   return (
     <div className="screen">
-      <div className="display screen-title">{t(pickFor ? 'library.pickTitle' : 'library.title')}</div>
+      <div className="row" style={{ padding: '18px 0 0' }}>
+        <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav(pickFor ? { view: 'routineEditor', id: pickFor.routineId } : { view: 'profile' })}>
+          <IconBack />
+        </button>
+      </div>
+      <div className="display screen-title" style={{ paddingTop: 6 }}>{t(pickFor ? 'library.pickTitle' : 'library.title')}</div>
 
       <div
         className="stack"

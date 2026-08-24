@@ -1,11 +1,11 @@
-import { db, getSettings, listRoutines, listWorkouts } from './db';
+import { db, getSettings, listFolders, listRoutines, listWorkouts } from './db';
 
 /** Every synced record carries an id and a last-write timestamp (epoch ms). */
 export type Synced = { id: string; updatedAt: number };
 
 export type SyncState = 'synced' | 'pending' | 'offline' | 'error';
 
-export type SyncCollection = 'workouts' | 'routines' | 'settings';
+export type SyncCollection = 'workouts' | 'routines' | 'folders' | 'settings';
 
 /**
  * Last-write-wins diff between the local and remote copies of a collection.
@@ -76,6 +76,7 @@ async function syncAll(uid: string): Promise<{ pulled: number; pushFailures: num
   const settings = await getSettings();
   await syncOne('workouts', await listWorkouts(), (rows) => db.workouts.bulkPut(rows));
   await syncOne('routines', await listRoutines(), (rows) => db.routines.bulkPut(rows));
+  await syncOne('folders', await listFolders(), (rows) => db.folders.bulkPut(rows));
   // A never-saved settings record (updatedAt 0) has nothing worth pushing.
   await syncOne('settings', settings.updatedAt > 0 ? [settings] : [], (rows) =>
     db.settings.bulkPut(rows),

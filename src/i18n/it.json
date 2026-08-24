@@ -11,7 +11,9 @@
     "history": "Storico",
     "progress": "Progressi",
     "library": "Esercizi",
-    "settings": "Altro"
+    "settings": "Altro",
+    "home": "Home",
+    "profile": "Profilo"
   },
   "login": {
     "subtitle": "Il tuo allenamento, i tuoi dati. Senza pubblicità, senza social, senza abbonamenti.",
@@ -49,7 +51,10 @@
     "suggested": "consigliato",
     "welcomeTitle": "Costruisci la tua scheda",
     "welcomeBody": "Parti da un template pronto o crea la tua routine da zero: giorni, esercizi e progressione sono tuoi.",
-    "welcomeCta": "Scegli una scheda"
+    "welcomeCta": "Scegli una scheda",
+    "thisWeek": "Questa settimana",
+    "sessions": "allenamenti",
+    "moreExercises": "+ altri {{n}} esercizi"
   },
   "workout": {
     "warmup": "Riscaldamento",
@@ -194,10 +199,22 @@
     "moveDown": "Sposta giù",
     "addDay": "+ Giorno",
     "removeDay": "Rimuovi giorno",
-    "noExercises": "Nessun esercizio in questo giorno.",
+    "noExercises": "Nessun esercizio: aggiungine uno dalla libreria.",
     "notFound": "Scheda non trovata.",
     "importJson": "Importa scheda (JSON)",
     "imported": "Scheda importata",
-    "invalid": "File scheda non valido."
+    "invalid": "File scheda non valido.",
+    "folder": "Programma",
+    "noFolder": "Nessun programma",
+    "deleteRoutine": "Elimina routine",
+    "deleteRoutineBody": "La routine sparisce da tutti i dispositivi. Lo storico degli allenamenti resta."
+  },
+  "train": {
+    "manage": "Gestisci",
+    "deleteFolder": "Elimina programma",
+    "deleteFolderBody": "Le routine al suo interno non vengono eliminate: tornano fra le routine singole."
+  },
+  "profile": {
+    "workouts": "{{n}} allenamenti"
   }
 }

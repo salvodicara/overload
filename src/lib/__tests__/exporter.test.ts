@@ -30,7 +30,7 @@ const WORKOUTS: Workout[] = [
   },
 ];
 
-const ROUTINES: Routine[] = [{ id: 'r1', name: 'Operazione Rientro', days: [], updatedAt: 1 }];
+const ROUTINES: Routine[] = [{ id: 'r1', name: 'Operazione Rientro', exercises: [], updatedAt: 1 }];
 
 const SETTINGS: Settings = { id: 'settings', programStartDate: '2026-06-01', updatedAt: 2 };
 

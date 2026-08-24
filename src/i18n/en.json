@@ -11,7 +11,9 @@
     "history": "History",
     "progress": "Progress",
     "library": "Exercises",
-    "settings": "More"
+    "settings": "More",
+    "home": "Home",
+    "profile": "Profile"
   },
   "login": {
     "subtitle": "Your training, your data. No ads, no social feed, no subscriptions.",
@@ -49,7 +51,10 @@
     "suggested": "suggested",
     "welcomeTitle": "Build your plan",
     "welcomeBody": "Start from a ready template or create your own routine from scratch: days, exercises and progression are yours.",
-    "welcomeCta": "Pick a plan"
+    "welcomeCta": "Pick a plan",
+    "thisWeek": "This week",
+    "sessions": "workouts",
+    "moreExercises": "+ {{n}} more exercises"
   },
   "workout": {
     "warmup": "Warm-up",
@@ -194,10 +199,22 @@
     "moveDown": "Move down",
     "addDay": "+ Day",
     "removeDay": "Remove day",
-    "noExercises": "No exercises in this day.",
+    "noExercises": "No exercises yet: add one from the library.",
     "notFound": "Routine not found.",
     "importJson": "Import routine (JSON)",
     "imported": "Routine imported",
-    "invalid": "Invalid routine file."
+    "invalid": "Invalid routine file.",
+    "folder": "Program",
+    "noFolder": "No program",
+    "deleteRoutine": "Delete routine",
+    "deleteRoutineBody": "The routine disappears from all your devices. Workout history stays."
+  },
+  "train": {
+    "manage": "Manage",
+    "deleteFolder": "Delete program",
+    "deleteFolderBody": "Routines inside are not deleted: they move back to standalone routines."
+  },
+  "profile": {
+    "workouts": "{{n}} workouts"
   }
 }

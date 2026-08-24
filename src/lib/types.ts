@@ -33,17 +33,27 @@ export type RoutineExercise = {
   incrementKg?: number;
 };
 
-export type RoutineDay = {
-  label: string;
-  name: string;
-  warmup?: string;
-  exercises: RoutineExercise[];
-};
-
+/** Hevy model: a routine IS one workout template; folders group them. */
 export type Routine = {
   id: string;
   name: string;
-  days: RoutineDay[];
+  folderId?: string;
+  warmup?: string;
+  exercises: RoutineExercise[];
+  updatedAt: number;
+};
+
+export type Folder = {
+  id: string;
+  name: string;
+  updatedAt: number;
+};
+
+/** Pre-migration shape (multi-day container); converted on load. */
+export type LegacyRoutine = {
+  id: string;
+  name: string;
+  days: { label: string; name: string; warmup?: string; exercises: RoutineExercise[] }[];
   updatedAt: number;
 };
 

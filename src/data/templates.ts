@@ -1,18 +1,20 @@
-import type { Routine } from '../lib/types';
-import { SEED_ROUTINE } from './seedRoutine';
+import type { Folder, Routine } from '../lib/types';
+import { SEED_FOLDER, SEED_ROUTINES } from './seedRoutine';
 
-// Starter templates offered to new users. Using one copies it into the user's
-// own routines (same id → re-adding is idempotent).
-export const TEMPLATES: Routine[] = [
-  SEED_ROUTINE,
+export type TemplatePack = { folder: Folder; routines: Routine[] };
+
+// Starter packs offered on the Workout tab. "Using" one copies its folder and
+// routines into the user's data (deterministic ids → re-adding is idempotent).
+export const TEMPLATES: TemplatePack[] = [
+  { folder: SEED_FOLDER, routines: SEED_ROUTINES },
   {
-    id: 'push-pull-legs',
-    name: 'Push / Pull / Legs',
-    updatedAt: 1,
-    days: [
+    folder: { id: 'ppl-folder', name: 'Push / Pull / Legs', updatedAt: 1 },
+    routines: [
       {
-        label: 'A',
+        id: 'ppl-push',
         name: 'Push',
+        folderId: 'ppl-folder',
+        updatedAt: 1,
         exercises: [
           { exerciseId: 'Dumbbell_Bench_Press', sets: 3, repMin: 8, repMax: 12, restSec: 120 },
           { exerciseId: 'Smith_Machine_Incline_Bench_Press', sets: 3, repMin: 8, repMax: 12, restSec: 90 },
@@ -23,8 +25,10 @@ export const TEMPLATES: Routine[] = [
         ],
       },
       {
-        label: 'B',
+        id: 'ppl-pull',
         name: 'Pull',
+        folderId: 'ppl-folder',
+        updatedAt: 1,
         exercises: [
           { exerciseId: 'Wide-Grip_Lat_Pulldown', sets: 3, repMin: 8, repMax: 12, restSec: 90 },
           { exerciseId: 'Bent_Over_Barbell_Row', sets: 3, repMin: 8, repMax: 10, restSec: 120 },
@@ -35,8 +39,10 @@ export const TEMPLATES: Routine[] = [
         ],
       },
       {
-        label: 'C',
+        id: 'ppl-legs',
         name: 'Legs',
+        folderId: 'ppl-folder',
+        updatedAt: 1,
         exercises: [
           { exerciseId: 'Barbell_Squat', sets: 4, repMin: 6, repMax: 10, restSec: 150, incrementKg: 5 },
           { exerciseId: 'Romanian_Deadlift', sets: 3, repMin: 8, repMax: 12, restSec: 120, incrementKg: 5 },
