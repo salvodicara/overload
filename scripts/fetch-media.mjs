@@ -26,7 +26,7 @@ if (all) {
   ids = JSON.parse(readFileSync(join(tmp, 'dist/exercises.json'), 'utf8')).map((e) => e.id);
 } else {
   const curated = readFileSync(join(root, 'src/data/curated.ts'), 'utf8');
-  ids = [...new Set([...curated.matchAll(/'([A-Za-z0-9_'\-]+)':\s*\{/g)].map((m) => m[1]))];
+  ids = [...new Set([...curated.matchAll(/'?([A-Za-z0-9_-]+)'?:\s*\{/g)].map((m) => m[1]))];
 }
 
 let copied = 0;
