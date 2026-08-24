@@ -111,6 +111,7 @@ export type Store = {
   stopRest(): void;
 
   saveRoutine(r: Routine): Promise<void>;
+  addExerciseToRoutineDay(routineId: string, dayIndex: number, exerciseId: string): Promise<void>;
   deleteWorkout(id: string): Promise<void>;
   importWorkouts(fresh: Workout[]): Promise<void>;
 };
@@ -312,6 +313,21 @@ export const useStore = create<Store>((set, get) => ({
     }
     const uid = get().user?.uid;
     if (uid) void pushRecord(uid, 'routines', next);
+  },
+
+  async addExerciseToRoutineDay(routineId, dayIndex, exerciseId) {
+    const routine = get().routines.find((r) => r.id === routineId);
+    const day = routine?.days[dayIndex];
+    if (!routine || !day) return;
+    const next = structuredClone(routine);
+    next.days[dayIndex].exercises.push({
+      exerciseId,
+      sets: 3,
+      repMin: 8,
+      repMax: 12,
+      restSec: 90,
+    });
+    await get().saveRoutine(next);
   },
 
   async deleteWorkout(id) {
