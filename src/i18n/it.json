@@ -111,7 +111,10 @@
       "calves": "Polpacci"
     },
     "watch": "Guarda la tecnica su YouTube",
-    "noResults": "Nessun esercizio trovato"
+    "noResults": "Nessun esercizio trovato",
+    "pickTitle": "Aggiungi esercizio",
+    "back": "Indietro",
+    "howTo": "Esecuzione"
   },
   "settings": {
     "title": "Altro",

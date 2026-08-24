@@ -111,7 +111,10 @@
       "calves": "Calves"
     },
     "watch": "Watch technique on YouTube",
-    "noResults": "No exercises found"
+    "noResults": "No exercises found",
+    "pickTitle": "Add exercise",
+    "back": "Back",
+    "howTo": "How to"
   },
   "settings": {
     "title": "More",
