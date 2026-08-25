@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FocusEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { exerciseName, getCatalog } from '../lib/exercises';
-import { lastTimeLine } from '../lib/format';
-import { useStore } from '../state/useStore';
-import { IconCheck, IconDown, IconMinus, IconNote, IconPlay } from '../components/Icons';
+import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
+import { exerciseName } from '../lib/exercises';
+import { formatPreviousSet, previousSets } from '../lib/format';
+import type { TrackingType } from '../lib/types';
+import { canonicalWeight, displayWeight, formatWeight, weightLabel } from '../lib/units';
+import { useStore } from '../state/useStore';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
@@ -13,21 +15,34 @@ function fmtRest(sec: number): string {
   return s ? `${m}′${s}″` : `${m}′`;
 }
 
+function selectNumericValue(event: FocusEvent<HTMLInputElement>): void {
+  event.currentTarget.select();
+}
+
+function rangeLabel(min: number, max: number | null): string {
+  return max === null ? `${min}+` : min === max ? String(min) : `${min}–${max}`;
+}
+
+function tableMode(tracking: TrackingType): string {
+  return tracking.replace('_', '-');
+}
+
 export function Workout() {
   const { t, i18n } = useTranslation();
-  const { active, routines, workouts, catalogReady } = useStore();
+  const { active, routines, workouts, settings } = useStore();
   const nav = useStore((s) => s.nav);
   const updateSet = useStore((s) => s.updateSet);
+  const toggleSetKind = useStore((s) => s.toggleSetKind);
   const toggleDone = useStore((s) => s.toggleDone);
   const addSet = useStore((s) => s.addSet);
   const removeSet = useStore((s) => s.removeSet);
   const abandon = useStore((s) => s.abandonWorkout);
   const finish = useStore((s) => s.finishWorkout);
-  const [confirming, setConfirming] = useState(false);
   const notes = useStore((s) => s.notes);
   const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
-  const setRestOverride = useStore((st) => st.setRestOverride);
+  const setRestOverride = useStore((s) => s.setRestOverride);
+  const [confirming, setConfirming] = useState(false);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState<{
     exerciseIndex: number;
@@ -43,137 +58,152 @@ export function Workout() {
   const routine = routines.find((r) => r.id === active?.routineId);
   const broken = routines.length > 0 && (!active || !routine);
   useEffect(() => {
-    // The routine (or its day) was deleted while this session was running:
-    // clear the phantom session instead of bouncing between screens forever.
     if (broken) abandon();
   }, [broken, abandon]);
   if (!active || !routine) return null;
 
+  const unit = settings.unit ?? 'kg';
   const elapsed = Math.floor((Date.now() - active.startTs) / 1000);
 
   return (
-    <div className="screen">
-      <div
-        className="row"
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          background: 'var(--bg)',
-          padding: '14px 0 8px',
-        }}
-      >
-        <button className="iconbtn" aria-label={t('workout.minimize')} onClick={() => nav({ view: 'train' })}>
+    <div className="screen workout-screen">
+      <header className="workout-header">
+        <button
+          className="iconbtn workout-header__minimize"
+          aria-label={t('workout.minimize')}
+          onClick={() => nav({ view: 'train' })}
+        >
           <IconDown />
         </button>
-        <div className="display" style={{ fontSize: 24, flex: 1 }}>
-          {routine.name}
+        <div className="workout-header__copy">
+          <h1 className="display workout-header__title">{routine.name}</h1>
+          <span className="mono small muted workout-header__elapsed">
+            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+          </span>
         </div>
-        <span className="mono small muted">
-          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-        </span>
-      </div>
+        <button className="btn btn-accent workout-header__finish" onClick={() => void finish()}>
+          {t('workout.finish')}
+        </button>
+      </header>
 
       {routine.warmup && (
-        <div className="banner banner-good" style={{ marginBottom: 10 }}>
-          <b>{t('workout.warmup')}:</b> {routine.warmup}
-        </div>
+        <details className="workout-preparation">
+          <summary>{t('workout.warmup')}</summary>
+          <p>{routine.warmup}</p>
+        </details>
       )}
 
-      <div className="stack">
-        {active.ex.map((e, ei) => {
-          // Resolve by id: the routine may have been edited mid-session.
-          const rx = routine.exercises.find((x) => x.exerciseId === e.exerciseId);
-          const last = lastTimeLine(workouts, e.exerciseId);
-          const firstW = e.sets[0]?.weightKg ?? 0;
-          const cat = catalogReady ? getCatalog().get(e.exerciseId) : undefined;
+      <div className="stack workout-exercises">
+        {active.ex.map((exercise, exerciseIndex) => {
+          const prescription = routine.exercises.find(
+            (item) => item.exerciseId === exercise.exerciseId,
+          );
+          const name = exerciseName(exercise.exerciseId, i18n.language);
+          const priorWorkingSets = previousSets(workouts, exercise.exerciseId);
+          const firstWorkingWeight =
+            exercise.sets.find((set) => set.kind === 'working')?.weightKg ?? 0;
+          const target = prescription
+            ? `${prescription.sets} × ${rangeLabel(prescription.repMin, prescription.repMax)}${
+                exercise.tracking === 'duration' ? 's' : ''
+              }`
+            : null;
+          const progression =
+            exercise.tracking === 'weight_reps'
+              ? t(exercise.hintKey, {
+                  kg: firstWorkingWeight,
+                  weight: formatWeight(firstWorkingWeight, unit, i18n.language),
+                })
+              : exercise.tracking === 'duration'
+                ? t('workout.durationTarget')
+                : t('workout.repsTarget');
+          let workingIndex = 0;
+
           return (
-            <div key={ei} className="card">
-              <div className="card-pad" style={{ paddingBottom: 8 }}>
-                <div className="row" style={{ flexWrap: 'wrap' }}>
-                  <button
-                    style={{ fontWeight: 700, fontSize: 16, textAlign: 'left' }}
-                    onClick={() => nav({ view: 'exercise', id: e.exerciseId, from: 'workout' })}
-                  >
-                    {exerciseName(e.exerciseId, i18n.language)}
-                  </button>
-                  {cat?.youtubeId && (
+            <section key={exercise.exerciseId} className="exercise-block card">
+              <div className="card-pad exercise-block__header">
+                <button
+                  className="exercise-block__name"
+                  onClick={() =>
+                    nav({ view: 'exercise', id: exercise.exerciseId, from: 'workout' })
+                  }
+                >
+                  {name}
+                </button>
+                <div className="exercise-block__meta">
+                  {target && <span>{target}</span>}
+                  {prescription && (
                     <button
-                      className="chip"
-                      style={{ color: 'var(--accent-text)', fontWeight: 600 }}
-                      onClick={() => nav({ view: 'exercise', id: e.exerciseId, from: 'workout' })}
+                      className="exercise-block__rest"
+                      aria-expanded={editingRest === exerciseIndex}
+                      onClick={() =>
+                        setEditingRest(editingRest === exerciseIndex ? null : exerciseIndex)
+                      }
                     >
-                      <IconPlay width={11} height={11} style={{ verticalAlign: '-1px' }} aria-hidden /> {t('workout.video')}
+                      {t('workout.rest', {
+                        time: fmtRest(exercise.restOverride ?? prescription.restSec),
+                      })}{' '}
+                      ▾
                     </button>
                   )}
+                  <span>{progression}</span>
                 </div>
-                <div className="row" style={{ flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
-                  {rx && (
-                    <>
-                      <span className="chip">
-                        {rx.sets}×{rx.repMin}
-                        {rx.repMax ? `-${rx.repMax}` : '+'}
-                      </span>
-                      <button
-                        className="chip"
-                        aria-expanded={editingRest === ei}
-                        onClick={() => setEditingRest(editingRest === ei ? null : ei)}
-                      >
-                        {t('workout.rest', { time: fmtRest(e.restOverride ?? rx.restSec) })} ▾
-                      </button>
-                    </>
-                  )}
-                  <span className="chip chip-accent">{t(e.hintKey, { kg: firstW })}</span>
-                </div>
-                {editingRest === ei && rx && (
-                  <div className="row" style={{ marginTop: 8, gap: 8 }}>
+
+                {editingRest === exerciseIndex && prescription && (
+                  <div className="exercise-block__rest-editor">
                     <button
-                      className="iconbtn"
-                      style={{ width: 40, height: 40 }}
+                      className="iconbtn rest-adjust"
                       aria-label={t('workout.restLess')}
-                      disabled={(e.restOverride ?? rx.restSec) <= 15}
-                      onClick={() => setRestOverride(ei, Math.max(15, (e.restOverride ?? rx.restSec) - 15))}
+                      disabled={(exercise.restOverride ?? prescription.restSec) <= 15}
+                      onClick={() =>
+                        setRestOverride(
+                          exerciseIndex,
+                          Math.max(15, (exercise.restOverride ?? prescription.restSec) - 15),
+                        )
+                      }
                     >
                       <IconMinus width={14} height={14} />
                     </button>
-                    <span className="mono" style={{ fontWeight: 700, minWidth: 56, textAlign: 'center' }}>
-                      {fmtRest(e.restOverride ?? rx.restSec)}
+                    <span className="mono exercise-block__rest-value">
+                      {fmtRest(exercise.restOverride ?? prescription.restSec)}
                     </span>
                     <button
-                      className="iconbtn"
-                      style={{ width: 40, height: 40, fontWeight: 700 }}
+                      className="iconbtn rest-adjust"
                       aria-label={t('workout.restMore')}
-                      onClick={() => setRestOverride(ei, (e.restOverride ?? rx.restSec) + 15)}
+                      onClick={() =>
+                        setRestOverride(
+                          exerciseIndex,
+                          (exercise.restOverride ?? prescription.restSec) + 15,
+                        )
+                      }
                     >
                       +
                     </button>
-                    <button className="small" style={{ color: 'var(--accent-text)', fontWeight: 600, padding: 6 }} onClick={() => setEditingRest(null)}>
+                    <button
+                      className="btn btn-ghost rest-adjust-done"
+                      onClick={() => setEditingRest(null)}
+                    >
                       {t('momentum.done')}
                     </button>
                   </div>
                 )}
-                {rx?.note && <div className="small muted" style={{ marginTop: 6 }}>{rx.note}</div>}
-                {last && (
-                  <div className="mono small muted" style={{ marginTop: 6 }}>
-                    {t('workout.lastTime', { date: last.date.slice(5), sets: last.sets })}
-                  </div>
-                )}
+
                 {(() => {
-                  const note = notes.find((n) => n.id === e.exerciseId);
+                  const note = notes.find((item) => item.id === exercise.exerciseId);
                   const editingTechnique =
-                    editingNote?.exerciseIndex === ei && editingNote.scope === 'technique';
+                    editingNote?.exerciseIndex === exerciseIndex &&
+                    editingNote.scope === 'technique';
                   const editingSession =
-                    editingNote?.exerciseIndex === ei && editingNote.scope === 'session';
+                    editingNote?.exerciseIndex === exerciseIndex && editingNote.scope === 'session';
                   return (
                     <div className="stack" style={{ marginTop: 8, gap: 6 }}>
                       <div>
                         {editingTechnique ? (
                           <NoteEditor
-                            key={`technique:${ei}`}
+                            key={`technique:${exerciseIndex}`}
                             initial={note?.technique ?? ''}
                             placeholder={t('notes.techniquePlaceholder')}
                             ariaLabel={t('notes.technique')}
-                            onChangeText={(text) => queueTechniqueNote(e.exerciseId, text)}
+                            onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
                             onDone={() => setEditingNote(null)}
                           />
                         ) : (
@@ -187,12 +217,23 @@ export function Workout() {
                               textAlign: 'left',
                               width: '100%',
                             }}
-                            onClick={() => setEditingNote({ exerciseIndex: ei, scope: 'technique' })}
+                            onClick={() => setEditingNote({ exerciseIndex, scope: 'technique' })}
                           >
-                            <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                            <IconNote
+                              width={14}
+                              height={14}
+                              aria-hidden
+                              style={{ flex: 'none', marginTop: 2 }}
+                            />
                             <span style={{ flex: 1, minWidth: 0 }}>
                               <b>{t('notes.technique')}</b>
-                              <span style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                              <span
+                                style={{
+                                  display: 'block',
+                                  whiteSpace: 'pre-wrap',
+                                  overflowWrap: 'anywhere',
+                                }}
+                              >
                                 {note?.technique || t('notes.techniquePlaceholder')}
                               </span>
                             </span>
@@ -202,11 +243,11 @@ export function Workout() {
                       <div>
                         {editingSession ? (
                           <NoteEditor
-                            key={`session:${ei}`}
-                            initial={e.sessionNote ?? ''}
+                            key={`session:${exerciseIndex}`}
+                            initial={exercise.sessionNote ?? ''}
                             placeholder={t('notes.sessionPlaceholder')}
                             ariaLabel={t('notes.session')}
-                            onChangeText={(text) => updateSessionNote(ei, text)}
+                            onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
                             onDone={() => setEditingNote(null)}
                           />
                         ) : (
@@ -215,18 +256,29 @@ export function Workout() {
                             style={{
                               gap: 6,
                               alignItems: 'flex-start',
-                              color: e.sessionNote ? 'var(--warn)' : 'var(--muted)',
+                              color: exercise.sessionNote ? 'var(--warn)' : 'var(--muted)',
                               minHeight: 32,
                               textAlign: 'left',
                               width: '100%',
                             }}
-                            onClick={() => setEditingNote({ exerciseIndex: ei, scope: 'session' })}
+                            onClick={() => setEditingNote({ exerciseIndex, scope: 'session' })}
                           >
-                            <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                            <IconNote
+                              width={14}
+                              height={14}
+                              aria-hidden
+                              style={{ flex: 'none', marginTop: 2 }}
+                            />
                             <span style={{ flex: 1, minWidth: 0 }}>
                               <b>{t('notes.session')}</b>
-                              <span style={{ display: 'block', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                                {e.sessionNote || t('notes.sessionPlaceholder')}
+                              <span
+                                style={{
+                                  display: 'block',
+                                  whiteSpace: 'pre-wrap',
+                                  overflowWrap: 'anywhere',
+                                }}
+                              >
+                                {exercise.sessionNote || t('notes.sessionPlaceholder')}
                               </span>
                             </span>
                           </button>
@@ -236,78 +288,141 @@ export function Workout() {
                   );
                 })()}
               </div>
-              <div className="setgrid setgrid-head mono small muted">
-                <span>#</span>
-                <span>{t('workout.kg')}</span>
-                <span>{t('workout.reps')}</span>
-                <span><IconCheck width={12} height={12} /></span>
-              </div>
-              {e.sets.map((s, si) => (
-                <div key={si} className={`setgrid setrow${s.done ? ' done' : ''}`}>
-                  <span className="mono small muted" style={{ textAlign: 'center' }}>
-                    {si + 1}
+
+              <div
+                className={`set-table set-table--${tableMode(exercise.tracking)}`}
+                aria-label={t('workout.setsFor', { exercise: name })}
+              >
+                <div className="set-grid set-table__header mono muted" aria-hidden="true">
+                  <span>{t('workout.set')}</span>
+                  <span>{t('workout.previous')}</span>
+                  {exercise.tracking === 'weight_reps' && <span>{weightLabel(unit)}</span>}
+                  {exercise.tracking !== 'duration' && <span>{t('workout.reps')}</span>}
+                  {exercise.tracking === 'duration' && <span>{t('workout.seconds')}</span>}
+                  <span>
+                    <IconCheck width={13} height={13} />
                   </span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step={0.5}
-                    min={0}
-                    aria-label={t('workout.kg')}
-                    value={s.weightKg ?? ''}
-                    onChange={(ev) =>
-                      updateSet(ei, si, { weightKg: ev.target.value === '' ? null : +ev.target.value })
-                    }
-                  />
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    step={1}
-                    min={0}
-                    aria-label={t('workout.reps')}
-                    value={s.reps ?? ''}
-                    onChange={(ev) =>
-                      updateSet(ei, si, { reps: ev.target.value === '' ? null : +ev.target.value })
-                    }
-                  />
-                  <button
-                    className="setcheck"
-                    aria-pressed={s.done}
-                    aria-label={`${t('workout.set')} ${si + 1}`}
-                    onClick={() => toggleDone(ei, si)}
-                  >
-                    <IconCheck />
-                  </button>
                 </div>
-              ))}
-              <div className="row" style={{ borderTop: '1px dashed var(--line)' }}>
-                <button className="addset" onClick={() => addSet(ei)}>
+
+                {exercise.sets.map((set, setIndex) => {
+                  const isWarmup = set.kind === 'warmup';
+                  const workingNumber = workingIndex + 1;
+                  const previous = isWarmup ? undefined : priorWorkingSets[workingIndex];
+                  if (!isWarmup) workingIndex += 1;
+                  const setNumber = setIndex + 1;
+                  return (
+                    <div
+                      key={setIndex}
+                      className={`set-grid set-row setrow${set.done ? ' done' : ''}`}
+                    >
+                      <button
+                        className="set-kind-toggle mono"
+                        aria-pressed={isWarmup}
+                        aria-label={
+                          isWarmup
+                            ? t('workout.markWorking', { set: setNumber })
+                            : t('workout.markWarmup', { set: setNumber })
+                        }
+                        onClick={() => toggleSetKind(exerciseIndex, setIndex)}
+                      >
+                        {isWarmup ? 'W' : workingNumber}
+                      </button>
+                      <span className="set-previous mono">
+                        {previous ? formatPreviousSet(previous, exercise.tracking, unit) : '—'}
+                      </span>
+                      {exercise.tracking === 'weight_reps' && (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step={unit === 'kg' ? 0.5 : 1}
+                          min={0}
+                          aria-label={t('workout.loadInput', {
+                            set: setNumber,
+                            unit: weightLabel(unit),
+                          })}
+                          value={set.weightKg === null ? '' : displayWeight(set.weightKg, unit)}
+                          onFocus={selectNumericValue}
+                          onChange={(event) =>
+                            updateSet(exerciseIndex, setIndex, {
+                              weightKg:
+                                event.target.value === ''
+                                  ? null
+                                  : canonicalWeight(Number(event.target.value), unit),
+                            })
+                          }
+                        />
+                      )}
+                      {exercise.tracking !== 'duration' && (
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          step={1}
+                          min={0}
+                          aria-label={t('workout.repsInput', { set: setNumber })}
+                          value={set.reps ?? ''}
+                          onFocus={selectNumericValue}
+                          onChange={(event) =>
+                            updateSet(exerciseIndex, setIndex, {
+                              reps: event.target.value === '' ? null : Number(event.target.value),
+                            })
+                          }
+                        />
+                      )}
+                      {exercise.tracking === 'duration' && (
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          step={1}
+                          min={0}
+                          aria-label={t('workout.secondsInput', { set: setNumber })}
+                          value={set.durationSec ?? ''}
+                          onFocus={selectNumericValue}
+                          onChange={(event) =>
+                            updateSet(exerciseIndex, setIndex, {
+                              durationSec:
+                                event.target.value === '' ? null : Number(event.target.value),
+                            })
+                          }
+                        />
+                      )}
+                      <button
+                        className="setcheck"
+                        aria-pressed={set.done}
+                        aria-label={`${t('workout.set')} ${setNumber}`}
+                        onClick={() => toggleDone(exerciseIndex, setIndex)}
+                      >
+                        <IconCheck />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="exercise-block__set-actions">
+                <button className="addset" onClick={() => addSet(exerciseIndex)}>
                   {t('workout.addSet')}
                 </button>
-                {e.sets.length > 1 && (
-                  <button className="addset" style={{ flex: 0, paddingInline: 16 }} onClick={() => removeSet(ei)} aria-label={t('workout.removeSet')}>
+                {exercise.sets.length > 1 && (
+                  <button
+                    className="addset exercise-block__remove-set"
+                    onClick={() => removeSet(exerciseIndex)}
+                    aria-label={t('workout.removeSet')}
+                  >
                     <IconMinus />
                   </button>
                 )}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>
 
-      <button className="btn btn-accent btn-block btn-big" style={{ marginTop: 18 }} onClick={() => void finish()}>
-        {t('workout.finish')}
-      </button>
-      <button
-        className="btn btn-ghost btn-block"
-        style={{ marginTop: 10, color: 'var(--danger)' }}
-        onClick={() => {
-          const anyDone = active.ex.some((x) => x.sets.some((st) => st.done));
-          if (anyDone) setConfirming(true);
-          else abandon();
-        }}
-      >
-        {t('workout.abandonConfirm')}
-      </button>
+      <details className="workout-actions">
+        <summary>{t('workout.moreActions')}</summary>
+        <button className="btn btn-danger btn-block" onClick={() => setConfirming(true)}>
+          {t('workout.abandonConfirm')}
+        </button>
+      </details>
 
       {confirming && (
         <div className="sheet-scrim" role="dialog" aria-modal="true">

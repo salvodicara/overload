@@ -67,8 +67,18 @@
   "workout": {
     "warmup": "Riscaldamento",
     "set": "Serie",
+    "previous": "Precedente",
     "kg": "kg",
     "reps": "reps",
+    "seconds": "secondi",
+    "setsFor": "Serie per {{exercise}}",
+    "loadInput": "Serie {{set}}, carico ({{unit}})",
+    "repsInput": "Serie {{set}}, ripetizioni",
+    "secondsInput": "Serie {{set}}, secondi",
+    "markWorking": "Segna la serie {{set}} come lavoro",
+    "markWarmup": "Segna la serie {{set}} come riscaldamento",
+    "repsTarget": "Obiettivo ripetizioni",
+    "durationTarget": "Obiettivo a tempo",
     "addSet": "+ serie",
     "removeSet": "Rimuovi ultima serie",
     "finish": "Termina allenamento",
@@ -83,14 +93,15 @@
     "discarded": "Sessione scartata: niente da registrare",
     "restLess": "riduci recupero",
     "restMore": "aumenta recupero",
-    "minimize": "Riduci a icona"
+    "minimize": "Riduci a icona",
+    "moreActions": "Altre azioni allenamento"
   },
   "suggest": {
-    "start": "Parti da {{kg}} kg",
-    "increase": "Range chiuso l'ultima volta: sali a {{kg}} kg",
+    "start": "Parti da {{weight}}",
+    "increase": "Range chiuso l'ultima volta: sali a {{weight}}",
     "repeat": "Conferma i carichi e aggiungi ripetizioni",
-    "phase1": "Ripresa: riparti leggero a {{kg}} kg",
-    "deload": "Deload: scarica a {{kg}} kg"
+    "phase1": "Ripresa: riparti leggero a {{weight}}",
+    "deload": "Deload: scarica a {{weight}}"
   },
   "timer": {
     "rest": "Recupero",

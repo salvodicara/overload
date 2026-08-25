@@ -25,7 +25,7 @@ export async function openNeutralRoutineEditor(page: Page): Promise<void> {
 
 export async function completeAndFinishOneSet(page: Page): Promise<void> {
   await page
-    .getByRole('button', { name: /set 1|serie 1/i })
+    .getByRole('button', { name: /^(set 1|serie 1)$/i })
     .first()
     .click();
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
@@ -61,6 +61,148 @@ async function applyRapidRoutineEdits(page: Page): Promise<void> {
     setValue(workingSets, '4');
     addWarmup.click();
   });
+}
+
+async function installAdaptiveWorkoutFixture(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        const routine = await new Promise<unknown>((resolve, reject) => {
+          const request = database
+            .transaction('routines', 'readonly')
+            .objectStore('routines')
+            .get('full-body-a');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        database.close();
+        return Boolean(routine);
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const routine = await new Promise<{
+      id: string;
+      exercises: Array<{
+        exerciseId: string;
+        sets: number;
+        repMin: number;
+        repMax: number | null;
+        restSec: number;
+        tracking?: 'weight_reps' | 'reps' | 'duration';
+        warmupSets?: Array<{ weightKg?: number; reps?: number; durationSec?: number }>;
+      }>;
+      updatedAt: number;
+    }>((resolve, reject) => {
+      const request = database
+        .transaction('routines', 'readonly')
+        .objectStore('routines')
+        .get('full-body-a');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const [weighted, repetitions, timed] = routine.exercises;
+    routine.exercises = [
+      {
+        ...weighted,
+        sets: 2,
+        tracking: 'weight_reps',
+        warmupSets: [{ weightKg: 20, reps: 5 }],
+      },
+      {
+        ...repetitions,
+        sets: 1,
+        tracking: 'reps',
+        warmupSets: [{ reps: 4 }],
+      },
+      {
+        ...timed,
+        sets: 1,
+        repMin: 30,
+        repMax: 45,
+        tracking: 'duration',
+        warmupSets: [{ durationSec: 15 }],
+      },
+    ];
+    routine.updatedAt = Date.now();
+
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(['routines', 'workouts', 'settings'], 'readwrite');
+      transaction.objectStore('routines').put(routine);
+      transaction.objectStore('settings').put({
+        id: 'settings',
+        locale: 'en',
+        unit: 'lb',
+        updatedAt: Date.now(),
+      });
+      transaction.objectStore('workouts').put({
+        id: 'adaptive-previous',
+        routineId: routine.id,
+        date: '2026-08-24',
+        startTs: 100,
+        sets: [
+          {
+            exerciseId: weighted.exerciseId,
+            weightKg: 10,
+            reps: 5,
+            done: true,
+            kind: 'warmup',
+          },
+          { exerciseId: weighted.exerciseId, weightKg: 40, reps: 8, done: true },
+          { exerciseId: weighted.exerciseId, weightKg: 45, reps: 6, done: true },
+          {
+            exerciseId: repetitions.exerciseId,
+            weightKg: 0,
+            reps: 3,
+            done: true,
+            tracking: 'reps',
+            kind: 'warmup',
+          },
+          {
+            exerciseId: repetitions.exerciseId,
+            weightKg: 0,
+            reps: 12,
+            done: true,
+            tracking: 'reps',
+          },
+          {
+            exerciseId: timed.exerciseId,
+            weightKg: 0,
+            reps: 0,
+            durationSec: 10,
+            done: true,
+            tracking: 'duration',
+            kind: 'warmup',
+          },
+          {
+            exerciseId: timed.exerciseId,
+            weightKg: 0,
+            reps: 0,
+            durationSec: 35,
+            done: true,
+            tracking: 'duration',
+          },
+        ],
+        volumeKg: 0,
+        updatedAt: 100,
+        source: 'app',
+      });
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+    });
+    database.close();
+  });
+  await page.reload();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -280,6 +422,141 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
       repMax: null,
       warmupSets: [{ weightKg: 49.98587917510591 }],
     });
+});
+
+test('active workout keeps finish and previous values in reach', async ({ page }) => {
+  await startNeutralWorkout(page);
+  const finish = page.getByRole('button', {
+    name: /finish workout|termina allenamento/i,
+  });
+  await expect(finish).toBeVisible();
+  await expect(page.getByText(/previous|precedente/i).first()).toBeVisible();
+  await expect(page.locator('.workout-header')).toHaveCSS('position', 'sticky');
+  expect(
+    await finish.evaluate((button) => {
+      const firstExercise = document.querySelector('.exercise-block');
+      return firstExercise
+        ? Boolean(button.compareDocumentPosition(firstExercise) & Node.DOCUMENT_POSITION_FOLLOWING)
+        : false;
+    }),
+  ).toBe(true);
+  await page
+    .getByRole('button', { name: /^(set 1|serie 1)$/i })
+    .first()
+    .click();
+  await expect(page.getByRole('timer')).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+test('active workout adapts rows without shifting working previous values', async ({ page }) => {
+  await installAdaptiveWorkoutFixture(page);
+  await startNeutralWorkout(page);
+  const blocks = page.locator('.exercise-block');
+  const weighted = blocks.nth(0);
+  const repetitions = blocks.nth(1);
+  const timed = blocks.nth(2);
+
+  await expect(weighted.locator('.set-row')).toHaveCount(3);
+  const warmupKind = weighted.locator('.set-kind-toggle').first();
+  await expect(warmupKind).toHaveText('W');
+  await expect(weighted.locator('.set-previous')).toHaveText(['—', '88.2 × 8', '99.2 × 6']);
+  await warmupKind.click();
+  await expect(warmupKind).toHaveText('1');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('overload_active') ?? 'null').ex[0].sets[0].kind,
+      ),
+    )
+    .toBe('working');
+  await warmupKind.click();
+  await expect(warmupKind).toHaveText('W');
+
+  const warmupLoad = weighted.getByLabel(/set 1 load.*lb/i);
+  await expect(warmupLoad).toHaveValue('44.1');
+  await warmupLoad.click();
+  await page.keyboard.type('110.2');
+  await expect(warmupLoad).toHaveValue('110.2');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('overload_active') ?? 'null').ex[0].sets[0].weightKg,
+      ),
+    )
+    .toBeCloseTo(49.9858791751, 8);
+
+  await expect(repetitions.locator('.set-row')).toHaveCount(2);
+  await expect(repetitions.locator('input[inputmode="decimal"]')).toHaveCount(0);
+  await expect(repetitions.locator('.set-previous')).toHaveText(['—', '12']);
+  await expect(repetitions.getByLabel(/set 1 reps/i)).toHaveValue('4');
+
+  await expect(timed.locator('.set-row')).toHaveCount(2);
+  await expect(timed.locator('.set-previous')).toHaveText(['—', '35s']);
+  await expect(timed.getByLabel(/set 1 seconds/i)).toHaveValue('15');
+  await expect(page.getByText(/technique/i)).toHaveCount(3);
+  await expect(page.getByRole('button', { name: /barbell squat/i })).toHaveCount(1);
+
+  await weighted.getByRole('button', { name: /^(set 1|serie 1)$/i }).click();
+  await expect(page.getByRole('timer')).toBeVisible();
+  for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+    await page.emulateMedia({ reducedMotion });
+    for (const viewport of [
+      { width: 320, height: 700 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const topMetrics = await page.evaluate(() => {
+        const finish = document.querySelector<HTMLElement>('.workout-header__finish');
+        const setControls = [
+          ...document.querySelectorAll<HTMLElement>('.set-row input, .set-row button'),
+        ];
+        const rows = [...document.querySelectorAll<HTMLElement>('.set-row')];
+        return {
+          scrollWidth: document.documentElement.scrollWidth,
+          finishHeight: finish?.getBoundingClientRect().height ?? 0,
+          minSetControlHeight: Math.min(
+            ...setControls.map((control) => control.getBoundingClientRect().height),
+          ),
+          maxRowRight: Math.max(...rows.map((row) => row.getBoundingClientRect().right)),
+          previousClipped: [
+            ...document.querySelectorAll<HTMLElement>(
+              '.set-table__header > :nth-child(2), .set-previous',
+            ),
+          ].some((value) => {
+            const content = document.createRange();
+            content.selectNodeContents(value);
+            return content.getBoundingClientRect().width > value.clientWidth + 0.5;
+          }),
+        };
+      });
+      expect(topMetrics.scrollWidth).toBe(viewport.width);
+      expect(topMetrics.finishHeight).toBeGreaterThanOrEqual(48);
+      expect(topMetrics.minSetControlHeight).toBeGreaterThanOrEqual(48);
+      expect(topMetrics.maxRowRight).toBeLessThanOrEqual(viewport.width);
+      expect(topMetrics.previousClipped).toBe(false);
+
+      await page
+        .locator('.workout-actions')
+        .evaluate((element) => element.scrollIntoView({ block: 'center' }));
+      const bottomMetrics = await page.evaluate(() => {
+        const rest = document.querySelector<HTMLElement>('.restbar-inner')?.getBoundingClientRect();
+        const actions = document
+          .querySelector<HTMLElement>('.workout-actions')
+          ?.getBoundingClientRect();
+        return {
+          restLeft: rest?.left ?? -1,
+          restRight: rest?.right ?? Number.POSITIVE_INFINITY,
+          actionsBottom: actions?.bottom ?? Number.POSITIVE_INFINITY,
+          restTop: rest?.top ?? -1,
+        };
+      });
+      expect(bottomMetrics.restLeft).toBeGreaterThanOrEqual(0);
+      expect(bottomMetrics.restRight).toBeLessThanOrEqual(viewport.width);
+      expect(bottomMetrics.actionsBottom).toBeLessThan(bottomMetrics.restTop);
+    }
+  }
 });
 
 test('log a workout end to end', async ({ page }) => {

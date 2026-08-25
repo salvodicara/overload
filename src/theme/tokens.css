@@ -469,69 +469,268 @@ input[type='number']::-webkit-inner-spin-button {
   flex: none;
 }
 
-/* ---------- workout set rows ---------- */
+/* ---------- active workout ---------- */
 
-.setgrid {
-  display: grid;
-  grid-template-columns: 30px 1fr 1fr 60px;
-  gap: 10px;
+.workout-screen {
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  scroll-padding-top: calc(76px + env(safe-area-inset-top));
+  scroll-padding-bottom: calc(120px + env(safe-area-inset-bottom));
+}
+
+.workout-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
   align-items: center;
-  padding: 6px 14px;
+  gap: 8px;
+  min-height: 64px;
+  padding: calc(8px + env(safe-area-inset-top)) 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
 
-.setgrid-head {
-  padding-bottom: 2px;
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+.workout-header__minimize {
+  width: 48px;
+  height: 48px;
 }
 
-.setgrid-head span {
+.workout-header__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.workout-header__title {
+  display: block;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workout-header__elapsed {
+  display: block;
+  margin-top: 3px;
+  line-height: 1;
+}
+
+.workout-header__finish {
+  flex: none;
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.workout-preparation,
+.workout-actions {
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+
+.workout-preparation summary,
+.workout-actions summary {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 14px;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.workout-preparation p {
+  padding: 0 14px 14px;
+}
+
+.workout-actions {
+  margin-top: 20px;
+}
+
+.workout-actions .btn {
+  margin: 0 12px 12px;
+  width: calc(100% - 24px);
+}
+
+.workout-exercises {
+  gap: 16px;
+}
+
+.exercise-block {
+  min-width: 0;
+}
+
+.exercise-block__header {
+  padding-bottom: 10px;
+}
+
+.exercise-block__name {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 18px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.exercise-block__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.exercise-block__rest {
+  min-height: 36px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.exercise-block__rest-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rest-adjust {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface2);
+}
+
+.rest-adjust-done {
+  min-height: 48px;
+  margin-left: auto;
+  padding-inline: 12px;
+}
+
+.exercise-block__rest-value {
+  min-width: 50px;
+  font-weight: 700;
   text-align: center;
 }
 
-.setrow {
+.set-table {
+  min-width: 0;
   border-top: 1px solid var(--line);
-  padding: 8px 14px;
 }
 
-.setrow input {
+.set-grid {
+  display: grid;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+.set-table--weight-reps .set-grid {
+  grid-template-columns: 48px minmax(52px, 0.95fr) minmax(48px, 1fr) minmax(42px, 0.7fr) 48px;
+}
+
+.set-table--reps .set-grid,
+.set-table--duration .set-grid {
+  grid-template-columns: 48px minmax(66px, 1fr) minmax(58px, 1fr) 48px;
+}
+
+.set-table__header {
+  min-height: 36px;
+  padding-block: 6px 2px;
+  font-size: 11px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.set-table__header > * {
+  min-width: 0;
+  overflow: hidden;
   text-align: center;
-  padding: 9px 4px;
+  text-overflow: ellipsis;
 }
 
-.setrow.done input {
+.set-row {
+  border-top: 1px solid var(--line);
+}
+
+.set-row input {
+  min-width: 0;
+  height: 48px;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+.set-row.done input {
   opacity: 0.55;
 }
 
+.set-kind-toggle {
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface2);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.set-kind-toggle[aria-pressed='true'] {
+  border-style: dashed;
+  color: var(--warn);
+}
+
+.set-previous {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .setcheck {
-  height: 46px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--r-control);
   border: 1px solid var(--line);
   background: var(--surface2);
   color: var(--muted);
   font-size: 16px;
   font-weight: 700;
-  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.setcheck:active {
-  transform: scale(0.93);
-}
-
-.setrow.done .setcheck {
+.set-row.done .setcheck {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
 }
 
+.exercise-block__set-actions {
+  display: flex;
+  border-top: 1px dashed var(--line);
+}
+
 .addset {
   flex: 1;
+  min-height: 48px;
   text-align: center;
-  padding: 10px;
+  padding: 10px 14px;
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
+}
+
+.exercise-block__remove-set {
+  flex: 0 0 52px;
+  border-left: 1px dashed var(--line);
 }
 
 /* ---------- bottom sheet ---------- */
@@ -634,22 +833,6 @@ input[type='number']::-webkit-inner-spin-button {
     to {
       opacity: 1;
       transform: none;
-    }
-  }
-
-  .setrow.done .setcheck {
-    animation: check-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.4);
-  }
-
-  @keyframes check-pop {
-    0% {
-      transform: scale(0.85);
-    }
-    60% {
-      transform: scale(1.12);
-    }
-    100% {
-      transform: scale(1);
     }
   }
 

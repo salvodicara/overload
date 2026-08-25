@@ -67,8 +67,18 @@
   "workout": {
     "warmup": "Warm-up",
     "set": "Set",
+    "previous": "Previous",
     "kg": "kg",
     "reps": "reps",
+    "seconds": "seconds",
+    "setsFor": "Sets for {{exercise}}",
+    "loadInput": "Set {{set}} load ({{unit}})",
+    "repsInput": "Set {{set}} reps",
+    "secondsInput": "Set {{set}} seconds",
+    "markWorking": "Mark set {{set}} as working",
+    "markWarmup": "Mark set {{set}} as warm-up",
+    "repsTarget": "Repetition target",
+    "durationTarget": "Timed target",
     "addSet": "+ set",
     "removeSet": "Remove last set",
     "finish": "Finish workout",
@@ -83,14 +93,15 @@
     "discarded": "Session discarded: nothing to log",
     "restLess": "lower rest",
     "restMore": "raise rest",
-    "minimize": "Minimize"
+    "minimize": "Minimize",
+    "moreActions": "More workout actions"
   },
   "suggest": {
-    "start": "Start at {{kg}} kg",
-    "increase": "Range closed last time: go up to {{kg}} kg",
+    "start": "Start at {{weight}}",
+    "increase": "Range closed last time: go up to {{weight}}",
     "repeat": "Keep the loads and add reps",
-    "phase1": "Comeback: restart light at {{kg}} kg",
-    "deload": "Deload: drop to {{kg}} kg"
+    "phase1": "Comeback: restart light at {{weight}}",
+    "deload": "Deload: drop to {{weight}}"
   },
   "timer": {
     "rest": "Rest",
