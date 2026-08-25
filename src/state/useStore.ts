@@ -767,19 +767,32 @@ export const useStore = create<Store>((set, get) => ({
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     const next = { ...r, updatedAt: Date.now() };
-    const result = await withOwnedLocalWrite(owner, async () => {
-      await saveRoutine(next);
-      return next;
-    });
-    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const list = get().routines;
+    const previous = list.find((routine) => routine.id === next.id);
     set({
       routines: list.some((x) => x.id === next.id)
         ? list.map((x) => (x.id === next.id ? next : x))
         : [...list, next],
     });
-    debouncedPushRoutine(owner, next.id);
-    return appliedAccountAction(owner, undefined);
+    try {
+      const result = await withOwnedLocalWrite(owner, async () => {
+        await saveRoutine(next);
+        return next;
+      });
+      if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+      debouncedPushRoutine(owner, next.id);
+      return appliedAccountAction(owner, undefined);
+    } catch (error) {
+      // A newer save (or another account) is now authoritative; only undo this exact draft.
+      if (owns(owner) && get().routines.find((routine) => routine.id === next.id) === next) {
+        set({
+          routines: previous
+            ? get().routines.map((routine) => (routine.id === next.id ? previous : routine))
+            : get().routines.filter((routine) => routine.id !== next.id),
+        });
+      }
+      throw error;
+    }
   },
 
   async deleteRoutine(id) {
