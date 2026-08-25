@@ -177,6 +177,8 @@
     "confirm": "Importa",
     "invalid": "File non valido: serve un CSV di Hevy o un backup di Overload.",
     "done": "Importati {{n}} allenamenti",
+    "localDoneCloudFailed": "Backup ripristinato su questo dispositivo, ma la sincronizzazione cloud non è riuscita. Riprova quando sei online.",
+    "restoreFailed": "Impossibile completare il ripristino. Controlla il file e riprova.",
     "firstRunTitle": "Hai uno storico?",
     "firstRunBody": "Importa il CSV di Hevy o un backup: niente inserimenti a mano.",
     "pick": "Scegli un file",

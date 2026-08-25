@@ -5,7 +5,7 @@ import { exerciseName, hevyAliasMap } from '../lib/exercises';
 import { toBackupJson, toCsv } from '../lib/exporter';
 import { parseBackup, planImport, type BackupV2 } from '../lib/importer';
 import { parseHevyCsv } from '../lib/hevyCsv';
-import { toast, useStore } from '../state/useStore';
+import { BackupCloudSyncError, toast, useStore } from '../state/useStore';
 import type { ExerciseNote, Routine, Workout } from '../lib/types';
 
 function download(filename: string, mime: string, data: string): void {
@@ -132,17 +132,28 @@ export function ImportExport() {
   async function confirm(): Promise<void> {
     if (!preview) return;
     setBusy(true);
-    if (preview.backup) {
-      await restoreBackup(preview.backup);
-    } else {
-      for (const routine of preview.routines) await saveRoutine(routine);
-      await importWorkouts(preview.fresh);
-      if (preview.notes.length > 0) await importNotes(preview.notes);
+    try {
+      if (preview.backup) {
+        await restoreBackup(preview.backup);
+      } else {
+        for (const routine of preview.routines) await saveRoutine(routine);
+        await importWorkouts(preview.fresh);
+        if (preview.notes.length > 0) await importNotes(preview.notes);
+      }
+      setPreview(null);
+      toast(t('import.done', { n: preview.fresh.length }));
+      nav({ view: 'home' });
+    } catch (error) {
+      toast(
+        t(
+          error instanceof BackupCloudSyncError
+            ? 'import.localDoneCloudFailed'
+            : 'import.restoreFailed',
+        ),
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    setPreview(null);
-    toast(t('import.done', { n: preview.fresh.length }));
-    nav({ view: 'home' });
   }
 
   return (

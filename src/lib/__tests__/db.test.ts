@@ -20,17 +20,21 @@ import {
 import type { BackupV2 } from '../importer';
 import type { Routine, Workout } from '../types';
 
-const { pushRecordMock } = vi.hoisted(() => ({
+const { pushRecordMock, pushRecordStrictMock } = vi.hoisted(() => ({
   pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
+  pushRecordStrictMock: vi.fn(
+    async (_uid: string, _collection: string, _record: unknown) => {},
+  ),
 }));
 
 vi.mock('../sync', () => ({
   deleteRecord: vi.fn(async () => {}),
   pushRecord: pushRecordMock,
+  pushRecordStrict: pushRecordStrictMock,
   startSync: vi.fn(() => () => {}),
 }));
 
-import { useStore } from '../../state/useStore';
+import { BackupCloudSyncError, useStore } from '../../state/useStore';
 
 const originalReload = useStore.getState().reload;
 
@@ -48,6 +52,8 @@ function workout(id: string, date: string, startTs: number): Workout {
 
 beforeEach(async () => {
   pushRecordMock.mockClear();
+  pushRecordStrictMock.mockReset();
+  pushRecordStrictMock.mockResolvedValue(undefined);
   useStore.setState({ user: null, reload: originalReload });
   await db.transaction(
     'rw',
@@ -161,7 +167,7 @@ describe('backup restore store action', () => {
       customExercises: COMPLETE_BACKUP.customExercises,
       settings: COMPLETE_BACKUP.settings,
     });
-    expect(pushRecordMock).not.toHaveBeenCalled();
+    expect(pushRecordStrictMock).not.toHaveBeenCalled();
   });
 
   it('syncs an authenticated restore one collection at a time', async () => {
@@ -169,7 +175,7 @@ describe('backup restore store action', () => {
 
     await useStore.getState().restoreBackup(COMPLETE_BACKUP);
 
-    expect(pushRecordMock.mock.calls.map(([, collection]) => collection)).toEqual([
+    expect(pushRecordStrictMock.mock.calls.map(([, collection]) => collection)).toEqual([
       'workouts',
       'routines',
       'folders',
@@ -179,6 +185,20 @@ describe('backup restore store action', () => {
       'customExercises',
       'settings',
     ]);
+  });
+
+  it('rejects an authenticated restore when a required cloud write fails', async () => {
+    const reload = vi.fn(originalReload);
+    useStore.setState({ user: { uid: 'u1', name: null }, reload });
+    pushRecordStrictMock.mockRejectedValueOnce(new Error('permission denied'));
+
+    const restore = useStore.getState().restoreBackup(COMPLETE_BACKUP);
+
+    await expect(restore).rejects.toBeInstanceOf(BackupCloudSyncError);
+    await expect(restore).rejects.toMatchObject({ cause: new Error('permission denied') });
+
+    expect(reload).toHaveBeenCalledOnce();
+    expect(await listWorkouts()).toEqual(COMPLETE_BACKUP.workouts);
   });
 });
 

@@ -1,7 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import { diffForSync, type Synced } from '../sync';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { diffForSync, pushRecord, pushRecordStrict, type Synced } from '../sync';
+
+const { setDocMock } = vi.hoisted(() => ({
+  setDocMock: vi.fn(async () => {}),
+}));
+
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(() => ({ path: 'record' })),
+  getFirestore: vi.fn(() => ({ name: 'firestore' })),
+  setDoc: setDocMock,
+}));
 
 const rec = (id: string, updatedAt: number): Synced => ({ id, updatedAt });
+
+beforeEach(() => {
+  setDocMock.mockReset();
+  setDocMock.mockResolvedValue(undefined);
+});
 
 describe('diffForSync', () => {
   it('pushes the local record when it is newer', () => {
@@ -66,5 +81,21 @@ describe('diffForSync', () => {
     const { push } = diffForSync(local, remote);
 
     expect(push[0].name).toBe('local');
+  });
+});
+
+describe('record push failure contracts', () => {
+  it('rejects a strict push when Firestore rejects the write', async () => {
+    setDocMock.mockRejectedValueOnce(new Error('permission denied'));
+
+    await expect(pushRecordStrict('u1', 'workouts', rec('a', 1))).rejects.toThrow(
+      'permission denied',
+    );
+  });
+
+  it('keeps the existing push helper best-effort when Firestore rejects', async () => {
+    setDocMock.mockRejectedValueOnce(new Error('offline'));
+
+    await expect(pushRecord('u1', 'workouts', rec('a', 1))).resolves.toBeUndefined();
   });
 });

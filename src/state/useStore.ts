@@ -24,7 +24,13 @@ import {
   saveSettings,
   saveWorkout,
 } from '../lib/db';
-import { deleteRecord, pushRecord, startSync, type SyncState } from '../lib/sync';
+import {
+  deleteRecord,
+  pushRecord,
+  pushRecordStrict,
+  startSync,
+  type SyncState,
+} from '../lib/sync';
 import { computeVolume, flagPrs } from '../lib/volume';
 import {
   buildActiveExercise,
@@ -60,6 +66,16 @@ export type Route =
 export type AppUser = { uid: string; name: string | null };
 
 export type { ActiveSession, ActiveSet };
+
+export class BackupCloudSyncError extends Error {
+  readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super('backup cloud sync failed');
+    this.name = 'BackupCloudSyncError';
+    this.cause = cause;
+  }
+}
 
 const ACTIVE_KEY = 'overload_active';
 const UID_KEY = 'overload_uid';
@@ -717,16 +733,22 @@ export const useStore = create<Store>((set, get) => ({
 
     const uid = get().user?.uid;
     if (!uid) return;
-    for (const record of backup.workouts) await pushRecord(uid, 'workouts', record);
-    for (const record of backup.routines) await pushRecord(uid, 'routines', record);
-    for (const record of backup.folders) await pushRecord(uid, 'folders', record);
-    for (const record of backup.notes) await pushRecord(uid, 'notes', record);
-    for (const record of backup.measurements) await pushRecord(uid, 'measurements', record);
-    for (const record of backup.nutrition) await pushRecord(uid, 'nutrition', record);
-    for (const record of backup.customExercises) {
-      await pushRecord(uid, 'customExercises', record);
+    try {
+      for (const record of backup.workouts) await pushRecordStrict(uid, 'workouts', record);
+      for (const record of backup.routines) await pushRecordStrict(uid, 'routines', record);
+      for (const record of backup.folders) await pushRecordStrict(uid, 'folders', record);
+      for (const record of backup.notes) await pushRecordStrict(uid, 'notes', record);
+      for (const record of backup.measurements) {
+        await pushRecordStrict(uid, 'measurements', record);
+      }
+      for (const record of backup.nutrition) await pushRecordStrict(uid, 'nutrition', record);
+      for (const record of backup.customExercises) {
+        await pushRecordStrict(uid, 'customExercises', record);
+      }
+      await pushRecordStrict(uid, 'settings', backup.settings);
+    } catch (error) {
+      throw new BackupCloudSyncError(error);
     }
-    await pushRecord(uid, 'settings', backup.settings);
   },
 }));
 

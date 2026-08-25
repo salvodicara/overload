@@ -137,14 +137,25 @@ export function startSync(
 }
 
 /**
- * Fire-and-forget push of a single record after a local write. Failures are
- * non-fatal: IndexedDB stays authoritative and the next `startSync` run
- * reconciles.
+ * Pushes one record and exposes Firebase/import failures to callers that need
+ * confirmation that the remote write completed.
+ */
+export async function pushRecordStrict(
+  uid: string,
+  col: SyncCollection,
+  rec: Synced,
+): Promise<void> {
+  const { getFirestore, setDoc, doc } = await import('firebase/firestore');
+  await setDoc(doc(getFirestore(), 'users', uid, col, rec.id), sanitize(rec));
+}
+
+/**
+ * Best-effort push after an ordinary local write. Failures are non-fatal:
+ * IndexedDB stays authoritative and the next `startSync` run reconciles.
  */
 export async function pushRecord(uid: string, col: SyncCollection, rec: Synced): Promise<void> {
   try {
-    const { getFirestore, setDoc, doc } = await import('firebase/firestore');
-    await setDoc(doc(getFirestore(), 'users', uid, col, rec.id), sanitize(rec));
+    await pushRecordStrict(uid, col, rec);
   } catch {
     console.warn(`sync pending: ${col}/${rec.id}`);
   }

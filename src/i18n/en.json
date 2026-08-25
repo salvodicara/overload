@@ -177,6 +177,8 @@
     "confirm": "Import",
     "invalid": "Invalid file: expected a Hevy CSV or an Overload backup.",
     "done": "Imported {{n}} workouts",
+    "localDoneCloudFailed": "Backup restored on this device, but cloud sync failed. Try again when you are online.",
+    "restoreFailed": "The restore could not be completed. Check the file and try again.",
     "firstRunTitle": "Got history?",
     "firstRunBody": "Import your Hevy CSV or a backup: no manual entry.",
     "pick": "Choose a file",
