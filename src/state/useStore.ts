@@ -249,13 +249,12 @@ type PendingTechniqueSave = {
   text: string;
   timer: ReturnType<typeof setTimeout>;
 };
-type InFlightTechniqueSave = {
-  owner: Owner;
-  text: string;
-  saving: Promise<AccountActionResult>;
+type TechniqueSaveSequence = {
+  localTail: Promise<void>;
+  remoteTail: Promise<void>;
 };
 const techniqueSaveTimers = new Map<string, PendingTechniqueSave>();
-const techniqueSavesInFlight = new Map<string, InFlightTechniqueSave>();
+const techniqueSaveSequences = new Map<string, TechniqueSaveSequence>();
 function clearRoutinePushTimers(): void {
   for (const timer of routinePushTimers.values()) clearTimeout(timer);
   routinePushTimers.clear();
@@ -264,30 +263,61 @@ function clearRoutinePushTimers(): void {
 function clearTechniqueSaveTimers(): void {
   for (const pending of techniqueSaveTimers.values()) clearTimeout(pending.timer);
   techniqueSaveTimers.clear();
-  techniqueSavesInFlight.clear();
 }
 
-async function persistTechniqueNote(
+function techniqueSequenceKey(owner: Owner, exerciseId: string): string {
+  return `${owner.uid}:${owner.generation}:${exerciseId}`;
+}
+
+function queueTechniqueSave(
   owner: Owner,
   exerciseId: string,
   text: string,
   getNotes: () => ExerciseNote[],
   setNotes: (notes: ExerciseNote[]) => void,
 ): Promise<AccountActionResult> {
-  const existing = getNotes().find((note) => note.id === exerciseId);
-  const next: ExerciseNote = {
-    ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
-    technique: text.trim(),
-    updatedAt: Date.now(),
-  };
-  const result = await withOwnedLocalWrite(owner, async () => {
-    await saveNote(next);
-    return next;
+  const key = techniqueSequenceKey(owner, exerciseId);
+  let sequence = techniqueSaveSequences.get(key);
+  if (!sequence) {
+    sequence = { localTail: Promise.resolve(), remoteTail: Promise.resolve() };
+    techniqueSaveSequences.set(key, sequence);
+  }
+  const current = sequence;
+  const saving = current.localTail.then(async () => {
+    const next = await withLocalWriteBarrier(async () => {
+      if (!owns(owner)) return null;
+      const existing = getNotes().find((note) => note.id === exerciseId);
+      const note: ExerciseNote = {
+        ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
+        technique: text.trim(),
+        updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1),
+      };
+      await saveNote(note);
+      return note;
+    });
+    if (!next) return STALE_ACCOUNT_ACTION;
+    if (owns(owner)) setNotes([...getNotes().filter((note) => note.id !== exerciseId), next]);
+    const handoff = current.remoteTail.then(() => pushRecord(owner.uid, 'notes', next));
+    current.remoteTail = handoff.then(
+      () => undefined,
+      () => undefined,
+    );
+    return accountActionForOwner(owner, undefined);
   });
-  if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-  setNotes([...getNotes().filter((note) => note.id !== exerciseId), next]);
-  if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
-  return accountActionForOwner(owner, undefined);
+  const localTail = saving.then(
+    () => undefined,
+    () => undefined,
+  );
+  current.localTail = localTail;
+  void localTail.then(() => {
+    if (techniqueSaveSequences.get(key) !== current || current.localTail !== localTail) return;
+    void current.remoteTail.then(() => {
+      if (techniqueSaveSequences.get(key) === current && current.localTail === localTail) {
+        techniqueSaveSequences.delete(key);
+      }
+    });
+  });
+  return saving;
 }
 
 function debouncedPushRoutine(owner: Owner, routineId: string): void {
@@ -349,7 +379,6 @@ export type Store = {
   deleteFolder(id: string): Promise<AccountActionResult>;
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<AccountActionResult>;
   queueTechniqueNote(exerciseId: string, text: string): void;
-  flushTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
   saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
   addNoteEntry(exerciseId: string, text: string): Promise<AccountActionResult>;
   importNotes(incoming: ExerciseNote[]): Promise<AccountActionResult<number>>;
@@ -1090,7 +1119,13 @@ export const useStore = create<Store>((set, get) => ({
   async saveTechniqueNote(exerciseId, text) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    return persistTechniqueNote(
+    const pending = techniqueSaveTimers.get(exerciseId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      techniqueSaveTimers.delete(exerciseId);
+      if (!sameOwner(pending.owner, owner)) return STALE_ACCOUNT_ACTION;
+    }
+    return queueTechniqueSave(
       owner,
       exerciseId,
       text,
@@ -1109,62 +1144,15 @@ export const useStore = create<Store>((set, get) => ({
       if (techniqueSaveTimers.get(exerciseId) !== pending) return;
       techniqueSaveTimers.delete(exerciseId);
       if (!owns(owner)) return;
-      const saving = persistTechniqueNote(
+      void queueTechniqueSave(
         owner,
         exerciseId,
         text,
         () => get().notes,
         (notes) => set({ notes }),
       );
-      const inFlight = { owner, text, saving };
-      techniqueSavesInFlight.set(exerciseId, inFlight);
-      void saving.finally(() => {
-        if (techniqueSavesInFlight.get(exerciseId) === inFlight) {
-          techniqueSavesInFlight.delete(exerciseId);
-        }
-      });
     }, 500);
     techniqueSaveTimers.set(exerciseId, pending);
-  },
-
-  async flushTechniqueNote(exerciseId, text) {
-    const owner = captureOwner();
-    if (!owner) return STALE_ACCOUNT_ACTION;
-    const pending = techniqueSaveTimers.get(exerciseId);
-    if (pending) {
-      clearTimeout(pending.timer);
-      techniqueSaveTimers.delete(exerciseId);
-      if (!sameOwner(pending.owner, owner)) return STALE_ACCOUNT_ACTION;
-    }
-    const inFlight = techniqueSavesInFlight.get(exerciseId);
-    if (inFlight && !sameOwner(inFlight.owner, owner)) return STALE_ACCOUNT_ACTION;
-    if (inFlight && inFlight.text === text) return inFlight.saving;
-    const saving = inFlight
-      ? inFlight.saving.then(() =>
-          persistTechniqueNote(
-            owner,
-            exerciseId,
-            text,
-            () => get().notes,
-            (notes) => set({ notes }),
-          ),
-        )
-      : persistTechniqueNote(
-          owner,
-          exerciseId,
-          text,
-          () => get().notes,
-          (notes) => set({ notes }),
-        );
-    const nextInFlight = { owner, text, saving };
-    techniqueSavesInFlight.set(exerciseId, nextInFlight);
-    try {
-      return await saving;
-    } finally {
-      if (techniqueSavesInFlight.get(exerciseId) === nextInFlight) {
-        techniqueSavesInFlight.delete(exerciseId);
-      }
-    }
   },
 
   async deleteWorkout(id) {

@@ -805,8 +805,9 @@ test('technique persists globally and session notes stay on their workouts', asy
   expect(
     await done.evaluate((button) => button.getBoundingClientRect().height),
   ).toBeGreaterThanOrEqual(44);
-  await done.click();
+  await done.dblclick();
   await expect(done).toHaveCount(0);
+  await expect(technique).toHaveAttribute('aria-expanded', 'false');
   await expect(technique).toContainText('Seat at 4');
   expect(
     await page.evaluate(async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FocusEvent } from 'react';
+import { useEffect, useRef, useState, type FocusEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
@@ -7,7 +7,7 @@ import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
 import type { TrackingType } from '../lib/types';
 import { canonicalWeight, displayWeight, formatWeight, weightLabel } from '../lib/units';
-import { useStore } from '../state/useStore';
+import { isAccountActionCurrent, useStore } from '../state/useStore';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
@@ -41,12 +41,14 @@ export function Workout() {
   const finish = useStore((s) => s.finishWorkout);
   const notes = useStore((s) => s.notes);
   const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
-  const flushTechniqueNote = useStore((s) => s.flushTechniqueNote);
+  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((s) => s.setRestOverride);
   const [confirming, setConfirming] = useState(false);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const [committingNotes, setCommittingNotes] = useState<Record<string, boolean>>({});
+  const committingNoteKeys = useRef(new Set<string>());
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -192,6 +194,7 @@ export function Workout() {
                   const sessionKey = `${exerciseIndex}:session`;
                   const techniqueExpanded = expandedNotes[techniqueKey] ?? false;
                   const sessionExpanded = expandedNotes[sessionKey] ?? false;
+                  const techniqueCommitting = committingNotes[techniqueKey] ?? false;
                   const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
                   const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
                   const techniqueContentId = `workout-note-${exerciseIndex}-technique-content`;
@@ -201,6 +204,22 @@ export function Workout() {
                   );
                   const toggleNote = (key: string) =>
                     setExpandedNotes((current) => ({ ...current, [key]: !current[key] }));
+                  const commitTechnique = async (text: string) => {
+                    if (committingNoteKeys.current.has(techniqueKey)) return;
+                    committingNoteKeys.current.add(techniqueKey);
+                    setCommittingNotes((current) => ({ ...current, [techniqueKey]: true }));
+                    try {
+                      const result = await saveTechniqueNote(exercise.exerciseId, text);
+                      if (isAccountActionCurrent(result)) {
+                        setExpandedNotes((current) => ({ ...current, [techniqueKey]: false }));
+                      }
+                    } catch {
+                      // Keep the draft open when local persistence fails.
+                    } finally {
+                      committingNoteKeys.current.delete(techniqueKey);
+                      setCommittingNotes((current) => ({ ...current, [techniqueKey]: false }));
+                    }
+                  };
                   return (
                     <div className="workout-notes">
                       <section className="workout-note">
@@ -209,7 +228,12 @@ export function Workout() {
                           className="workout-note__trigger"
                           aria-expanded={techniqueExpanded}
                           aria-controls={techniqueContentId}
-                          onClick={() => toggleNote(techniqueKey)}
+                          disabled={techniqueCommitting}
+                          onClick={() => {
+                            if (!committingNoteKeys.current.has(techniqueKey)) {
+                              toggleNote(techniqueKey);
+                            }
+                          }}
                         >
                           <IconNote width={16} height={16} aria-hidden />
                           <span className="workout-note__copy">
@@ -237,11 +261,9 @@ export function Workout() {
                               placeholder={t('notes.techniquePlaceholder')}
                               labelledBy={techniqueLabelId}
                               doneLabel={t('notes.done')}
+                              disabled={techniqueCommitting}
                               onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
-                              onDone={async (text) => {
-                                await flushTechniqueNote(exercise.exerciseId, text);
-                                toggleNote(techniqueKey);
-                              }}
+                              onDone={commitTechnique}
                             />
                           )}
                         </div>

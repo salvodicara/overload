@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Plain in-place note editor. Mount-time only: focus, caret at end, autosize.
@@ -10,6 +10,7 @@ export function NoteEditor({
   placeholder,
   labelledBy,
   doneLabel,
+  disabled = false,
   onChangeText,
   onDone,
 }: {
@@ -17,10 +18,13 @@ export function NoteEditor({
   placeholder: string;
   labelledBy: string;
   doneLabel: string;
+  disabled?: boolean;
   onChangeText: (text: string) => void;
   onDone: (text: string) => void | Promise<void>;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const submitting = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -30,6 +34,18 @@ export function NoteEditor({
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, []);
+
+  async function done(): Promise<void> {
+    if (disabled || submitting.current) return;
+    submitting.current = true;
+    setIsSubmitting(true);
+    try {
+      await onDone(ref.current?.value ?? initial);
+    } finally {
+      submitting.current = false;
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <div className="note-editor">
@@ -50,7 +66,8 @@ export function NoteEditor({
       <button
         type="button"
         className="btn btn-ghost note-editor__done"
-        onClick={() => onDone(ref.current?.value ?? initial)}
+        disabled={disabled || isSubmitting}
+        onClick={() => void done()}
       >
         {doneLabel}
       </button>
