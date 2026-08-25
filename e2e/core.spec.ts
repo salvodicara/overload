@@ -205,6 +205,50 @@ async function installAdaptiveWorkoutFixture(page: Page): Promise<void> {
   await page.reload();
 }
 
+async function setStoredLocale(page: Page, locale: 'it' | 'en'): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        const routine = await new Promise<unknown>((resolve, reject) => {
+          const request = database
+            .transaction('routines', 'readonly')
+            .objectStore('routines')
+            .get('full-body-a');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        database.close();
+        return Boolean(routine);
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(async (nextLocale) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction('settings', 'readwrite');
+      transaction.objectStore('settings').put({
+        id: 'settings',
+        locale: nextLocale,
+        unit: 'kg',
+        updatedAt: Date.now(),
+      });
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+    });
+    database.close();
+  }, locale);
+  await page.reload();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -449,6 +493,64 @@ test('active workout keeps finish and previous values in reach', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
+test('active workout keeps localized weighted headings visible', async ({ page }) => {
+  await setStoredLocale(page, 'it');
+  await startNeutralWorkout(page);
+
+  for (const locale of ['it', 'en'] as const) {
+    if (locale === 'en') await setStoredLocale(page, locale);
+    const previousLabel = locale === 'it' ? 'Precedente' : 'Previous';
+    for (const viewport of [
+      { width: 320, height: 700 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      const geometry = await page.evaluate(() => {
+        const headings = [
+          ...document.querySelectorAll<HTMLElement>(
+            '.set-table--weight-reps .set-table__header > :nth-child(2)',
+          ),
+        ];
+        const contentWidth = (element: HTMLElement): number => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return range.getBoundingClientRect().width;
+        };
+        const controls = [
+          ...document.querySelectorAll<HTMLElement>(
+            '.set-table--weight-reps .set-row input, .set-table--weight-reps .set-row button',
+          ),
+        ];
+        return {
+          headingCount: headings.length,
+          headings: headings.map((heading) => ({
+            text: heading.textContent,
+            clientWidth: heading.clientWidth,
+            contentWidth: contentWidth(heading),
+          })),
+          minControlHeight: Math.min(
+            ...controls.map((control) => control.getBoundingClientRect().height),
+          ),
+          minControlWidth: Math.min(
+            ...controls.map((control) => control.getBoundingClientRect().width),
+          ),
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+      });
+      expect(geometry.headingCount).toBe(5);
+      expect(geometry.headings.every((heading) => heading.text === previousLabel)).toBe(true);
+      expect(geometry.headings.every((heading) => heading.clientWidth >= 66)).toBe(true);
+      expect(
+        geometry.headings.every((heading) => heading.contentWidth <= heading.clientWidth + 0.5),
+      ).toBe(true);
+      expect(geometry.minControlHeight).toBeGreaterThanOrEqual(48);
+      expect(geometry.minControlWidth).toBeGreaterThanOrEqual(48);
+      expect(geometry.scrollWidth).toBe(viewport.width);
+    }
+  }
+});
+
 test('active workout adapts rows without shifting working previous values', async ({ page }) => {
   await installAdaptiveWorkoutFixture(page);
   await startNeutralWorkout(page);
@@ -536,6 +638,38 @@ test('active workout adapts rows without shifting working previous values', asyn
       expect(topMetrics.minSetControlHeight).toBeGreaterThanOrEqual(48);
       expect(topMetrics.maxRowRight).toBeLessThanOrEqual(viewport.width);
       expect(topMetrics.previousClipped).toBe(false);
+
+      const finish = page.getByRole('button', {
+        name: /finish workout|termina allenamento/i,
+      });
+      const finishBox = await finish.boundingBox();
+      expect(finishBox).not.toBeNull();
+      await page.mouse.move(
+        (finishBox?.x ?? 0) + (finishBox?.width ?? 0) / 2,
+        (finishBox?.y ?? 0) + (finishBox?.height ?? 0) / 2,
+      );
+      await page.mouse.down();
+      await page.waitForTimeout(150);
+      const pressedFinish = await finish.evaluate((button) => {
+        const bounds = button.getBoundingClientRect();
+        return { width: bounds.width, height: bounds.height };
+      });
+      await page.mouse.move(0, viewport.height - 1);
+      await page.mouse.up();
+      expect(pressedFinish.width).toBeGreaterThanOrEqual(48);
+      expect(pressedFinish.height).toBeGreaterThanOrEqual(48);
+
+      const restButtons = await page.locator('.restbar-btn').evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const bounds = button.getBoundingClientRect();
+          return { width: bounds.width, height: bounds.height };
+        }),
+      );
+      expect(restButtons).toHaveLength(2);
+      for (const restButton of restButtons) {
+        expect(restButton.width).toBeGreaterThanOrEqual(48);
+        expect(restButton.height).toBeGreaterThanOrEqual(48);
+      }
 
       await page
         .locator('.workout-actions')

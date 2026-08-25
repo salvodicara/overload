@@ -477,6 +477,10 @@ input[type='number']::-webkit-inner-spin-button {
   scroll-padding-bottom: calc(120px + env(safe-area-inset-bottom));
 }
 
+.workout-screen button:active {
+  transform: none;
+}
+
 .workout-header {
   position: sticky;
   top: 0;
@@ -626,13 +630,13 @@ input[type='number']::-webkit-inner-spin-button {
 .set-grid {
   display: grid;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
-  padding: 7px 8px;
+  padding: 7px 4px;
 }
 
 .set-table--weight-reps .set-grid {
-  grid-template-columns: 48px minmax(52px, 0.95fr) minmax(48px, 1fr) minmax(42px, 0.7fr) 48px;
+  grid-template-columns: 48px minmax(66px, 1fr) minmax(48px, 1fr) 48px 48px;
 }
 
 .set-table--reps .set-grid,
@@ -809,6 +813,12 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .restbar-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
   border: 1px solid color-mix(in srgb, var(--bg) 32%, transparent);
   border-radius: 8px;
   padding: 8px 12px;
