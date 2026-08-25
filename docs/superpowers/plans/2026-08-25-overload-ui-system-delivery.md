@@ -416,6 +416,10 @@ git commit -m "perf: split routes and defer the exercise catalog"
 
 - Modify: `README.md`
 - Modify: `PRODUCT.md`
+- Modify: `PRODUCT-BRIEF.md`
+- Modify: `index.html`
+- Modify: `src/App.tsx`
+- Modify: `e2e/core.spec.ts`
 - Review: all visible i18n strings and all changed UI files
 
 **Interfaces:**
@@ -424,11 +428,11 @@ git commit -m "perf: split routes and defer the exercise catalog"
 
 - [ ] **Step 1: Update product documentation**
 
-Remove seeded comeback and phase-aware claims. Describe neutral templates, editable preparation/warm-ups, history-based double progression, Technique/This session, kg/lb display, complete JSON backup, privacy, and no social/paywall.
+Remove seeded comeback and phase-aware claims. Describe neutral templates, editable preparation/warm-ups, history-based double progression, Technique/This session, kg/lb display, complete JSON backup versus completed-set CSV scope, warmed-cache offline behavior, privacy, and no social/paywall. Mark the old product brief as historical rather than current personal product context. Keep document language synchronized with the selected locale and use Italian as the initial HTML language.
 
 - [ ] **Step 2: Run mechanical visual-copy checks**
 
-Run: `! rg -n -i 'Operazione Rientro|\bbulk\b|\bmassa\b|\bsurplus\b|\bwhey\b|tell me|dimmelo|phase1|deload' src/i18n README.md PRODUCT.md && ! rg -n 'programStart(Date)?' src --glob '!src/lib/types.ts' --glob '!src/lib/__tests__/**'`
+Run: `! rg -n -i 'Operazione Rientro|\bbulk\b|\bmassa\b|\bsurplus\b|\bwhey\b|tell me|dimmelo|\bphases?\b|\bfasi?\b|phase[ -]?1|deload' src/i18n src/data/templates.ts README.md PRODUCT.md PRODUCT-BRIEF.md && ! rg -n 'programStart(Date)?' src --glob '!src/lib/types.ts' --glob '!src/lib/__tests__/**'`
 
 Expected: both scoped searches return no visible-product matches. Historical fixture data, type compatibility fields, tests, and implementation identifiers are excluded deliberately instead of weakening the product-copy check.
 
@@ -445,7 +449,7 @@ Expected: all commands exit 0.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add README.md PRODUCT.md src e2e
+git add README.md PRODUCT.md PRODUCT-BRIEF.md index.html src/App.tsx e2e/core.spec.ts
 git commit -m "docs: describe the generalized Overload product"
 ```
 
@@ -515,7 +519,7 @@ Expected: all commands exit 0 and status contains only intentional committed sta
 
 - [ ] **Step 4: Integrate and deploy**
 
-Use the finishing-development-branch skill. Add Firebase Hosting cache headers so `index.html`, `sw.js`, and `registerSW.js` revalidate, hashed assets are long-lived immutable, and baseline `X-Content-Type-Options`/`Referrer-Policy` headers are present without breaking Firebase Auth, Google sign-in, or embedded exercise video. Fast-forward or merge `codex/mobile-ui-notes` into `main` without rewriting unrelated history, push `origin/main`, rebuild from the integrated revision, assert `dist/index.html`, `dist/sw.js`, and `dist/data/exercises.json` exist, then deploy only `hosting,firestore:rules` to `overload-sdc`. Do not run the unpinned `fetch-media.mjs --all` during release: the complete media set is already tracked and a fresh upstream clone would introduce unreviewed artifacts. Do not delete user branches or worktrees without separate evidence and authorization.
+Use the finishing-development-branch skill. Add Firebase Hosting cache headers so `/` and `index.html`, `sw.js`, `registerSW.js`, the manifest, and mutable data revalidate; hashed assets are long-lived immutable; stable exercise-media paths are not marked immutable; and baseline `X-Content-Type-Options`/`Referrer-Policy` headers are present without breaking Firebase Auth, Google sign-in, or embedded exercise video. Fast-forward or merge `codex/mobile-ui-notes` into `main` without rewriting unrelated history, push `origin/main`, rebuild from the integrated revision, assert `dist/index.html`, `dist/sw.js`, and `dist/data/exercises.json` exist, then deploy only `hosting,firestore:rules` to `overload-sdc`. Do not run the unpinned `fetch-media.mjs --all` during release: the complete media set is already tracked and a fresh upstream clone would introduce unreviewed artifacts. Do not delete user branches or worktrees without separate evidence and authorization.
 
 - [ ] **Step 5: Smoke-test production and record evidence**
 
