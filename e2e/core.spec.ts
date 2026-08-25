@@ -153,6 +153,7 @@ async function installAdaptiveWorkoutFixture(page: Page): Promise<void> {
       transaction.objectStore('workouts').put({
         id: 'adaptive-previous',
         routineId: routine.id,
+        dayLabel: 'Full Body A',
         date: '2026-08-24',
         startTs: 100,
         sets: [
@@ -1327,6 +1328,68 @@ test('exercise journal links summary working metrics to chronological history', 
   await expect(page.getByText('+579.5 lb vs your last Full Body A', { exact: true })).toBeVisible();
   await expect(page.getByText('800', { exact: true })).toBeVisible();
   await expect(page.getByText('lb of volume', { exact: true })).toBeVisible();
+});
+
+test('summary and workout detail preserve canonical kg volume rounding', async ({ page }) => {
+  await installAdaptiveWorkoutFixture(page);
+  await setStoredLocale(page, 'en');
+  await startNeutralWorkout(page);
+
+  const firstSession = page.locator('.exercise-block').first();
+  await firstSession.getByLabel(/set 2 load.*kg/i).fill('42.5');
+  await firstSession.getByLabel(/set 2 reps/i).fill('3');
+  await firstSession.getByLabel(/set 3 load.*kg/i).fill('0');
+  await firstSession.getByLabel(/set 3 reps/i).fill('3');
+  await firstSession.getByRole('button', { name: /^set 2$/i }).click();
+  await firstSession.getByRole('button', { name: /^set 3$/i }).click();
+  await page.getByRole('button', { name: /finish workout/i }).click();
+
+  await expect(page.getByText('128', { exact: true })).toBeVisible();
+  await expect(page.getByText('kg of volume', { exact: true })).toBeVisible();
+  await expect(page.getByText('+128 kg vs your last Full Body A', { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('overload');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      try {
+        const workouts = await new Promise<Array<{ startTs: number; volumeKg: number }>>(
+          (resolve, reject) => {
+            const request = database
+              .transaction('workouts', 'readonly')
+              .objectStore('workouts')
+              .getAll();
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          },
+        );
+        return workouts.sort((left, right) => right.startTs - left.startTs)[0]?.volumeKg;
+      } finally {
+        database.close();
+      }
+    }),
+  ).toBe(127.5);
+
+  await page.getByRole('button', { name: /back home/i }).click();
+  await startNeutralWorkout(page);
+  const secondSession = page.locator('.exercise-block').first();
+  await secondSession.getByLabel(/set 2 load.*kg/i).fill('0');
+  await secondSession.getByLabel(/set 2 reps/i).fill('3');
+  await secondSession.getByLabel(/set 3 load.*kg/i).fill('0');
+  await secondSession.getByLabel(/set 3 reps/i).fill('3');
+  await secondSession.getByRole('button', { name: /^set 2$/i }).click();
+  await secondSession.getByRole('button', { name: /^set 3$/i }).click();
+  await page.getByRole('button', { name: /finish workout/i }).click();
+
+  await expect(page.getByText('−127 kg vs your last Full Body A', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: /back home/i }).click();
+  await page.getByRole('button', { name: /all history/i }).click();
+  await page.locator('main button.card').nth(1).click();
+  await expect(page.getByText('128', { exact: true })).toBeVisible();
+  await expect(page.getByText('kg of volume', { exact: true })).toBeVisible();
 });
 
 test('mid-workout rest tweak can update the routine', async ({ page }) => {

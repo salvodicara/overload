@@ -8,6 +8,10 @@ export function displayWeight(kg: number, unit: WeightUnit): number {
   return roundInput(unit === 'lb' ? kg * LB_PER_KG : kg);
 }
 
+export function displayVolume(kg: number, unit: WeightUnit): number {
+  return unit === 'kg' ? Math.round(kg) : displayWeight(kg, unit);
+}
+
 export function canonicalWeight(value: number, unit: WeightUnit): number {
   return unit === 'lb' ? value / LB_PER_KG : value;
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
 import { kindOf } from '../lib/types';
-import { displayWeight, weightLabel } from '../lib/units';
+import { displayVolume, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
 
 export function Summary({ workoutId }: { workoutId: string }) {
@@ -30,8 +30,8 @@ export function Summary({ workoutId }: { workoutId: string }) {
       null,
     );
   const unit = settings.unit ?? 'kg';
-  const volume = displayWeight(w.volumeKg, unit);
-  const diff = prev ? displayWeight(w.volumeKg - prev.volumeKg, unit) : null;
+  const volume = displayVolume(w.volumeKg, unit);
+  const diff = prev ? displayVolume(w.volumeKg - prev.volumeKg, unit) : null;
   const prs = [...new Set(w.sets.filter((s) => s.isPr).map((s) => s.exerciseId))];
   const workingSetCount = w.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
   const mins = w.endTs ? Math.max(1, Math.round((w.endTs - w.startTs) / 60000)) : 0;

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { IconBack } from '../components/Icons';
 import { exerciseName } from '../lib/exercises';
 import { kindOf, trackingOf, type SetLog, type Workout } from '../lib/types';
-import { displayWeight, formatWeight, weightLabel } from '../lib/units';
+import { displayVolume, formatWeight, weightLabel } from '../lib/units';
 import { continueAccountAction, useStore } from '../state/useStore';
 
 function fmtDate(iso: string, locale: string): string {
@@ -120,11 +120,9 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       <div className="card card-pad spread">
         <div>
-          <div className="mono small muted">
-            {t('summary.volume', { unit: weightLabel(unit) })}
-          </div>
+          <div className="mono small muted">{t('summary.volume', { unit: weightLabel(unit) })}</div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-            {displayWeight(workout.volumeKg, unit).toLocaleString(i18n.language)}
+            {displayVolume(workout.volumeKg, unit).toLocaleString(i18n.language)}
           </div>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
