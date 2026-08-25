@@ -68,6 +68,24 @@ export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
   return loading;
 }
 
+/** User-created exercises join the same catalog map so every screen just works. */
+export function registerCustomExercises(
+  list: { id: string; name: string; muscleGroup: string }[],
+): void {
+  const map = catalog;
+  if (!map) return;
+  for (const x of list) {
+    map.set(x.id, {
+      id: x.id,
+      nameEn: x.name,
+      nameIt: x.name,
+      muscles: [x.muscleGroup === 'core' ? 'abdominals' : x.muscleGroup],
+      media: [],
+      instructions: [],
+    });
+  }
+}
+
 /** Synchronous access after loadCatalog resolved (returns empty map before). */
 export function getCatalog(): Map<string, CatalogExercise> {
   return catalog ?? new Map();

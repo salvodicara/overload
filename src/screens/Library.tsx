@@ -15,6 +15,10 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const catalogReady = useStore((s) => s.catalogReady);
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
+  const createCustomExercise = useStore((s) => s.createCustomExercise);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newGroup, setNewGroup] = useState<MuscleGroup>('chest');
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<MuscleGroup | null>(null);
 
@@ -116,6 +120,59 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
               </div>
             </button>
           ))}
+        </div>
+      )}
+      <button className="btn btn-ghost btn-block" style={{ marginTop: 14 }} onClick={() => { setNewName(query); setCreating(true); }}>
+        {t('library.create')}
+      </button>
+
+      {creating && (
+        <div className="sheet-scrim" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setCreating(false)}>
+          <div className="sheet card card-pad stack">
+            <strong>{t('library.create')}</strong>
+            <input
+              autoFocus
+              value={newName}
+              placeholder={t('library.createNamePh')}
+              aria-label={t('library.createNamePh')}
+              style={{ fontFamily: 'inherit' }}
+              onChange={(e) => setNewName(e.target.value)}
+            />
+            <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+              {(['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'calves'] as const).map((g) => (
+                <button
+                  key={g}
+                  className={`chip${newGroup === g ? ' chip-accent' : ''}`}
+                  style={{ padding: '7px 12px' }}
+                  aria-pressed={newGroup === g}
+                  onClick={() => setNewGroup(g)}
+                >
+                  {t(`library.muscle.${g}`)}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn btn-accent btn-block"
+              disabled={!newName.trim()}
+              onClick={() => {
+                void createCustomExercise(newName, newGroup).then((id) => {
+                  setCreating(false);
+                  if (pickFor) {
+                    void addExerciseToRoutine(pickFor.routineId, id).then(() =>
+                      nav({ view: 'routineEditor', id: pickFor.routineId }),
+                    );
+                  } else {
+                    nav({ view: 'exercise', id });
+                  }
+                });
+              }}
+            >
+              {t('train.createConfirm')}
+            </button>
+            <button className="btn btn-ghost btn-block" onClick={() => setCreating(false)}>
+              {t('workout.cancel')}
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -142,7 +142,9 @@
     "noResults": "No exercises found",
     "pickTitle": "Add exercise",
     "back": "Back",
-    "howTo": "How to"
+    "howTo": "How to",
+    "create": "+ Create custom exercise",
+    "createNamePh": "Exercise name…"
   },
   "settings": {
     "title": "More",

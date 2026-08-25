@@ -10,10 +10,12 @@ import {
   listFolders,
   listRoutines,
   listMeasurements,
+  listCustomExercises,
   listNotes,
   listNutrition,
   listWorkouts,
   saveFolder,
+  saveCustomExercise,
   saveMeasurement,
   saveNote,
   saveNutrition,
@@ -28,8 +30,8 @@ import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
-import { loadCatalog } from '../lib/exercises';
-import type { ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
+import { loadCatalog, registerCustomExercises } from '../lib/exercises';
+import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 
 export type Route =
@@ -107,6 +109,23 @@ let stopSync: (() => void) | null = null;
 // an exercise's technique page straight back to where you were in the workout).
 const scrollMemory = new Map<string, number>();
 const RESTORE_SCROLL = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile', 'workout']);
+const ROUTE_KEY = 'overload_route';
+const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile']);
+
+function applyScroll(view: Route['view']): void {
+  const y = RESTORE_SCROLL.has(view) ? (scrollMemory.get(view) ?? 0) : 0;
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
+function savedRoute(): Route {
+  try {
+    const v = localStorage.getItem(ROUTE_KEY) as Route['view'] | null;
+    if (v && TAB_VIEWS.has(v)) return { view: v } as Route;
+  } catch {
+    /* storage unavailable */
+  }
+  return { view: 'home' };
+}
 
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
@@ -132,6 +151,7 @@ export type Store = {
   notes: ExerciseNote[];
   measurements: Measurement[];
   nutrition: NutritionDay[];
+  customExercises: CustomExercise[];
   syncState: SyncState;
   active: ActiveSession | null;
   restUntil: number | null;
@@ -168,6 +188,7 @@ export type Store = {
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
   addNoteEntry(exerciseId: string, text: string): Promise<void>;
   importNotes(incoming: ExerciseNote[]): Promise<number>;
+  createCustomExercise(name: string, muscleGroup: string): Promise<string>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<void>;
   deleteMeasurement(id: string): Promise<void>;
   saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<void>;
@@ -178,7 +199,7 @@ export type Store = {
 const initialActive = readActive();
 
 export const useStore = create<Store>((set, get) => ({
-  route: { view: 'home' },
+  route: savedRoute(),
   user: undefined,
   settings: { id: 'settings', updatedAt: 0 },
   workouts: [],
@@ -187,6 +208,7 @@ export const useStore = create<Store>((set, get) => ({
   notes: [],
   measurements: [],
   nutrition: [],
+  customExercises: [],
   syncState: 'offline',
   active: initialActive,
   restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
@@ -197,9 +219,24 @@ export const useStore = create<Store>((set, get) => ({
 
   nav(route) {
     scrollMemory.set(get().route.view, window.scrollY);
+    if (TAB_VIEWS.has(route.view)) {
+      try {
+        localStorage.setItem(ROUTE_KEY, route.view);
+      } catch {
+        /* storage unavailable */
+      }
+    }
+    // Hardware/browser back works everywhere: detail screens stack on the
+    // history, switching tabs replaces the entry (Android convention).
+    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(get().route.view);
+    try {
+      if (replace) history.replaceState({ route }, '');
+      else history.pushState({ route }, '');
+    } catch {
+      /* history unavailable */
+    }
     set({ route });
-    const y = RESTORE_SCROLL.has(route.view) ? (scrollMemory.get(route.view) ?? 0) : 0;
-    requestAnimationFrame(() => window.scrollTo(0, y));
+    applyScroll(route.view);
   },
 
   setUser(user) {
@@ -238,7 +275,10 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async init() {
-    void loadCatalog().then(() => set({ catalogReady: true }));
+    void loadCatalog().then(() => {
+      registerCustomExercises(get().customExercises);
+      set({ catalogReady: true });
+    });
     await migrateLegacyRoutines(get().user?.uid);
     await get().reload();
     if (get().active) set({ route: { view: 'workout' } });
@@ -246,16 +286,19 @@ export const useStore = create<Store>((set, get) => ({
 
   async reload() {
     await migrateLegacyRoutines(get().user?.uid);
-    const [workouts, routines, folders, notes, measurements, nutrition, settings] = await Promise.all([
-      listWorkouts(),
-      listRoutines(),
-      listFolders(),
-      listNotes(),
-      listMeasurements(),
-      listNutrition(),
-      getSettings(),
-    ]);
-    set({ workouts, routines, folders, notes, measurements, nutrition, settings });
+    const [workouts, routines, folders, notes, measurements, nutrition, customExercises, settings] =
+      await Promise.all([
+        listWorkouts(),
+        listRoutines(),
+        listFolders(),
+        listNotes(),
+        listMeasurements(),
+        listNutrition(),
+        listCustomExercises(),
+        getSettings(),
+      ]);
+    registerCustomExercises(customExercises);
+    set({ workouts, routines, folders, notes, measurements, nutrition, customExercises, settings });
   },
 
   async updateSettings(patch) {
@@ -526,6 +569,21 @@ export const useStore = create<Store>((set, get) => ({
     return merged;
   },
 
+  async createCustomExercise(name, muscleGroup) {
+    const x: CustomExercise = {
+      id: `custom:${crypto.randomUUID()}`,
+      name: name.trim(),
+      muscleGroup,
+      updatedAt: Date.now(),
+    };
+    await saveCustomExercise(x);
+    registerCustomExercises([x]);
+    set({ customExercises: [...get().customExercises, x] });
+    const uid = get().user?.uid;
+    if (uid) void pushRecord(uid, 'customExercises', x);
+    return x.id;
+  },
+
   async addMeasurement(metric, value, date) {
     const m: Measurement = { id: crypto.randomUUID(), date, metric, value, updatedAt: Date.now() };
     await saveMeasurement(m);
@@ -602,3 +660,17 @@ export const useStore = create<Store>((set, get) => ({
     if (uid) for (const w of fresh) void pushRecord(uid, 'workouts', w);
   },
 }));
+
+if (typeof window !== 'undefined') {
+  try {
+    history.replaceState({ route: useStore.getState().route }, '');
+  } catch {
+    /* history unavailable */
+  }
+  window.addEventListener('popstate', (event) => {
+    const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
+    scrollMemory.set(useStore.getState().route.view, window.scrollY);
+    useStore.setState({ route });
+    applyScroll(route.view);
+  });
+}

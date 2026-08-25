@@ -75,6 +75,14 @@ export type Settings = {
   updatedAt: number;
 };
 
+/** User-created exercise (id `custom:<uuid>`), synced like everything else. */
+export type CustomExercise = {
+  id: string;
+  name: string;
+  muscleGroup: string;
+  updatedAt: number;
+};
+
 export type MeasureMetric = 'weight' | 'waist' | 'chest' | 'arm' | 'thigh' | 'calf';
 
 export type Measurement = {

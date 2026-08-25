@@ -142,7 +142,9 @@
     "noResults": "Nessun esercizio trovato",
     "pickTitle": "Aggiungi esercizio",
     "back": "Indietro",
-    "howTo": "Esecuzione"
+    "howTo": "Esecuzione",
+    "create": "+ Crea esercizio personalizzato",
+    "createNamePh": "Nome esercizio…"
   },
   "settings": {
     "title": "Altro",

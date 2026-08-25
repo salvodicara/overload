@@ -135,6 +135,14 @@ test('active workout is reachable from any tab via the banner', async ({ page })
   await expect(page.locator('.setrow.done')).toHaveCount(1);
 });
 
+test('hardware back navigates the app', async ({ page }) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await page.locator('.card', { hasText: /barbell squat|squat con bilanciere/i }).first().click();
+  await expect(page.getByText(/how to|esecuzione/i)).toBeVisible();
+  await page.goBack();
+  await expect(page.getByPlaceholder(/search|cerca/i)).toBeVisible();
+});
+
 test('workout in progress survives reload', async ({ page }) => {
   await routineStart(page, /upper heavy/i).click();
   await page.locator('.setcheck').first().click();

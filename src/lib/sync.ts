@@ -1,11 +1,11 @@
-import { db, getSettings, listFolders, listMeasurements, listNotes, listNutrition, listRoutines, listWorkouts } from './db';
+import { db, getSettings, listCustomExercises, listFolders, listMeasurements, listNotes, listNutrition, listRoutines, listWorkouts } from './db';
 
 /** Every synced record carries an id and a last-write timestamp (epoch ms). */
 export type Synced = { id: string; updatedAt: number };
 
 export type SyncState = 'synced' | 'pending' | 'offline' | 'error';
 
-export type SyncCollection = 'workouts' | 'routines' | 'folders' | 'notes' | 'measurements' | 'nutrition' | 'settings';
+export type SyncCollection = 'workouts' | 'routines' | 'folders' | 'notes' | 'measurements' | 'nutrition' | 'customExercises' | 'settings';
 
 /**
  * Last-write-wins diff between the local and remote copies of a collection.
@@ -80,6 +80,7 @@ async function syncAll(uid: string): Promise<{ pulled: number; pushFailures: num
   await syncOne('notes', await listNotes(), (rows) => db.notes.bulkPut(rows));
   await syncOne('measurements', await listMeasurements(), (rows) => db.measurements.bulkPut(rows));
   await syncOne('nutrition', await listNutrition(), (rows) => db.nutrition.bulkPut(rows));
+  await syncOne('customExercises', await listCustomExercises(), (rows) => db.customExercises.bulkPut(rows));
   // A never-saved settings record (updatedAt 0) has nothing worth pushing.
   await syncOne('settings', settings.updatedAt > 0 ? [settings] : [], (rows) =>
     db.settings.bulkPut(rows),
