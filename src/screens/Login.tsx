@@ -8,13 +8,13 @@ export function Login() {
   const [error, setError] = useState(false);
   return (
     <div
-      className="screen"
+      className="screen page"
       style={{
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        gap: 18,
+        gap: 'var(--space-4)',
         paddingBottom: '20dvh',
       }}
     >
@@ -24,7 +24,10 @@ export function Login() {
           <br />
           load
         </div>
-        <div className="mono small" style={{ color: 'var(--accent-text)', marginTop: 10 }}>
+        <div
+          className="mono meta"
+          style={{ color: 'var(--accent-text)', marginTop: 'var(--space-3)' }}
+        >
           {t('app.tagline')}
         </div>
       </div>
@@ -46,8 +49,8 @@ export function Login() {
       </button>
       {error && <div className="banner banner-warn">{t('login.error')}</div>}
       <button
-        className="small muted"
-        style={{ textDecoration: 'underline', alignSelf: 'center' }}
+        className="meta muted action-link"
+        style={{ alignSelf: 'center' }}
         onClick={() => {
           void (async () => {
             const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];

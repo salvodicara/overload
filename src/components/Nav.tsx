@@ -37,10 +37,14 @@ export function Nav() {
             aria-current={current === tab.view ? 'page' : undefined}
           >
             <span className="nav-icon">
-              <tab.Icon width={21} height={21} strokeWidth={current === tab.view ? 2.4 : 2} aria-hidden />
+              <tab.Icon
+                width={21}
+                height={21}
+                strokeWidth={current === tab.view ? 2.4 : 2}
+                aria-hidden
+              />
             </span>
             {t(tab.key)}
-            <span className="nav-dot" />
           </button>
         ))}
       </div>

@@ -113,8 +113,8 @@ export function RoutineEditor({ id }: { id: string }) {
 
   if (!storedRoutine || !routine)
     return (
-      <div className="screen">
-        <div className="row" style={{ padding: '18px 0 6px' }}>
+      <div className="screen page">
+        <div className="row" style={{ padding: 'var(--space-4) 0 var(--space-2)' }}>
           <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
             <IconBack />
           </button>
@@ -129,12 +129,12 @@ export function RoutineEditor({ id }: { id: string }) {
     gap: 8,
   } as const;
   return (
-    <main className="screen">
-      <header className="row" style={{ padding: '18px 0 10px' }}>
+    <div className="screen page">
+      <header className="row" style={{ padding: 'var(--space-4) 0 var(--space-2)' }}>
         <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
-        <h1 className="display" style={{ fontSize: 24, flex: 1, margin: 0 }}>
+        <h1 className="display page-title" style={{ flex: 1, margin: 0 }}>
           {t('editor.title')}
         </h1>
         <button
@@ -146,9 +146,9 @@ export function RoutineEditor({ id }: { id: string }) {
         </button>
       </header>
 
-      <label className="stack" style={{ gap: 4, marginBottom: 10 }}>
+      <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
         <span
-          className="mono small muted"
+          className="mono meta muted"
           style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
         >
           {t('editor.name')}
@@ -161,9 +161,9 @@ export function RoutineEditor({ id }: { id: string }) {
         />
       </label>
       {folders.length > 0 && (
-        <label className="stack" style={{ gap: 4, marginBottom: 10 }}>
+        <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
           <span
-            className="mono small muted"
+            className="mono meta muted"
             style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
           >
             {t('editor.folder')}
@@ -182,9 +182,9 @@ export function RoutineEditor({ id }: { id: string }) {
           </select>
         </label>
       )}
-      <label className="stack" style={{ gap: 4, marginBottom: 14 }}>
+      <label className="field" style={{ marginBottom: 'var(--space-4)' }}>
         <span
-          className="mono small muted"
+          className="mono meta muted"
           style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
         >
           {t('editor.preparation')}
@@ -487,6 +487,6 @@ export function RoutineEditor({ id }: { id: string }) {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

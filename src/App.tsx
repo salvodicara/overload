@@ -65,7 +65,11 @@ function Toast() {
     return () => clearTimeout(timer);
   }, []);
   if (!msg) return null;
-  return <div className="toast">{msg}</div>;
+  return (
+    <div className="toast" role="status" aria-live="polite" aria-atomic="true">
+      {msg}
+    </div>
+  );
 }
 
 export default function App() {
@@ -100,38 +104,37 @@ export default function App() {
     if (locale && locale !== i18n.language) setLocale(locale);
   }, [locale, i18n.language]);
 
-  if (authState === 'error') {
-    return (
-      <div
-        className="screen"
-        role="alert"
-        style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', textAlign: 'center' }}
-      >
-        {t('login.dataError')}
-      </div>
-    );
-  }
-  if (user === undefined && import.meta.env.VITE_E2E !== '1') {
-    return (
-      <div
-        className="screen display"
-        style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', fontSize: 34 }}
-        aria-busy="true"
-      >
-        {t('app.name')}
-      </div>
-    );
-  }
-  if (!user) return <Login />;
+  const ready = authState !== 'error' && Boolean(user);
 
   return (
     <>
-      <Screen />
-      <ActiveWorkoutBar />
-      <RestWatcher />
-      <RestBar />
-      <Nav />
-      <Toast />
+      <a className="skip-link" href="#main-content">
+        {t('app.skipToContent')}
+      </a>
+      <main id="main-content" className="app-main" tabIndex={-1}>
+        {authState === 'error' ? (
+          <div className="screen page app-state" role="alert" style={{ textAlign: 'center' }}>
+            {t('login.dataError')}
+          </div>
+        ) : user === undefined && import.meta.env.VITE_E2E !== '1' ? (
+          <div className="screen page app-state display page-title" aria-busy="true">
+            {t('app.name')}
+          </div>
+        ) : !user ? (
+          <Login />
+        ) : (
+          <Screen />
+        )}
+      </main>
+      {ready ? (
+        <>
+          <ActiveWorkoutBar />
+          <RestWatcher />
+          <RestBar />
+          <Nav />
+          <Toast />
+        </>
+      ) : null}
     </>
   );
 }

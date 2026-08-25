@@ -505,6 +505,23 @@ test.beforeEach(async ({ page }) => {
   await installNeutralTemplate(page);
 });
 
+test('app shell exposes landmarks and skip navigation', async ({ page }) => {
+  await page.reload();
+
+  const main = page.getByRole('main');
+  await expect(main).toHaveCount(1);
+
+  await page.keyboard.press('Tab');
+  const skipLink = page.getByRole('link', {
+    name: /skip to content|vai al contenuto/i,
+  });
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+
+  await page.keyboard.press('Enter');
+  await expect(main).toBeFocused();
+});
+
 test('home prioritizes the next routine and keeps history secondary', async ({ page }) => {
   await page.getByRole('button', { name: /home/i }).click();
   await expect(

@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "Overload",
-    "tagline": "Sovraccarico progressivo. Nient'altro."
+    "tagline": "Sovraccarico progressivo. Nient'altro.",
+    "skipToContent": "Vai al contenuto"
   },
   "common": {
     "back": "Indietro",

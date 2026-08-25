@@ -30,12 +30,22 @@ export function RestBar() {
           <div className="rest-track">
             <div
               className="rest-fill"
-              style={{ width: `${Math.max(0, Math.min(100, (left / restTotalSec) * 100))}%` }}
+              style={{
+                transform: `scaleX(${Math.max(0, Math.min(1, left / restTotalSec))})`,
+              }}
             />
           </div>
         ) : null}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="small" style={{ opacity: 0.65, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div
+            className="small"
+            style={{
+              opacity: 0.65,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
             {t('timer.rest')} · {label}
           </div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 600, lineHeight: 1.1 }}>

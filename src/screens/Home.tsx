@@ -33,23 +33,33 @@ export function Home() {
   const startWorkout = useStore((state) => state.startWorkout);
   const days = weekDays();
   const daySet = new Set(days.map((day) => day.iso));
-  const weeklyWorkouts = workouts.filter((workout) => daySet.has(workout.date) && workingSetCount(workout) > 0);
-  const workingSets = weeklyWorkouts.reduce((total, workout) => total + workingSetCount(workout), 0);
-  const weeklyVolume = weeklyWorkouts.reduce((total, workout) => total + computeVolume(workout.sets), 0);
+  const weeklyWorkouts = workouts.filter(
+    (workout) => daySet.has(workout.date) && workingSetCount(workout) > 0,
+  );
+  const workingSets = weeklyWorkouts.reduce(
+    (total, workout) => total + workingSetCount(workout),
+    0,
+  );
+  const weeklyVolume = weeklyWorkouts.reduce(
+    (total, workout) => total + computeVolume(workout.sets),
+    0,
+  );
   const next = nextRoutine(routines, folders, workouts);
   const today = new Date().toLocaleDateString('sv');
   const unit = settings.unit ?? 'kg';
 
   return (
-    <main className="screen">
-      <header style={{ padding: '22px 0 14px' }}>
-        <h1 className="display" style={{ fontSize: 30 }}>{t('app.name')}</h1>
+    <div className="screen page">
+      <header style={{ padding: 'var(--space-6) 0 var(--space-3)' }}>
+        <h1 className="display page-title">{t('app.name')}</h1>
       </header>
 
       {active && (
-        <section aria-labelledby="resume-workout" style={{ marginBottom: 14 }}>
+        <section aria-labelledby="resume-workout" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="card card-pad stack">
-            <h2 id="resume-workout" style={{ fontSize: 18 }}>{t('home.resume')}</h2>
+            <h2 id="resume-workout" className="section-title">
+              {t('home.resume')}
+            </h2>
             <button className="btn btn-accent btn-block" onClick={() => nav({ view: 'workout' })}>
               {t('activeBar.resume')}
             </button>
@@ -60,16 +70,21 @@ export function Home() {
       <section aria-labelledby="next-workout">
         <div className="card card-pad stack">
           <div>
-            <span className="mono small muted" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            <span
+              className="mono meta muted"
+              style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+            >
               {t('home.upNext')}
             </span>
-            <h2 id="next-workout" style={{ fontSize: 21, marginTop: 3 }}>{t('home.nextWorkout')}</h2>
+            <h2 id="next-workout" className="section-title" style={{ marginTop: 'var(--space-1)' }}>
+              {t('home.nextWorkout')}
+            </h2>
           </div>
           {next ? (
             <>
               <div>
-                <strong style={{ fontSize: 18 }}>{next.name}</strong>
-                <div className="small muted" style={{ marginTop: 3 }}>
+                <strong style={{ fontSize: 'var(--text-lg)' }}>{next.name}</strong>
+                <div className="small muted" style={{ marginTop: 'var(--space-1)' }}>
                   {t('home.exercises', { n: next.exercises.length })}
                 </div>
               </div>
@@ -90,8 +105,14 @@ export function Home() {
         </div>
       </section>
 
-      <section aria-labelledby="week-summary" style={{ marginTop: 20 }}>
-        <h2 id="week-summary" className="display" style={{ fontSize: 20, marginBottom: 8 }}>{t('home.thisWeek')}</h2>
+      <section aria-labelledby="week-summary" style={{ marginTop: 'var(--space-6)' }}>
+        <h2
+          id="week-summary"
+          className="display section-title"
+          style={{ marginBottom: 'var(--space-2)' }}
+        >
+          {t('home.thisWeek')}
+        </h2>
         <div className="card card-pad stack">
           <div className="spread" aria-label={t('home.weekDays')}>
             {days.map((day) => {
@@ -109,36 +130,51 @@ export function Home() {
               );
             })}
           </div>
-          <div className="row" style={{ alignItems: 'start', justifyContent: 'space-between', gap: 10 }}>
+          <div
+            className="row"
+            style={{ alignItems: 'start', justifyContent: 'space-between', gap: 'var(--space-2)' }}
+          >
             <span>
-              <strong className="display" style={{ fontSize: 25 }}>{weeklyWorkouts.length}</strong>
+              <strong className="display" style={{ fontSize: 'var(--text-xl)' }}>
+                {weeklyWorkouts.length}
+              </strong>
               <span className="small muted"> {t('home.sessions')}</span>
             </span>
             <span>
-              <strong className="display" style={{ fontSize: 25 }}>{workingSets}</strong>
+              <strong className="display" style={{ fontSize: 'var(--text-xl)' }}>
+                {workingSets}
+              </strong>
               <span className="small muted"> {t('home.workingSets')}</span>
             </span>
             <span style={{ textAlign: 'right' }}>
-              <strong className="display" style={{ fontSize: 25 }}>{formatWeight(weeklyVolume, unit, i18n.language)}</strong>
+              <strong className="display" style={{ fontSize: 'var(--text-xl)' }}>
+                {formatWeight(weeklyVolume, unit, i18n.language)}
+              </strong>
               <span className="small muted"> {t('home.volume')}</span>
             </span>
           </div>
         </div>
       </section>
 
-      <section aria-labelledby="recent-workouts" style={{ marginTop: 20 }}>
-        <div className="spread" style={{ marginBottom: 8 }}>
-          <h2 id="recent-workouts" className="display" style={{ fontSize: 20 }}>{t('home.recent')}</h2>
-          <button className="btn btn-ghost" style={{ minHeight: 40, padding: '8px 12px' }} onClick={() => nav({ view: 'history' })}>
+      <section aria-labelledby="recent-workouts" style={{ marginTop: 'var(--space-6)' }}>
+        <div className="spread" style={{ marginBottom: 'var(--space-2)' }}>
+          <h2 id="recent-workouts" className="display section-title">
+            {t('home.recent')}
+          </h2>
+          <button className="btn btn-ghost action-link" onClick={() => nav({ view: 'history' })}>
             {t('home.allHistory')}
           </button>
         </div>
         {workouts.length > 0 ? (
-          <WorkoutList workouts={workouts} limit={3} onOpen={(workout) => nav({ view: 'workoutDetail', id: workout.id })} />
+          <WorkoutList
+            workouts={workouts}
+            limit={3}
+            onOpen={(workout) => nav({ view: 'workoutDetail', id: workout.id })}
+          />
         ) : (
           <p className="muted small">{t('history.empty')}</p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

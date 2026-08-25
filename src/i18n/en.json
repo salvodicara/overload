@@ -1,7 +1,8 @@
 {
   "app": {
     "name": "Overload",
-    "tagline": "Progressive overload. Nothing else."
+    "tagline": "Progressive overload. Nothing else.",
+    "skipToContent": "Skip to content"
   },
   "common": {
     "back": "Back",
