@@ -956,6 +956,32 @@ test('active workout adapts rows without shifting working previous values', asyn
   }
 });
 
+test('technique trigger exposes its native disabled save state', async ({ page }) => {
+  await startNeutralWorkout(page);
+  const techniqueTrigger = page.locator('.workout-note__trigger').first();
+  await expect(techniqueTrigger).toBeEnabled();
+  await techniqueTrigger.evaluate((button: HTMLButtonElement) => {
+    button.disabled = true;
+  });
+
+  const style = await techniqueTrigger.evaluate((button) => {
+    const computed = getComputedStyle(button);
+    return {
+      backgroundColor: computed.backgroundColor,
+      borderTopWidth: computed.borderTopWidth,
+      cursor: computed.cursor,
+      opacity: computed.opacity,
+    };
+  });
+
+  expect(style.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+  expect(style).toMatchObject({
+    borderTopWidth: '1px',
+    cursor: 'not-allowed',
+    opacity: '0.65',
+  });
+});
+
 test('log a workout end to end', async ({ page }) => {
   await startNeutralWorkout(page);
 
@@ -1482,6 +1508,32 @@ test('home protects an active workout until it is resumed', async ({ page }) => 
   await expect
     .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null')))
     .toEqual(activeBefore);
+});
+
+test('home content clears the active workout banner at 320px', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.getByRole('button', { name: /minimize|riduci/i }).click();
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page.setViewportSize({ width: 320, height: 700 });
+
+  const bounds = await page.evaluate(async () => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const lastSection = document.querySelector<HTMLElement>('.page > section:last-of-type');
+    const activeBar = document.querySelector<HTMLElement>('.active-bar');
+    if (!lastSection || !activeBar) throw new Error('home clearance surfaces missing');
+    return {
+      contentBottom: lastSection.getBoundingClientRect().bottom,
+      bannerTop: activeBar.getBoundingClientRect().top,
+      fixedClearance: window.innerHeight - activeBar.getBoundingClientRect().top,
+      rootScrollPaddingBottom: Number.parseFloat(
+        getComputedStyle(document.documentElement).scrollPaddingBottom,
+      ),
+    };
+  });
+
+  expect(bounds.contentBottom).toBeLessThanOrEqual(bounds.bannerTop);
+  expect(bounds.rootScrollPaddingBottom).toBeGreaterThanOrEqual(bounds.fixedClearance);
 });
 
 test('hardware back navigates the app', async ({ page }) => {
