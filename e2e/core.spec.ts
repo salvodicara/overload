@@ -957,26 +957,57 @@ test('active workout adapts rows without shifting working previous values', asyn
 });
 
 test('technique trigger exposes its native disabled save state', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await startNeutralWorkout(page);
   const techniqueTrigger = page.locator('.workout-note__trigger').first();
   await expect(techniqueTrigger).toBeEnabled();
+
+  const enabled = await techniqueTrigger.evaluate(async (button) => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    const computed = getComputedStyle(button);
+    const rect = button.getBoundingClientRect();
+    return {
+      backgroundColor: computed.backgroundColor,
+      boxShadow: computed.boxShadow,
+      cursor: computed.cursor,
+      height: rect.height,
+      opacity: computed.opacity,
+      width: rect.width,
+    };
+  });
+
   await techniqueTrigger.evaluate((button: HTMLButtonElement) => {
     button.disabled = true;
   });
 
-  const style = await techniqueTrigger.evaluate((button) => {
+  const disabled = await techniqueTrigger.evaluate(async (button) => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
     const computed = getComputedStyle(button);
+    const rect = button.getBoundingClientRect();
     return {
       backgroundColor: computed.backgroundColor,
-      borderTopWidth: computed.borderTopWidth,
+      boxShadow: computed.boxShadow,
       cursor: computed.cursor,
+      height: rect.height,
       opacity: computed.opacity,
+      width: rect.width,
     };
   });
 
-  expect(style.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
-  expect(style).toMatchObject({
-    borderTopWidth: '1px',
+  expect(Math.abs(disabled.width - enabled.width)).toBeLessThanOrEqual(
+    DOM_RECT_SUBPIXEL_EPSILON_PX,
+  );
+  expect(Math.abs(disabled.height - enabled.height)).toBeLessThanOrEqual(
+    DOM_RECT_SUBPIXEL_EPSILON_PX,
+  );
+  expect(disabled.backgroundColor).not.toBe(enabled.backgroundColor);
+  expect(disabled.boxShadow).not.toBe(enabled.boxShadow);
+  expect(disabled).toMatchObject({
     cursor: 'not-allowed',
     opacity: '0.65',
   });
@@ -1511,14 +1542,18 @@ test('home protects an active workout until it is resumed', async ({ page }) => 
 });
 
 test('home content clears the active workout banner at 320px', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await startNeutralWorkout(page);
   await page.getByRole('button', { name: /minimize|riduci/i }).click();
   await page.getByRole('button', { name: /^home$/i }).click();
   await page.setViewportSize({ width: 320, height: 700 });
 
   const bounds = await page.evaluate(async () => {
+    await document.fonts.ready;
     window.scrollTo(0, document.documentElement.scrollHeight);
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
     const lastSection = document.querySelector<HTMLElement>('.page > section:last-of-type');
     const activeBar = document.querySelector<HTMLElement>('.active-bar');
     if (!lastSection || !activeBar) throw new Error('home clearance surfaces missing');
