@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { IconX } from '../components/Icons';
 import { LineChart } from '../components/LineChart';
 import { todayISO } from '../lib/format';
-import { useStore } from '../state/useStore';
+import { continueAccountAction, useStore } from '../state/useStore';
 import type { MeasureMetric } from '../lib/types';
 
 const METRICS: MeasureMetric[] = ['weight', 'waist', 'chest', 'arm', 'thigh', 'calf'];
@@ -105,9 +105,13 @@ export function ProgressBody() {
               style={{ flex: 1 }}
               disabled={!valueDraft || Number(valueDraft) <= 0}
               onClick={() => {
-                void addMeasurement(metric, Number(valueDraft), dateDraft);
-                setValueDraft('');
-                setAdding(false);
+                void continueAccountAction(
+                  addMeasurement(metric, Number(valueDraft), dateDraft),
+                  () => {
+                    setValueDraft('');
+                    setAdding(false);
+                  },
+                );
               }}
             >
               {t('train.save')}

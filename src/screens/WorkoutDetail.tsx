@@ -2,7 +2,7 @@ import { IconBack } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
-import { useStore } from '../state/useStore';
+import { continueAccountAction, useStore } from '../state/useStore';
 import type { SetLog } from '../lib/types';
 
 function fmtDate(iso: string, locale: string): string {
@@ -120,8 +120,7 @@ export function WorkoutDetail({ id }: { id: string }) {
             <button
               className="btn btn-danger btn-block"
               onClick={() => {
-                void deleteWorkout(w.id);
-                nav({ view: 'home' });
+                void continueAccountAction(deleteWorkout(w.id), () => nav({ view: 'home' }));
               }}
             >
               {t('history.deleteConfirm')}

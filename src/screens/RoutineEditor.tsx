@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { IconBack, IconDown, IconNote, IconUp, IconX } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
 import { exerciseName } from '../lib/exercises';
-import { useStore } from '../state/useStore';
+import { continueAccountAction, useStore } from '../state/useStore';
 import type { Routine } from '../lib/types';
 
 const ICON = { width: 44, height: 44 } as const;
@@ -71,7 +71,7 @@ export function RoutineEditor({ id }: { id: string }) {
     if (!current) return;
     const draft = structuredClone(current);
     mutate(draft);
-    void saveRoutine(draft).then(() => {
+    void continueAccountAction(saveRoutine(draft), () => {
       if (structural) setRev((v) => v + 1);
     });
   }
@@ -262,7 +262,7 @@ export function RoutineEditor({ id }: { id: string }) {
             <button
               className="btn btn-danger btn-block"
               onClick={() => {
-                void deleteRoutine(id).then(() => nav({ view: 'train' }));
+                void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }));
               }}
             >
               {t('history.deleteConfirm')}

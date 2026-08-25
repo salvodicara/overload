@@ -3,12 +3,43 @@ import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
 import { muscleGroup, searchExercises, type MuscleGroup } from '../lib/exercises';
-import { useStore } from '../state/useStore';
+import {
+  isAccountActionCurrent,
+  STALE_ACCOUNT_ACTION,
+  useStore,
+  type AccountActionResult,
+  type Store,
+} from '../state/useStore';
 
 const GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'calves'];
 
 /** Long lists stay responsive on phones without a virtualiser. */
 const MAX_RESULTS = 60;
+
+export async function createCustomExerciseFlow(
+  input: {
+    name: string;
+    muscleGroup: MuscleGroup;
+    pickFor?: { routineId: string };
+  },
+  actions: Pick<Store, 'createCustomExercise' | 'addExerciseToRoutine' | 'nav'> & {
+    close(): void;
+  },
+): Promise<AccountActionResult<string>> {
+  const created = await actions.createCustomExercise(input.name, input.muscleGroup);
+  if (!isAccountActionCurrent(created) || !created.value) return STALE_ACCOUNT_ACTION;
+  const id = created.value;
+  if (input.pickFor) {
+    const added = await actions.addExerciseToRoutine(input.pickFor.routineId, id);
+    if (!isAccountActionCurrent(added)) return STALE_ACCOUNT_ACTION;
+    actions.close();
+    actions.nav({ view: 'routineEditor', id: input.pickFor.routineId });
+  } else {
+    actions.close();
+    actions.nav({ view: 'exercise', id });
+  }
+  return created;
+}
 
 export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const { t, i18n } = useTranslation();
@@ -33,7 +64,8 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
       nav({ view: 'exercise', id });
       return;
     }
-    await addExerciseToRoutine(pickFor.routineId, id);
+    const result = await addExerciseToRoutine(pickFor.routineId, id);
+    if (!isAccountActionCurrent(result)) return;
     nav({ view: 'routineEditor', id: pickFor.routineId });
   }
 
@@ -155,16 +187,15 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
               className="btn btn-accent btn-block"
               disabled={!newName.trim()}
               onClick={() => {
-                void createCustomExercise(newName, newGroup).then((id) => {
-                  setCreating(false);
-                  if (pickFor) {
-                    void addExerciseToRoutine(pickFor.routineId, id).then(() =>
-                      nav({ view: 'routineEditor', id: pickFor.routineId }),
-                    );
-                  } else {
-                    nav({ view: 'exercise', id });
-                  }
-                });
+                void createCustomExerciseFlow(
+                  { name: newName, muscleGroup: newGroup, pickFor },
+                  {
+                    createCustomExercise,
+                    addExerciseToRoutine,
+                    nav,
+                    close: () => setCreating(false),
+                  },
+                );
               }}
             >
               {t('train.createConfirm')}

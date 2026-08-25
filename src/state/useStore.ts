@@ -68,6 +68,44 @@ export type AppUser = { uid: string; name: string | null };
 
 export type { ActiveSession, ActiveSet };
 
+export type AccountOwnerReceipt = Readonly<{ uid: string; generation: number }>;
+
+export type AccountActionResult<T = void> =
+  | { status: 'applied'; value: T; owner: AccountOwnerReceipt }
+  | { status: 'stale' };
+
+export const STALE_ACCOUNT_ACTION = Object.freeze({ status: 'stale' as const });
+
+export function isStaleAccountAction(
+  result: AccountActionResult<unknown>,
+): result is typeof STALE_ACCOUNT_ACTION {
+  return result.status === 'stale';
+}
+
+export function isAccountActionCurrent<T>(
+  result: AccountActionResult<T>,
+): result is Extract<AccountActionResult<T>, { status: 'applied' }> {
+  return result.status === 'applied' && owns(result.owner);
+}
+
+export async function continueAccountAction<T>(
+  action: Promise<AccountActionResult<T>>,
+  onApplied: (value: T) => void | Promise<void>,
+): Promise<AccountActionResult<T>> {
+  const result = await action;
+  if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  await onApplied(result.value);
+  return result;
+}
+
+function appliedAccountAction<T>(owner: Owner, value: T): AccountActionResult<T> {
+  return { status: 'applied', value, owner };
+}
+
+function accountActionForOwner<T>(owner: Owner, value: T): AccountActionResult<T> {
+  return owns(owner) ? appliedAccountAction(owner, value) : STALE_ACCOUNT_ACTION;
+}
+
 export class BackupCloudSyncError extends Error {
   readonly cause: unknown;
 
@@ -125,7 +163,7 @@ function i18nToast(key: string): string {
 }
 
 type AuthState = 'loading' | 'ready' | 'signedOut' | 'error';
-type Owner = Readonly<{ uid: string; generation: number }>;
+type Owner = AccountOwnerReceipt;
 type PendingBoot = {
   uid: string;
   generation: number;
@@ -164,17 +202,15 @@ function captureOwner(): Owner | null {
   return currentOwner ? { ...currentOwner } : null;
 }
 
-type OwnedResult<T> = { status: 'ok'; value: T } | { status: 'stale' };
-
 async function withOwnedLocalWrite<T>(
   owner: Owner,
   work: () => Promise<T>,
-): Promise<OwnedResult<T>> {
+): Promise<AccountActionResult<T>> {
   return withLocalWriteBarrier(async () => {
-    if (!owns(owner)) return { status: 'stale' };
+    if (!owns(owner)) return STALE_ACCOUNT_ACTION;
     const value = await work();
-    if (!owns(owner)) return { status: 'stale' };
-    return { status: 'ok', value };
+    if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+    return appliedAccountAction(owner, value);
   });
 }
 
@@ -244,7 +280,7 @@ export type Store = {
   setUser(user: AppUser | null): void;
   init(): Promise<void>;
   reload(): Promise<void>;
-  updateSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<void>;
+  updateSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<AccountActionResult>;
   startWorkout(routineId: string): void;
   updateSet(ei: number, si: number, patch: Partial<ActiveSet>): void;
   updateSessionNote(ei: number, text: string): void;
@@ -254,28 +290,28 @@ export type Store = {
   addSet(ei: number): void;
   removeSet(ei: number): void;
   abandonWorkout(): void;
-  finishWorkout(): Promise<Workout | null>;
-  applyRoutineChanges(): Promise<void>;
+  finishWorkout(): Promise<AccountActionResult<Workout | null>>;
+  applyRoutineChanges(): Promise<AccountActionResult>;
   dismissRoutineChanges(): void;
 
   startRest(sec: number, exerciseId: string): void;
   stopRest(): void;
 
-  saveRoutine(r: Routine): Promise<void>;
-  deleteRoutine(id: string): Promise<void>;
-  saveFolder(f: Folder): Promise<void>;
-  deleteFolder(id: string): Promise<void>;
-  addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
-  saveTechniqueNote(exerciseId: string, text: string): Promise<void>;
-  addNoteEntry(exerciseId: string, text: string): Promise<void>;
-  importNotes(incoming: ExerciseNote[]): Promise<number>;
-  createCustomExercise(name: string, muscleGroup: string): Promise<string>;
-  addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<void>;
-  deleteMeasurement(id: string): Promise<void>;
-  saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<void>;
-  deleteWorkout(id: string): Promise<void>;
-  importWorkouts(fresh: Workout[]): Promise<void>;
-  restoreBackup(backup: BackupV2): Promise<void>;
+  saveRoutine(r: Routine): Promise<AccountActionResult>;
+  deleteRoutine(id: string): Promise<AccountActionResult>;
+  saveFolder(f: Folder): Promise<AccountActionResult>;
+  deleteFolder(id: string): Promise<AccountActionResult>;
+  addExerciseToRoutine(routineId: string, exerciseId: string): Promise<AccountActionResult>;
+  saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
+  addNoteEntry(exerciseId: string, text: string): Promise<AccountActionResult>;
+  importNotes(incoming: ExerciseNote[]): Promise<AccountActionResult<number>>;
+  createCustomExercise(name: string, muscleGroup: string): Promise<AccountActionResult<string>>;
+  addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<AccountActionResult>;
+  deleteMeasurement(id: string): Promise<AccountActionResult>;
+  saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<AccountActionResult>;
+  deleteWorkout(id: string): Promise<AccountActionResult>;
+  importWorkouts(fresh: Workout[]): Promise<AccountActionResult>;
+  restoreBackup(backup: BackupV2): Promise<AccountActionResult>;
 };
 
 type HydratedCollections = {
@@ -513,12 +549,13 @@ export const useStore = create<Store>((set, get) => ({
 
   async updateSettings(patch) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, () => saveSettings(patch));
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const settings = result.value;
     set({ settings });
     if (owns(owner)) await pushRecord(owner.uid, 'settings', settings);
+    return accountActionForOwner(owner, undefined);
   },
 
   startWorkout(routineId) {
@@ -628,9 +665,9 @@ export const useStore = create<Store>((set, get) => ({
 
   async finishWorkout() {
     const owner = captureOwner();
-    if (!owner) return null;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const active = get().active;
-    if (!active) return null;
+    if (!active) return appliedAccountAction(owner, null);
     const routine = get().routines.find((r) => r.id === active.routineId);
     const date = todayISO();
     const dayLabel = routine?.name;
@@ -642,7 +679,7 @@ export const useStore = create<Store>((set, get) => ({
       releaseWakeLock();
       set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
       toast(i18nToast('workout.discarded'));
-      return null;
+      return appliedAccountAction(owner, null);
     }
     const flagged = flagPrs(doneSets, get().workouts, date);
     const exerciseNotes = active.ex.flatMap(({ exerciseId, sessionNote }) => {
@@ -680,7 +717,7 @@ export const useStore = create<Store>((set, get) => ({
       await saveWorkout(workout);
       return workout;
     });
-    if (result.status === 'stale' || !owns(owner)) return null;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     persistActive(null);
     releaseWakeLock();
     set({
@@ -692,7 +729,7 @@ export const useStore = create<Store>((set, get) => ({
       pendingRoutineChanges: routine && items.length > 0 ? { routineId: routine.id, items } : null,
     });
     if (owns(owner)) await pushRecord(owner.uid, 'workouts', workout);
-    return workout;
+    return accountActionForOwner(owner, workout);
   },
 
   startRest(sec, exerciseId) {
@@ -710,13 +747,13 @@ export const useStore = create<Store>((set, get) => ({
 
   async saveRoutine(r) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const next = { ...r, updatedAt: Date.now() };
     const result = await withOwnedLocalWrite(owner, async () => {
       await saveRoutine(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const list = get().routines;
     set({
       routines: list.some((x) => x.id === next.id)
@@ -724,28 +761,30 @@ export const useStore = create<Store>((set, get) => ({
         : [...list, next],
     });
     debouncedPushRoutine(owner, next.id);
+    return appliedAccountAction(owner, undefined);
   },
 
   async deleteRoutine(id) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await dbDeleteRoutine(id);
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ routines: get().routines.filter((r) => r.id !== id) });
     if (owns(owner)) await deleteRecord(owner.uid, 'routines', id);
+    return accountActionForOwner(owner, undefined);
   },
 
   async saveFolder(f) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const next = { ...f, updatedAt: Date.now() };
     const result = await withOwnedLocalWrite(owner, async () => {
       await saveFolder(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const list = get().folders;
     set({
       folders: list.some((x) => x.id === next.id)
@@ -753,11 +792,12 @@ export const useStore = create<Store>((set, get) => ({
         : [...list, next],
     });
     if (owns(owner)) await pushRecord(owner.uid, 'folders', next);
+    return accountActionForOwner(owner, undefined);
   },
 
   async deleteFolder(id) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     // Routines inside a deleted folder become ungrouped, never deleted.
     const moved = get().routines
       .filter((routine) => routine.folderId === id)
@@ -767,7 +807,7 @@ export const useStore = create<Store>((set, get) => ({
       await dbDeleteFolder(id);
       return moved;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const movedById = new Map(moved.map((routine) => [routine.id, routine]));
     set({
       folders: get().folders.filter((folder) => folder.id !== id),
@@ -775,13 +815,14 @@ export const useStore = create<Store>((set, get) => ({
     });
     for (const routine of moved) debouncedPushRoutine(owner, routine.id);
     if (owns(owner)) await deleteRecord(owner.uid, 'folders', id);
+    return accountActionForOwner(owner, undefined);
   },
 
   async addNoteEntry(exerciseId, text) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed) return appliedAccountAction(owner, undefined);
     const date = todayISO();
     const existing = get().notes.find((n) => n.id === exerciseId);
     const next: ExerciseNote = existing
@@ -796,14 +837,15 @@ export const useStore = create<Store>((set, get) => ({
       await saveNote(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ notes: [...get().notes.filter((n) => n.id !== exerciseId), next] });
     if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
+    return accountActionForOwner(owner, undefined);
   },
 
   async importNotes(incoming) {
     const owner = captureOwner();
-    if (!owner) return 0;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const base = get().notes;
     const result = await withOwnedLocalWrite(owner, async () => {
       const mergedNotes = [...base];
@@ -833,18 +875,18 @@ export const useStore = create<Store>((set, get) => ({
       }
       return { mergedNotes, changedNotes };
     });
-    if (result.status === 'stale' || !owns(owner)) return 0;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ notes: result.value.mergedNotes });
     for (const note of result.value.changedNotes) {
-      if (!owns(owner)) return result.value.changedNotes.length;
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
       await pushRecord(owner.uid, 'notes', note);
     }
-    return result.value.changedNotes.length;
+    return accountActionForOwner(owner, result.value.changedNotes.length);
   },
 
   async createCustomExercise(name, muscleGroup) {
     const owner = captureOwner();
-    if (!owner) return '';
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const x: CustomExercise = {
       id: `custom:${crypto.randomUUID()}`,
       name: name.trim(),
@@ -855,41 +897,43 @@ export const useStore = create<Store>((set, get) => ({
       await saveCustomExercise(x);
       return [...get().customExercises, x];
     });
-    if (result.status === 'stale' || !owns(owner)) return '';
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const next = result.value;
     registerCustomExercises(next);
     set({ customExercises: next });
     if (owns(owner)) await pushRecord(owner.uid, 'customExercises', x);
-    return x.id;
+    return accountActionForOwner(owner, x.id);
   },
 
   async addMeasurement(metric, value, date) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const m: Measurement = { id: crypto.randomUUID(), date, metric, value, updatedAt: Date.now() };
     const result = await withOwnedLocalWrite(owner, async () => {
       await saveMeasurement(m);
       return m;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ measurements: [...get().measurements, m].sort((a, b) => a.date.localeCompare(b.date)) });
     if (owns(owner)) await pushRecord(owner.uid, 'measurements', m);
+    return accountActionForOwner(owner, undefined);
   },
 
   async deleteMeasurement(id) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await dbDeleteMeasurement(id);
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ measurements: get().measurements.filter((m) => m.id !== id) });
     if (owns(owner)) await deleteRecord(owner.uid, 'measurements', id);
+    return accountActionForOwner(owner, undefined);
   },
 
   async saveNutritionDay(date, patch) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const existing = get().nutrition.find((n) => n.id === date);
     const next: NutritionDay = {
       id: date,
@@ -903,20 +947,21 @@ export const useStore = create<Store>((set, get) => ({
       await saveNutrition(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ nutrition: [...get().nutrition.filter((n) => n.id !== date), next] });
     if (owns(owner)) await pushRecord(owner.uid, 'nutrition', next);
+    return accountActionForOwner(owner, undefined);
   },
 
   async applyRoutineChanges() {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const pending = get().pendingRoutineChanges;
-    if (!pending) return;
+    if (!pending) return appliedAccountAction(owner, undefined);
     const routine = get().routines.find((r) => r.id === pending.routineId);
     if (!routine) {
       set({ pendingRoutineChanges: null });
-      return;
+      return appliedAccountAction(owner, undefined);
     }
     const next = structuredClone(routine);
     for (const item of pending.items) {
@@ -930,12 +975,13 @@ export const useStore = create<Store>((set, get) => ({
       await saveRoutine(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({
       routines: get().routines.map((routine) => (routine.id === next.id ? next : routine)),
     });
     debouncedPushRoutine(owner, next.id);
     set({ pendingRoutineChanges: null });
+    return appliedAccountAction(owner, undefined);
   },
 
   dismissRoutineChanges() {
@@ -944,9 +990,9 @@ export const useStore = create<Store>((set, get) => ({
 
   async addExerciseToRoutine(routineId, exerciseId) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const routine = get().routines.find((r) => r.id === routineId);
-    if (!routine) return;
+    if (!routine) return appliedAccountAction(owner, undefined);
     const next = structuredClone(routine);
     next.exercises.push({ exerciseId, sets: 3, repMin: 8, repMax: 12, restSec: 90 });
     next.updatedAt = Date.now();
@@ -954,16 +1000,17 @@ export const useStore = create<Store>((set, get) => ({
       await saveRoutine(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({
       routines: get().routines.map((current) => (current.id === next.id ? next : current)),
     });
     debouncedPushRoutine(owner, next.id);
+    return appliedAccountAction(owner, undefined);
   },
 
   async saveTechniqueNote(exerciseId, text) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const existing = get().notes.find((note) => note.id === exerciseId);
     const next: ExerciseNote = {
       ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
@@ -974,85 +1021,89 @@ export const useStore = create<Store>((set, get) => ({
       await saveNote(next);
       return next;
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ notes: [...get().notes.filter((note) => note.id !== exerciseId), next] });
     if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
+    return accountActionForOwner(owner, undefined);
   },
 
   async deleteWorkout(id) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await dbDeleteWorkout(id);
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({ workouts: get().workouts.filter((w) => w.id !== id) });
     if (owns(owner)) await deleteRecord(owner.uid, 'workouts', id);
+    return accountActionForOwner(owner, undefined);
   },
 
   async importWorkouts(fresh) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await dbApplyImport(fresh);
       await migrateLegacyRoutines();
       return loadHydratedCollections();
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const { techniqueMigrations: _techniqueMigrations, ...collections } = result.value;
     registerCustomExercises(collections.customExercises);
     set(collections);
     for (const workout of fresh) {
-      if (!owns(owner)) return;
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
       await pushRecord(owner.uid, 'workouts', workout);
     }
+    return accountActionForOwner(owner, undefined);
   },
 
   async restoreBackup(backup) {
     const owner = captureOwner();
-    if (!owner) return;
+    if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await restoreBackupCollections(backup);
       await migrateLegacyRoutines();
       return loadHydratedCollections();
     });
-    if (result.status === 'stale' || !owns(owner)) return;
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     const { techniqueMigrations: _techniqueMigrations, ...collections } = result.value;
     registerCustomExercises(collections.customExercises);
     set(collections);
     try {
       for (const record of backup.workouts) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'workouts', record);
       }
       for (const record of backup.routines) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'routines', record);
       }
       for (const record of backup.folders) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'folders', record);
       }
       for (const record of backup.notes) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'notes', record);
       }
       for (const record of backup.measurements) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'measurements', record);
       }
       for (const record of backup.nutrition) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'nutrition', record);
       }
       for (const record of backup.customExercises) {
-        if (!owns(owner)) return;
+        if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'customExercises', record);
       }
-      if (!owns(owner)) return;
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
       await pushRecordStrict(owner.uid, 'settings', backup.settings);
+      return accountActionForOwner(owner, undefined);
     } catch (error) {
-      if (!owns(owner)) return;
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
       throw new BackupCloudSyncError(error);
     }
   },

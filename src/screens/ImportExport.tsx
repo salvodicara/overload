@@ -5,7 +5,16 @@ import { exerciseName, hevyAliasMap } from '../lib/exercises';
 import { toBackupJson, toCsv } from '../lib/exporter';
 import { parseBackup, planImport, type BackupV2 } from '../lib/importer';
 import { parseHevyCsv } from '../lib/hevyCsv';
-import { BackupCloudSyncError, toast, useStore } from '../state/useStore';
+import {
+  BackupCloudSyncError,
+  isAccountActionCurrent,
+  isStaleAccountAction,
+  STALE_ACCOUNT_ACTION,
+  toast,
+  useStore,
+  type AccountActionResult,
+  type Store,
+} from '../state/useStore';
 import type { ExerciseNote, Routine, Workout } from '../lib/types';
 
 function download(filename: string, mime: string, data: string): void {
@@ -73,7 +82,7 @@ export function ExportRows() {
   );
 }
 
-type Preview = {
+export type Preview = {
   name: string;
   fresh: Workout[];
   duplicates: number;
@@ -82,6 +91,40 @@ type Preview = {
   notes: ExerciseNote[];
   backup: BackupV2 | null;
 };
+
+export async function applyImportPreview(
+  preview: Preview,
+  actions: Pick<Store, 'restoreBackup' | 'saveRoutine' | 'importWorkouts' | 'importNotes'>,
+): Promise<AccountActionResult<unknown>> {
+  if (preview.backup) {
+    const result = await actions.restoreBackup(preview.backup);
+    return isAccountActionCurrent(result) ? result : STALE_ACCOUNT_ACTION;
+  }
+  let result: AccountActionResult<unknown>;
+  for (const routine of preview.routines) {
+    result = await actions.saveRoutine(routine);
+    if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  }
+  result = await actions.importWorkouts(preview.fresh);
+  if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  if (preview.notes.length > 0) {
+    result = await actions.importNotes(preview.notes);
+    if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  }
+  return result;
+}
+
+export async function confirmImportPreview(
+  preview: Preview,
+  actions: Pick<Store, 'restoreBackup' | 'saveRoutine' | 'importWorkouts' | 'importNotes'> & {
+    onSuccess(freshCount: number): void;
+  },
+): Promise<AccountActionResult<unknown>> {
+  const result = await applyImportPreview(preview, actions);
+  if (isAccountActionCurrent(result)) actions.onSuccess(preview.fresh.length);
+  else return STALE_ACCOUNT_ACTION;
+  return result;
+}
 
 export function ImportExport() {
   const { t } = useTranslation();
@@ -132,17 +175,23 @@ export function ImportExport() {
   async function confirm(): Promise<void> {
     if (!preview) return;
     setBusy(true);
+    let stale = false;
     try {
-      if (preview.backup) {
-        await restoreBackup(preview.backup);
-      } else {
-        for (const routine of preview.routines) await saveRoutine(routine);
-        await importWorkouts(preview.fresh);
-        if (preview.notes.length > 0) await importNotes(preview.notes);
+      const result = await confirmImportPreview(preview, {
+        restoreBackup,
+        saveRoutine,
+        importWorkouts,
+        importNotes,
+        onSuccess: (freshCount) => {
+          setPreview(null);
+          toast(t('import.done', { n: freshCount }));
+          nav({ view: 'home' });
+        },
+      });
+      if (isStaleAccountAction(result)) {
+        stale = true;
+        return;
       }
-      setPreview(null);
-      toast(t('import.done', { n: preview.fresh.length }));
-      nav({ view: 'home' });
     } catch (error) {
       toast(
         t(
@@ -152,7 +201,7 @@ export function ImportExport() {
         ),
       );
     } finally {
-      setBusy(false);
+      if (!stale) setBusy(false);
     }
   }
 

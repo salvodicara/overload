@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PromiseExtended } from 'dexie';
 import { db } from '../db';
 import { diffForSync, pushRecord, pushRecordStrict, startSync, type Synced } from '../sync';
 
@@ -46,7 +47,7 @@ afterEach(() => {
 });
 
 describe('startSync lifecycle', () => {
-  it('disposes and awaits an in-flight run before it can write or emit completion callbacks', async () => {
+  it('disposes without waiting for a non-settling remote read and suppresses its late continuation', async () => {
     const remote = deferred<ReturnType<typeof snapshot>>();
     getDocsMock.mockReturnValueOnce(remote.promise);
     await db.workouts.put({
@@ -63,15 +64,72 @@ describe('startSync lifecycle', () => {
     const controller = startSync('account-a', onState, onPulled);
     await vi.waitFor(() => expect(getDocsMock).toHaveBeenCalledOnce());
 
-    const stopped = controller.stop();
+    let stopped = false;
+    const stopping = controller.stop().then(() => {
+      stopped = true;
+    });
+    await vi.waitFor(() => expect(stopped).toBe(true));
+
     remote.resolve(snapshot([rec('remote-a', 2)]));
-    await stopped;
+    await stopping;
+    await Promise.resolve();
+    await Promise.resolve();
 
     expect(await db.workouts.toArray()).toEqual([
       expect.objectContaining({ id: 'local-a' }),
     ]);
     expect(setDocMock).not.toHaveBeenCalled();
     expect(onPulled).not.toHaveBeenCalled();
+    expect(onState.mock.calls.map(([state]) => state)).toEqual(['pending']);
+  });
+
+  it('waits for a local write that entered before disposal', async () => {
+    const localWrite = deferred<string>();
+    const bulkPut = vi
+      .spyOn(db.workouts, 'bulkPut')
+      .mockReturnValueOnce(localWrite.promise as PromiseExtended<string>);
+    getDocsMock.mockResolvedValueOnce(snapshot([rec('remote-a', 2)]));
+    const controller = startSync('account-a');
+    await vi.waitFor(() => expect(bulkPut).toHaveBeenCalledOnce());
+
+    let stopped = false;
+    const stopping = controller.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+
+    localWrite.resolve('remote-a');
+    await stopping;
+    expect(stopped).toBe(true);
+  });
+
+  it('disposes without waiting for an already-issued remote write', async () => {
+    const remoteWrite = deferred<void>();
+    setDocMock.mockReturnValueOnce(remoteWrite.promise);
+    await db.workouts.put({
+      id: 'local-a',
+      date: '2026-08-25',
+      startTs: 1,
+      sets: [],
+      volumeKg: 0,
+      updatedAt: 1,
+      source: 'app',
+    });
+    const onState = vi.fn();
+    const controller = startSync('account-a', onState);
+    await vi.waitFor(() => expect(setDocMock).toHaveBeenCalledOnce());
+
+    let stopped = false;
+    const stopping = controller.stop().then(() => {
+      stopped = true;
+    });
+    await vi.waitFor(() => expect(stopped).toBe(true));
+
+    remoteWrite.resolve();
+    await stopping;
+    await Promise.resolve();
     expect(onState.mock.calls.map(([state]) => state)).toEqual(['pending']);
   });
 

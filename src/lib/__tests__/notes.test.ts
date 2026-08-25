@@ -262,7 +262,9 @@ describe('note persistence', () => {
 
     useStore.getState().updateSessionNote(0, '  Shoulder fine  ');
 
-    const workout = await useStore.getState().finishWorkout();
+    const result = await useStore.getState().finishWorkout();
+    expect(result.status).toBe('applied');
+    const workout = result.status === 'applied' ? result.value : null;
 
     expect(workout?.exerciseNotes).toEqual([{ exerciseId: 'bench', text: 'Shoulder fine' }]);
     expect((await db.workouts.get(workout?.id ?? ''))?.exerciseNotes).toEqual([

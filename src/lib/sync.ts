@@ -46,6 +46,7 @@ const sanitize = <T,>(rec: T): T => JSON.parse(JSON.stringify(rec)) as T;
 async function syncAll(
   uid: string,
   isActive: () => boolean,
+  enterLocalWrite: (write: () => Promise<unknown>) => Promise<unknown>,
 ): Promise<{ pulled: number; pushFailures: number }> {
   const { getFirestore, collection, getDocs, setDoc, doc } = await import('firebase/firestore');
   if (!isActive()) return { pulled: 0, pushFailures: 0 };
@@ -68,7 +69,7 @@ async function syncAll(
 
     if (pull.length > 0) {
       if (!isActive()) return;
-      await writeLocal(pull);
+      await enterLocalWrite(() => writeLocal(pull));
       if (!isActive()) return;
       pulled += pull.length;
     }
@@ -123,9 +124,21 @@ export function startSync(
   let disposed = false;
   let rerunRequested = false;
   let inFlight: Promise<void> | null = null;
+  const enteredLocalWrites = new Set<Promise<void>>();
   const isActive = (): boolean => !disposed;
   const report = (s: SyncState): void => {
     if (isActive()) onState?.(s);
+  };
+  const enterLocalWrite = (write: () => Promise<unknown>): Promise<unknown> => {
+    if (!isActive()) return Promise.resolve();
+    const operation = write();
+    const settled = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    enteredLocalWrites.add(settled);
+    void settled.then(() => enteredLocalWrites.delete(settled));
+    return operation;
   };
 
   const runOnce = async (): Promise<void> => {
@@ -136,7 +149,7 @@ export function startSync(
     }
     report('pending');
     try {
-      const { pulled, pushFailures } = await syncAll(uid, isActive);
+      const { pulled, pushFailures } = await syncAll(uid, isActive, enterLocalWrite);
       if (!isActive()) return;
       report(pushFailures > 0 ? 'error' : 'synced');
       if (pulled > 0 && isActive()) await onPulled?.();
@@ -183,7 +196,7 @@ export function startSync(
         window.removeEventListener('offline', onOffline);
         document.removeEventListener('visibilitychange', onVisible);
       }
-      await inFlight;
+      await Promise.all([...enteredLocalWrites]);
     },
   };
 }

@@ -3,9 +3,28 @@ import { useTranslation } from 'react-i18next';
 import { IconForward } from '../components/Icons';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
-import { useStore } from '../state/useStore';
+import {
+  isAccountActionCurrent,
+  STALE_ACCOUNT_ACTION,
+  useStore,
+  type AccountActionResult,
+  type Store,
+} from '../state/useStore';
 import type { Folder, Routine } from '../lib/types';
 import { MomentumCard } from '../components/MomentumCard';
+
+export async function installTemplatePack(
+  pack: (typeof TEMPLATES)[number],
+  actions: Pick<Store, 'saveFolder' | 'saveRoutine'>,
+): Promise<AccountActionResult> {
+  let result = await actions.saveFolder(structuredClone(pack.folder));
+  if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  for (const routine of pack.routines) {
+    result = await actions.saveRoutine(structuredClone(routine));
+    if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
+  }
+  return result;
+}
 
 function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boolean }) {
   const { t, i18n } = useTranslation();
@@ -91,14 +110,16 @@ export function Train() {
       exercises: [],
       updatedAt: 0,
     };
-    await saveRoutine(routine);
+    const result = await saveRoutine(routine);
+    if (!isAccountActionCurrent(result)) return;
     setSheet(null);
     nav({ view: 'routineEditor', id: routine.id });
   }
 
   async function createProgram(name: string): Promise<void> {
     const folder: Folder = { id: crypto.randomUUID(), name: name.trim() || t('train.newProgram'), updatedAt: 0 };
-    await saveFolder(folder);
+    const result = await saveFolder(folder);
+    if (!isAccountActionCurrent(result)) return;
     setSheet(null);
   }
 
@@ -199,10 +220,7 @@ export function Train() {
                 <button
                   className="btn btn-ghost"
                   onClick={() => {
-                    void (async () => {
-                      await saveFolder(structuredClone(pack.folder));
-                      for (const r of pack.routines) await saveRoutine(structuredClone(r));
-                    })();
+                    void installTemplatePack(pack, { saveFolder, saveRoutine });
                   }}
                 >
                   {t('routines.useTemplate')}
@@ -251,8 +269,13 @@ export function Train() {
                     if (sheet.kind === 'newRoutine') void createRoutine(nameDraft, sheet.folderId);
                     else if (sheet.kind === 'newProgram') void createProgram(nameDraft);
                     else {
-                      void saveFolder({ ...sheet.folder, name: nameDraft.trim() || sheet.folder.name });
-                      setSheet(null);
+                      void (async () => {
+                        const result = await saveFolder({
+                          ...sheet.folder,
+                          name: nameDraft.trim() || sheet.folder.name,
+                        });
+                        if (isAccountActionCurrent(result)) setSheet(null);
+                      })();
                     }
                   }}
                 >
@@ -287,8 +310,10 @@ export function Train() {
                 <button
                   className="btn btn-danger btn-block"
                   onClick={() => {
-                    void deleteFolder(sheet.folder.id);
-                    setSheet(null);
+                    void (async () => {
+                      const result = await deleteFolder(sheet.folder.id);
+                      if (isAccountActionCurrent(result)) setSheet(null);
+                    })();
                   }}
                 >
                   {t('history.deleteConfirm')}

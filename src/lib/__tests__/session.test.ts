@@ -280,7 +280,9 @@ describe('active session helpers', () => {
       done: false,
     });
 
-    const workout = await rehydratedStore.getState().finishWorkout();
+    const result = await rehydratedStore.getState().finishWorkout();
+    expect(result.status).toBe('applied');
+    const workout = result.status === 'applied' ? result.value : null;
     expect(workout?.sets).toEqual([
       {
         exerciseId: 'squat',

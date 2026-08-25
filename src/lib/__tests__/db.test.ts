@@ -3,6 +3,7 @@ import Dexie from 'dexie';
 import type { PromiseExtended } from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEMPLATES } from '../../data/templates';
+import { installTemplatePack } from '../../screens/Train';
 import {
   applyImport,
   clearAllUserData,
@@ -400,7 +401,7 @@ describe('account transitions', () => {
     } finally {
       write.resolve('routine-a');
     }
-    await save;
+    await expect(save).resolves.toEqual({ status: 'stale' });
     await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
     expect(useStore.getState().routines).toEqual([]);
@@ -451,7 +452,7 @@ describe('account transitions', () => {
     } finally {
       write.resolve('workout-a');
     }
-    await finish;
+    await expect(finish).resolves.toEqual({ status: 'stale' });
     await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
     expect(useStore.getState().workouts).toEqual([]);
@@ -473,11 +474,30 @@ describe('account transitions', () => {
     useStore.getState().setUser({ uid: 'account-b', name: null });
     await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
     firstPush.resolve();
-    await restore;
+    await expect(restore).resolves.toEqual({ status: 'stale' });
 
     expect(pushRecordStrictMock).toHaveBeenCalledTimes(1);
     expect(useStore.getState().workouts).toEqual([]);
     expect(await db.workouts.toArray()).toEqual([]);
+  });
+
+  it('stops template installation when its folder write settles after the next account is ready', async () => {
+    await login('account-a');
+    const remote = deferred<void>();
+    pushRecordMock.mockReturnValueOnce(remote.promise);
+
+    const install = installTemplatePack(TEMPLATES[0], useStore.getState());
+    await vi.waitFor(() => expect(pushRecordMock).toHaveBeenCalledOnce());
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    remote.resolve();
+
+    await expect(install).resolves.toEqual({ status: 'stale' });
+    expect(useStore.getState().folders).toEqual([]);
+    expect(useStore.getState().routines).toEqual([]);
+    expect(await db.folders.toArray()).toEqual([]);
+    expect(await db.routines.toArray()).toEqual([]);
   });
 });
 
@@ -547,12 +567,17 @@ describe('neutral starter data', () => {
 
     const first = await useStore.getState().createCustomExercise('Alpha carry', 'core');
     const second = await useStore.getState().createCustomExercise('Beta carry', 'core');
+    expect(first.status).toBe('applied');
+    expect(second.status).toBe('applied');
 
     expect(
       searchExercises('carry', null, 'en')
         .map((exercise) => exercise.id)
         .filter((id) => id.startsWith('custom:')),
-    ).toEqual([first, second]);
+    ).toEqual([
+      first.status === 'applied' ? first.value : '',
+      second.status === 'applied' ? second.value : '',
+    ]);
   });
 });
 
