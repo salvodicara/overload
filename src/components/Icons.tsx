@@ -86,13 +86,6 @@ export const IconBarbell = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const IconHistory = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...base(p)}>
-    <circle cx="12" cy="12" r="8.2" />
-    <path d="M12 7.5V12l3.2 2" />
-  </svg>
-);
-
 export const IconChart = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M4.5 19.5V13M10 19.5V8M15.5 19.5v-8.5M21 19.5v-15" />

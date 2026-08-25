@@ -154,11 +154,6 @@ body {
     calc(var(--nav-h) + var(--space-10) + var(--space-6) + env(safe-area-inset-bottom));
 }
 
-.screen-title {
-  font-size: var(--text-xl);
-  padding: var(--space-6) 0 var(--space-3);
-}
-
 .page {
   min-width: 0;
 }
@@ -844,17 +839,6 @@ summary {
   transform: scale(0.94);
 }
 
-.iconbtn-legacy {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--r-control);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 16px;
-  font-weight: 600;
-}
-
 input[type='date'] {
   min-height: 48px;
   -webkit-appearance: none;
@@ -948,18 +932,6 @@ textarea:disabled {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.chip-accent {
-  color: var(--accent-text);
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
-  font-weight: 600;
-}
-
-.chip-good {
-  color: var(--good);
-  background: var(--good-soft);
-  font-weight: 600;
 }
 
 .banner {
@@ -1076,19 +1048,6 @@ textarea:disabled {
 }
 
 /* ---------- account button ---------- */
-
-.account-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 999px;
-  padding: 5px 12px 5px 6px;
-  font-weight: 600;
-  font-size: 13px;
-  flex: none;
-}
 
 .account-avatar {
   width: 26px;
@@ -2488,12 +2447,6 @@ dialog.sheet-scrim::backdrop {
 }
 
 /* ---------- misc ---------- */
-
-.divider {
-  border: none;
-  border-top: 1px solid var(--line);
-  margin: 18px 0;
-}
 
 .empty {
   text-align: center;
