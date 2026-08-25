@@ -41,7 +41,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
     <div className="screen">
       {pickFor && (
         <div className="row" style={{ padding: '18px 0 0' }}>
-          <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav({ view: 'routineEditor', id: pickFor.routineId })}>
+          <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
             <IconBack />
           </button>
         </div>

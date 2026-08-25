@@ -43,7 +43,7 @@ export function WorkoutDetail({ id }: { id: string }) {
   return (
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('history.title')} onClick={() => nav({ view: 'home' })}>
+        <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>

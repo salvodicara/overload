@@ -16,13 +16,12 @@ function lastTimeLine(workouts: Workout[], exerciseId: string): { date: string; 
   return null;
 }
 
-export function ExerciseSheet({ id, from }: { id: string; from?: 'workout' }) {
+export function ExerciseSheet({ id }: { id: string }) {
   const [, setItReady] = useState(false);
   const { t, i18n } = useTranslation();
   const catalogReady = useStore((s) => s.catalogReady);
   const workouts = useStore((s) => s.workouts);
   const notes = useStore((s) => s.notes);
-  const nav = useStore((s) => s.nav);
 
   useEffect(() => {
     if (i18n.language.startsWith('it')) {
@@ -40,7 +39,7 @@ export function ExerciseSheet({ id, from }: { id: string; from?: 'workout' }) {
   return (
     <div className="screen">
       <div className="row" style={{ padding: '14px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('library.back')} onClick={() => nav(from === 'workout' ? { view: 'workout' } : { view: 'library' })}>
+        <button className="iconbtn" aria-label={t('library.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
       </div>

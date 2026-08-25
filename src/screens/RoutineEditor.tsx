@@ -80,7 +80,7 @@ export function RoutineEditor({ id }: { id: string }) {
     return (
       <div className="screen">
         <div className="row" style={{ padding: '18px 0 6px' }}>
-          <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav({ view: 'train' })}>
+          <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
             <IconBack />
           </button>
         </div>
@@ -92,7 +92,7 @@ export function RoutineEditor({ id }: { id: string }) {
   return (
     <div className="screen">
       <div className="row" style={{ padding: '18px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('common.back')} onClick={() => nav({ view: 'train' })}>
+        <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
         <div className="display" style={{ fontSize: 24, flex: 1 }}>

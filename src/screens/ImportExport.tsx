@@ -121,8 +121,7 @@ export function ImportExport() {
       <div className="row" style={{ padding: '18px 0 6px' }}>
         <button
           className="iconbtn"
-          aria-label={t('common.back')}
-          onClick={() => nav({ view: 'profile' })}
+          aria-label={t('common.back')} onClick={() => history.back()}
         >
           <IconBack />
         </button>

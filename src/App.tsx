@@ -42,7 +42,7 @@ function Screen() {
     case 'library':
       return <Library pickFor={route.pickFor} />;
     case 'exercise':
-      return <ExerciseSheet id={route.id} from={route.from} />;
+      return <ExerciseSheet id={route.id} />;
     case 'importExport':
       return <ImportExport />;
     case 'routineEditor':
