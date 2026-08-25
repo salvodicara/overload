@@ -187,16 +187,18 @@
     "instructionsLoading": "Caricamento istruzioni tradotte…"
   },
   "settings": {
-    "title": "Altro",
+    "title": "Preferenze",
     "language": "Lingua",
     "it": "Italiano",
     "en": "English",
-    "programStart": "Inizio programma",
+    "unit": "Unità di peso",
+    "kg": "Chilogrammi (kg)",
+    "lb": "Libbre (lb)",
     "signOut": "Esci",
     "data": "I tuoi dati",
     "exportJson": "Backup completo (JSON)",
     "exportCsv": "Esporta allenamenti (CSV)",
-    "import": "Importa (CSV Hevy o backup JSON)",
+    "import": "Importa o ripristina",
     "routines": "Schede",
     "routinesHint": "Modifica giorni, esercizi e serie",
     "about": "Informazioni",
@@ -211,21 +213,43 @@
     }
   },
   "import": {
-    "title": "Importa allenamenti",
-    "preview": "{{fresh}} nuovi · {{dup}} duplicati ignorati",
-    "unknown": "{{n}} esercizi non riconosciuti (creati automaticamente)",
-    "confirm": "Importa",
+    "title": "Importa dati",
+    "previewRegion": "Anteprima importazione",
+    "legacyPreview": "Importazione allenamenti",
+    "completeBackup": "Backup completo",
+    "preview": "{{fresh}} nuovi, {{duplicates}} duplicati ignorati",
+    "unknown_one": "{{count}} esercizio non riconosciuto (creato automaticamente)",
+    "unknown_other": "{{count}} esercizi non riconosciuti (creati automaticamente)",
+    "confirm": "Importa allenamenti",
+    "restore": "Ripristina backup completo",
+    "restoring": "Ripristino…",
+    "importing": "Importazione…",
     "invalid": "File non valido: serve un CSV di Hevy o un backup di Overload.",
-    "done": "Importati {{n}} allenamenti",
+    "done_one": "Importato {{count}} allenamento",
+    "done_other": "Importati {{count}} allenamenti",
+    "backupDone": "Backup completo ripristinato",
     "localDoneCloudFailed": "Backup ripristinato su questo dispositivo, ma la sincronizzazione cloud non è riuscita. Riprova quando sei online.",
     "restoreFailed": "Impossibile completare il ripristino. Controlla il file e riprova.",
     "firstRunTitle": "Hai uno storico?",
     "firstRunBody": "Importa il CSV di Hevy o un backup: niente inserimenti a mano.",
     "pick": "Scegli un file",
     "pickHint": "CSV di Hevy o backup JSON di Overload",
-    "routines": "{{n}} schede nel backup",
+    "routines_one": "{{count}} scheda nel backup",
+    "routines_other": "{{count}} schede nel backup",
     "export": "Esporta",
-    "notes": "{{n}} note esercizi"
+    "notes_one": "{{count}} nota esercizio",
+    "notes_other": "{{count}} note esercizi",
+    "collectionCount": "{{label}}: {{count}}",
+    "collections": {
+      "folders": "Programmi",
+      "measurements": "Misure corporee",
+      "nutrition": "Giorni alimentari",
+      "customExercises": "Esercizi personalizzati",
+      "notes": "Note esercizi",
+      "routines": "Schede",
+      "workouts": "Allenamenti",
+      "settings": "Impostazioni"
+    }
   },
   "routines": {
     "title": "Schede",
@@ -304,7 +328,9 @@
     "save": "Salva"
   },
   "profile": {
-    "workouts": "{{n}} allenamenti"
+    "trainingSummary": "Riepilogo allenamento",
+    "workouts_one": "{{count}} allenamento",
+    "workouts_other": "{{count}} allenamenti"
   },
   "notes": {
     "add": "Aggiungi nota",

@@ -187,16 +187,18 @@
     "instructionsLoading": "Loading translated instructions…"
   },
   "settings": {
-    "title": "More",
+    "title": "Preferences",
     "language": "Language",
     "it": "Italiano",
     "en": "English",
-    "programStart": "Program start",
+    "unit": "Weight units",
+    "kg": "Kilograms (kg)",
+    "lb": "Pounds (lb)",
     "signOut": "Sign out",
     "data": "Your data",
     "exportJson": "Full backup (JSON)",
     "exportCsv": "Export workouts (CSV)",
-    "import": "Import (Hevy CSV or JSON backup)",
+    "import": "Import or restore",
     "routines": "Routines",
     "routinesHint": "Edit days, exercises and sets",
     "about": "About",
@@ -211,21 +213,43 @@
     }
   },
   "import": {
-    "title": "Import workouts",
-    "preview": "{{fresh}} new · {{dup}} duplicates skipped",
-    "unknown": "{{n}} unrecognized exercises (created automatically)",
-    "confirm": "Import",
+    "title": "Import data",
+    "previewRegion": "Import preview",
+    "legacyPreview": "Workout import",
+    "completeBackup": "Complete backup",
+    "preview": "{{fresh}} new, {{duplicates}} duplicates skipped",
+    "unknown_one": "{{count}} unrecognized exercise (created automatically)",
+    "unknown_other": "{{count}} unrecognized exercises (created automatically)",
+    "confirm": "Import workouts",
+    "restore": "Restore complete backup",
+    "restoring": "Restoring…",
+    "importing": "Importing…",
     "invalid": "Invalid file: expected a Hevy CSV or an Overload backup.",
-    "done": "Imported {{n}} workouts",
+    "done_one": "Imported {{count}} workout",
+    "done_other": "Imported {{count}} workouts",
+    "backupDone": "Complete backup restored",
     "localDoneCloudFailed": "Backup restored on this device, but cloud sync failed. Try again when you are online.",
     "restoreFailed": "The restore could not be completed. Check the file and try again.",
     "firstRunTitle": "Got history?",
     "firstRunBody": "Import your Hevy CSV or a backup: no manual entry.",
     "pick": "Choose a file",
     "pickHint": "Hevy CSV or Overload JSON backup",
-    "routines": "{{n}} routines in the backup",
+    "routines_one": "{{count}} routine in the backup",
+    "routines_other": "{{count}} routines in the backup",
     "export": "Export",
-    "notes": "{{n}} exercise notes"
+    "notes_one": "{{count}} exercise note",
+    "notes_other": "{{count}} exercise notes",
+    "collectionCount": "{{label}}: {{count}}",
+    "collections": {
+      "folders": "Programs",
+      "measurements": "Body measurements",
+      "nutrition": "Nutrition days",
+      "customExercises": "Custom exercises",
+      "notes": "Exercise notes",
+      "routines": "Routines",
+      "workouts": "Workouts",
+      "settings": "Settings"
+    }
   },
   "routines": {
     "title": "Routines",
@@ -304,7 +328,9 @@
     "save": "Save"
   },
   "profile": {
-    "workouts": "{{n}} workouts"
+    "trainingSummary": "Training summary",
+    "workouts_one": "{{count}} workout",
+    "workouts_other": "{{count}} workouts"
   },
   "notes": {
     "add": "Add note",

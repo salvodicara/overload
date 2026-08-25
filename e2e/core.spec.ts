@@ -1,4 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import type { BackupV1, BackupV2 } from '../src/lib/importer';
+import type { Workout } from '../src/lib/types';
+
+declare const Buffer: { from(value: string): never };
 
 const NEUTRAL_ROUTINE = /full body a/i;
 const DOM_RECT_SUBPIXEL_EPSILON_PX = 0.01;
@@ -693,6 +697,76 @@ async function putStoredRow(page: Page, storeName: string, row: unknown): Promis
   );
 }
 
+const PROFILE_VOLUME_WORKOUT = {
+  id: 'profile-volume',
+  routineId: 'full-body-a',
+  dayLabel: 'Full Body A',
+  date: '2026-08-25',
+  startTs: 100,
+  endTs: 200,
+  sets: [],
+  volumeKg: 700,
+  updatedAt: 200,
+  source: 'app',
+} satisfies Workout;
+
+const COMPLETE_BACKUP = {
+  version: 2,
+  workouts: [PROFILE_VOLUME_WORKOUT],
+  routines: [{ id: 'backup-routine', name: 'Imported routine', exercises: [], updatedAt: 1 }],
+  folders: [{ id: 'backup-folder', name: 'Imported program', updatedAt: 1 }],
+  notes: [{ id: 'Barbell_Squat', entries: [], updatedAt: 1 }],
+  measurements: [
+    { id: 'backup-measurement', date: '2026-08-24', metric: 'weight', value: 82, updatedAt: 1 },
+  ],
+  nutrition: [{ id: '2026-08-24', date: '2026-08-24', kcal: 2200, proteinG: 160, updatedAt: 1 }],
+  customExercises: [
+    { id: 'custom:backup-carry', name: 'Suitcase carry', muscleGroup: 'full body', updatedAt: 1 },
+  ],
+  settings: { id: 'settings', locale: 'en', unit: 'kg', updatedAt: 1 },
+} satisfies BackupV2;
+
+const LEGACY_BACKUP = {
+  version: 1,
+  workouts: [{ ...PROFILE_VOLUME_WORKOUT, id: 'legacy-workout' }],
+  routines: [
+    {
+      id: 'legacy-routine',
+      name: 'Legacy routine',
+      exercises: [],
+      updatedAt: 1,
+    },
+  ],
+  settings: { id: 'settings', locale: 'en', unit: 'kg', updatedAt: 1 },
+} satisfies BackupV1;
+
+async function installProfileSurfaceFixture(page: Page, locale: 'it' | 'en' = 'en'): Promise<void> {
+  await putStoredRow(page, 'settings', {
+    id: 'settings',
+    locale,
+    unit: 'kg',
+    updatedAt: 300,
+  });
+  await putStoredRow(page, 'workouts', PROFILE_VOLUME_WORKOUT);
+  await page.reload();
+}
+
+async function openImportSurface(page: Page, locale: 'it' | 'en' = 'en'): Promise<void> {
+  await installProfileSurfaceFixture(page, locale);
+  await page.getByRole('button', { name: locale === 'it' ? 'Profilo' : 'Profile' }).click();
+  await page
+    .getByRole('button', { name: locale === 'it' ? 'Importa o ripristina' : 'Import or restore' })
+    .click();
+}
+
+async function uploadImportFixture(page: Page, name: string, contents: string): Promise<void> {
+  await page.locator('input[type="file"]').setInputFiles({
+    name,
+    mimeType: name.endsWith('.csv') ? 'text/csv' : 'application/json',
+    buffer: Buffer.from(contents),
+  });
+}
+
 async function installProgressSurfaceFixture(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -774,12 +848,31 @@ async function expectNarrowTouchTargets(page: Page, controls: Locator): Promise<
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    const heights = await controls.evaluateAll((elements) =>
-      elements.map((element) => element.getBoundingClientRect().height),
+    const rects = await controls.evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }),
     );
-    expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+    expect(rects.length).toBeGreaterThan(0);
+    for (const rect of rects) {
+      expect(rect.width).toBeGreaterThanOrEqual(44);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+    }
   }
 }
+
+async function expectLightAndDarkSurfaces(page: Page): Promise<void> {
+  const surfaces = [];
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    surfaces.push(
+      await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor),
+    );
+  }
+  expect(new Set(surfaces).size).toBe(2);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -2706,6 +2799,158 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
     page.locator('input[name="calories"], input[name="protein"], .nutrition-targets-toggle'),
   );
 });
+
+test('profile persists real units without personal setup fields', async ({ page }) => {
+  await installProfileSurfaceFixture(page);
+  await page.getByRole('button', { name: 'Profile' }).click();
+  const profile = page.getByRole('main');
+  const summary = profile.getByRole('group', { name: 'Training summary' });
+  const units = profile.getByRole('group', { name: 'Weight units' });
+  const kilograms = units.getByRole('button', { name: 'Kilograms (kg)' });
+  const pounds = units.getByRole('button', { name: 'Pounds (lb)' });
+
+  await expect(profile.getByRole('heading', { name: 'Profile' })).toBeVisible();
+  await expect(profile.locator('input[type="date"]')).toHaveCount(0);
+  await expect(profile.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(summary).toContainText('700 kg');
+  await expect(profile.getByRole('button', { name: 'Full backup (JSON)' })).toBeVisible();
+  await expect(profile.getByRole('button', { name: 'Export workouts (CSV)' })).toBeVisible();
+  await pounds.click();
+  await expect(kilograms).toHaveAttribute('aria-pressed', 'false');
+  await expect(pounds).toHaveAttribute('aria-pressed', 'true');
+  await expect(summary).toContainText('1,543.2 lb');
+  await page.reload();
+  await expect(summary).toContainText('1,543.2 lb');
+  await expectNarrowTouchTargets(page, profile.getByRole('button'));
+  await expectLightAndDarkSurfaces(page);
+  await profile.getByRole('button', { name: 'Italiano' }).click();
+  await expect(profile.getByRole('group', { name: 'Unità di peso' })).toBeVisible();
+});
+
+test('complete backup preview names every restored collection', async ({ page }) => {
+  await openImportSurface(page);
+  const screen = page.getByRole('main');
+  await page.keyboard.press('Tab');
+  await expect(screen.getByRole('button', { name: 'Back', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(screen.getByLabel('Choose a file')).toBeFocused();
+  await expect(screen.getByRole('region', { name: 'Export' }).getByRole('button')).toHaveCount(2);
+  expect(
+    (await screen.locator('.file-picker-trigger').boundingBox())?.height,
+  ).toBeGreaterThanOrEqual(48);
+  await expectNarrowTouchTargets(page, screen.locator('button'));
+  await expectLightAndDarkSurfaces(page);
+
+  await uploadImportFixture(page, 'complete.json', JSON.stringify(COMPLETE_BACKUP));
+  const preview = screen.getByRole('region', { name: 'Import preview' });
+  await expect(preview.getByRole('heading', { name: 'Complete backup' })).toBeVisible();
+  for (const row of [
+    'Programs: 1',
+    'Body measurements: 1',
+    'Nutrition days: 1',
+    'Custom exercises: 1',
+    'Exercise notes: 1',
+    'Routines: 1',
+    'Workouts: 1',
+    'Settings: 1',
+  ])
+    await expect(preview.getByRole('listitem', { name: row, exact: true })).toBeVisible();
+  await expect(preview.getByRole('listitem')).toHaveCount(8);
+  await expect(preview.getByRole('button', { name: 'Restore complete backup' })).toBeVisible();
+});
+
+test('legacy JSON and Hevy CSV keep workout-only previews', async ({ page }) => {
+  await openImportSurface(page);
+  const preview = page.getByRole('region', { name: 'Import preview' });
+  await uploadImportFixture(page, 'legacy.json', JSON.stringify(LEGACY_BACKUP));
+  await expect(preview.getByRole('heading', { name: 'Workout import' })).toBeVisible();
+  await expect(preview).toContainText('1 new, 0 duplicates skipped');
+  await expect(preview).toContainText('1 routine in the backup');
+  await uploadImportFixture(
+    page,
+    'hevy.csv',
+    'title,start_time,end_time,description,exercise_title,weight_kg,reps\nImported,20 giu 2026 14:13,,,Squat (Bilanciere),60,5',
+  );
+  await expect(preview).toContainText('hevy.csv');
+  await expect(preview).toContainText('1 new, 0 duplicates skipped');
+  await expect(preview).not.toContainText('routine in the backup');
+  await expect(preview.getByRole('button', { name: 'Import workouts' })).toBeVisible();
+});
+
+test('restore outcomes stay truthful and busy submission stays single', async ({ page }) => {
+  await openImportSurface(page, 'it');
+  await uploadImportFixture(page, 'complete.json', JSON.stringify(COMPLETE_BACKUP));
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const { BackupCloudSyncError, toast, useStore } = (await import(
+      modulePath
+    )) as typeof import('../src/state/useStore');
+    const receipt = await useStore.getState().updateSettings({ unit: 'kg' });
+    useStore.setState({
+      restoreBackup: async () => {
+        const root = document.documentElement;
+        const outcome = root.dataset.nextRestore;
+        root.dataset.restoreCalls = String(Number(root.dataset.restoreCalls ?? 0) + 1);
+        root.dataset.restoreOutcome = outcome;
+        if (outcome === 'cloud') throw new BackupCloudSyncError(new Error('cloud'));
+        if (outcome === 'local') throw new Error('local');
+        if (outcome === 'stale') {
+          toast('');
+          return { status: 'stale' as const };
+        }
+        await new Promise<void>(
+          (resolve) =>
+            ((document as Document & { releaseRestore?: () => void }).releaseRestore = resolve),
+        );
+        return receipt;
+      },
+    });
+  });
+  const root = page.locator('html');
+  const confirm = page.locator('.import-confirm');
+  await expect(confirm).toHaveText('Ripristina backup completo');
+  for (const [outcome, message] of [
+    [
+      'cloud',
+      'Backup ripristinato su questo dispositivo, ma la sincronizzazione cloud non è riuscita.',
+    ],
+    ['local', 'Impossibile completare il ripristino. Controlla il file e riprova.'],
+  ] as const) {
+    await root.evaluate((element, value) => (element.dataset.nextRestore = value), outcome);
+    await confirm.click();
+    await expect(root).toHaveAttribute('data-restore-outcome', outcome);
+    await expect(page.getByRole('status')).toContainText(message);
+    await expect(confirm).toBeEnabled();
+  }
+  await root.evaluate((element) => (element.dataset.nextRestore = 'stale'));
+  await confirm.click();
+  await expect(root).toHaveAttribute('data-restore-outcome', 'stale');
+  await expect(page.getByRole('status')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Importa dati' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Indietro', exact: true }).click();
+  await page.getByRole('button', { name: 'Importa o ripristina' }).click();
+  await uploadImportFixture(page, 'complete.json', JSON.stringify(COMPLETE_BACKUP));
+  await root.evaluate((element) => {
+    element.dataset.nextRestore = 'pending';
+    element.dataset.restoreCalls = '0';
+  });
+  const height = (await confirm.boundingBox())?.height;
+  await confirm.evaluate((button) => {
+    (button as HTMLButtonElement).click();
+    (button as HTMLButtonElement).click();
+  });
+  await expect(root).toHaveAttribute('data-restore-calls', '1');
+  await expect(confirm).toBeDisabled();
+  await expect(confirm).toHaveText('Ripristino…');
+  expect((await confirm.boundingBox())?.height).toBe(height);
+  await page.evaluate(() =>
+    (document as Document & { releaseRestore?: () => void }).releaseRestore?.(),
+  );
+  await expect(page.getByRole('status')).toHaveText('Backup completo ripristinato');
+  await expect(page.getByRole('heading', { name: 'Overload' })).toBeVisible();
+});
+
 test('no horizontal overflow on any tab', async ({ page }) => {
   for (const tab of [
     /^home$/i,

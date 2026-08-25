@@ -1,10 +1,12 @@
-import { IconBack } from '../components/Icons';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { exerciseName, hevyAliasMap } from '../lib/exercises';
-import { toBackupJson, toCsv } from '../lib/exporter';
-import { parseBackup, planImport, type BackupV2 } from '../lib/importer';
+import { ExportRows } from '../components/ExportRows';
+import { IconBack } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
+import { hevyAliasMap } from '../lib/exercises';
 import { parseHevyCsv } from '../lib/hevyCsv';
+import { parseBackup, planImport, type BackupV2 } from '../lib/importer';
+import type { ExerciseNote, Routine, Workout } from '../lib/types';
 import {
   BackupCloudSyncError,
   isAccountActionCurrent,
@@ -15,72 +17,6 @@ import {
   type AccountActionResult,
   type Store,
 } from '../state/useStore';
-import type { ExerciseNote, Routine, Workout } from '../lib/types';
-
-function download(filename: string, mime: string, data: string): void {
-  const url = URL.createObjectURL(new Blob([data], { type: mime }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/** JSON + CSV download rows, shared with the Settings screen (both live inside a `.card`). */
-export function ExportRows() {
-  const { t, i18n } = useTranslation();
-  const workouts = useStore((s) => s.workouts);
-  const routines = useStore((s) => s.routines);
-  const folders = useStore((s) => s.folders);
-  const notes = useStore((s) => s.notes);
-  const measurements = useStore((s) => s.measurements);
-  const nutrition = useStore((s) => s.nutrition);
-  const customExercises = useStore((s) => s.customExercises);
-  const settings = useStore((s) => s.settings);
-  const divider = { borderTop: '1px solid var(--line)' };
-
-  return (
-    <>
-      <button
-        className="card-pad spread"
-        style={{ width: '100%', textAlign: 'left' }}
-        onClick={() =>
-          download(
-            'overload-backup.json',
-            'application/json',
-            toBackupJson({
-              workouts,
-              routines,
-              folders,
-              notes,
-              measurements,
-              nutrition,
-              customExercises,
-              settings,
-            }),
-          )
-        }
-      >
-        <span>{t('settings.exportJson')}</span>
-        <span className="chip">JSON</span>
-      </button>
-      <button
-        className="card-pad spread"
-        style={{ ...divider, width: '100%', textAlign: 'left' }}
-        onClick={() =>
-          download(
-            'overload-workouts.csv',
-            'text/csv',
-            toCsv(workouts, (id) => exerciseName(id, i18n.language)),
-          )
-        }
-      >
-        <span>{t('settings.exportCsv')}</span>
-        <span className="chip">CSV</span>
-      </button>
-    </>
-  );
-}
 
 export type Preview = {
   name: string;
@@ -127,15 +63,16 @@ export async function confirmImportPreview(
 }
 
 export function ImportExport() {
-  const { t } = useTranslation();
-  const workouts = useStore((s) => s.workouts);
-  const nav = useStore((s) => s.nav);
-  const importWorkouts = useStore((s) => s.importWorkouts);
-  const restoreBackup = useStore((s) => s.restoreBackup);
-  const importNotes = useStore((s) => s.importNotes);
-  const saveRoutine = useStore((s) => s.saveRoutine);
+  const { t, i18n } = useTranslation();
+  const workouts = useStore((state) => state.workouts);
+  const nav = useStore((state) => state.nav);
+  const importWorkouts = useStore((state) => state.importWorkouts);
+  const restoreBackup = useStore((state) => state.restoreBackup);
+  const importNotes = useStore((state) => state.importNotes);
+  const saveRoutine = useStore((state) => state.saveRoutine);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   async function onFile(file: File): Promise<void> {
     const text = await file.text();
@@ -164,7 +101,7 @@ export function ImportExport() {
       }
       const plan = backup
         ? { fresh: backup.workouts, duplicates: 0 }
-        : planImport(new Set(workouts.map((w) => w.id)), incoming);
+        : planImport(new Set(workouts.map((workout) => workout.id)), incoming);
       setPreview({ name: file.name, ...plan, unknown, routines, notes, backup });
     } catch {
       setPreview(null);
@@ -173,9 +110,11 @@ export function ImportExport() {
   }
 
   async function confirm(): Promise<void> {
-    if (!preview) return;
+    if (!preview || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     let stale = false;
+    const completeBackup = preview.backup !== null;
     try {
       const result = await confirmImportPreview(preview, {
         restoreBackup,
@@ -184,7 +123,7 @@ export function ImportExport() {
         importNotes,
         onSuccess: (freshCount) => {
           setPreview(null);
-          toast(t('import.done', { n: freshCount }));
+          toast(completeBackup ? t('import.backupDone') : t('import.done', { count: freshCount }));
           nav({ view: 'home' });
         },
       });
@@ -201,82 +140,133 @@ export function ImportExport() {
         ),
       );
     } finally {
-      if (!stale) setBusy(false);
+      if (!stale) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   }
 
+  const completeBackup = preview?.backup ?? null;
+  const confirmLabel = busy
+    ? t(completeBackup ? 'import.restoring' : 'import.importing')
+    : t(completeBackup ? 'import.restore' : 'import.confirm');
+
   return (
     <div className="screen">
-      <div className="row" style={{ padding: '18px 0 6px' }}>
-        <button
-          className="iconbtn"
-          aria-label={t('common.back')} onClick={() => history.back()}
-        >
-          <IconBack />
-        </button>
-        <div className="display" style={{ fontSize: 26 }}>
-          {t('import.title')}
-        </div>
-      </div>
+      <PageHeader
+        title={t('import.title')}
+        back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+      />
 
       {workouts.length === 0 && (
-        <div className="banner banner-good stack" style={{ marginTop: 12 }}>
+        <div className="banner banner-good stack import-first-run">
           <strong>{t('import.firstRunTitle')}</strong>
           <span>{t('import.firstRunBody')}</span>
         </div>
       )}
 
-      <label className="btn btn-accent btn-block btn-big" style={{ marginTop: 14 }}>
+      <div className="file-picker">
         <input
+          className="visually-hidden"
+          id="import-file"
+          name="import-file"
           type="file"
           accept=".csv,.json"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
+          aria-label={t('import.pick')}
+          disabled={busy}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
             if (file) void onFile(file);
           }}
         />
-        {t('import.pick')}
-      </label>
-      <div className="small muted" style={{ marginTop: 8, textAlign: 'center' }}>
-        {t('import.pickHint')}
+        <label
+          className="btn btn-accent btn-block btn-big file-picker-trigger"
+          htmlFor="import-file"
+        >
+          {t('import.pick')}
+        </label>
       </div>
+      <p className="small muted import-file-hint">{t('import.pickHint')}</p>
 
       {preview && (
-        <div className="card card-pad stack" style={{ marginTop: 16 }}>
-          <div className="mono small muted">{preview.name}</div>
-          <strong>
-            {t('import.preview', { fresh: preview.fresh.length, dup: preview.duplicates })}{preview.notes.length > 0 ? ` · ${t('import.notes', { n: preview.notes.length })}` : ''}
-          </strong>
-          {preview.unknown.length > 0 && (
-            <span className="muted small">
-              {t('import.unknown', { n: preview.unknown.length })}
-            </span>
-          )}
-          {preview.routines.length > 0 && (
-            <span className="muted small">
-              {t('import.routines', { n: preview.routines.length })}
-            </span>
+        <section
+          className="card import-preview"
+          role="region"
+          aria-label={t('import.previewRegion')}
+          aria-busy={busy}
+        >
+          <p className="mono small muted import-preview__filename">{preview.name}</p>
+          <h2 className="import-preview__title">
+            {completeBackup ? t('import.completeBackup') : t('import.legacyPreview')}
+          </h2>
+          {completeBackup ? (
+            <ul className="import-counts">
+              {(
+                [
+                  ['folders', completeBackup.folders.length],
+                  ['measurements', completeBackup.measurements.length],
+                  ['nutrition', completeBackup.nutrition.length],
+                  ['customExercises', completeBackup.customExercises.length],
+                  ['notes', completeBackup.notes.length],
+                  ['routines', completeBackup.routines.length],
+                  ['workouts', completeBackup.workouts.length],
+                  ['settings', 1],
+                ] as const
+              ).map(([key, count]) => {
+                const label = t(`import.collections.${key}`);
+                return (
+                  <li key={key} aria-label={t('import.collectionCount', { label, count })}>
+                    <span>{label}</span>
+                    <strong className="mono">{count.toLocaleString(i18n.language)}</strong>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="stack">
+              <strong>
+                {t('import.preview', {
+                  fresh: preview.fresh.length,
+                  duplicates: preview.duplicates,
+                })}
+              </strong>
+              {preview.unknown.length > 0 && (
+                <span className="muted small">
+                  {t('import.unknown', { count: preview.unknown.length })}
+                </span>
+              )}
+              {preview.routines.length > 0 && (
+                <span className="muted small">
+                  {t('import.routines', { count: preview.routines.length })}
+                </span>
+              )}
+              {preview.notes.length > 0 && (
+                <span className="muted small">
+                  {t('import.notes', { count: preview.notes.length })}
+                </span>
+              )}
+            </div>
           )}
           <button
-            className="btn btn-solid btn-block"
+            className="btn btn-solid btn-block import-confirm"
             disabled={busy}
             onClick={() => void confirm()}
           >
-            {t('import.confirm')}
+            {confirmLabel}
           </button>
-        </div>
+        </section>
       )}
 
-      <div
-        className="mono small muted"
-        style={{ textTransform: 'uppercase', letterSpacing: '0.1em', margin: '24px 0 8px' }}
-      >
-        {t('import.export')}
-      </div>
-      <div className="card">
-      </div>
+      <section className="settings-section" aria-labelledby="export-title">
+        <h2 className="settings-section__title" id="export-title">
+          {t('import.export')}
+        </h2>
+        <div className="card settings-group">
+          <ExportRows />
+        </div>
+      </section>
     </div>
   );
 }

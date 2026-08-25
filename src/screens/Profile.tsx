@@ -1,23 +1,20 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
+import { ExportRows } from '../components/ExportRows';
 import { IconForward } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
 import { signOutUser } from '../lib/firebase';
+import { displayVolume, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
-import { ExportRows } from './ImportExport';
 
-const DIVIDER = { borderTop: '1px solid var(--line)' };
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section style={{ marginTop: 20 }}>
-      <div
-        className="mono small muted"
-        style={{ textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}
-      >
+    <section className="settings-section" aria-labelledby={id}>
+      <h2 className="settings-section__title" id={id}>
         {title}
-      </div>
-      <div className="card">{children}</div>
+      </h2>
+      <div className="card settings-group">{children}</div>
     </section>
   );
 }
@@ -25,102 +22,103 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 export function Profile() {
   const { t, i18n } = useTranslation();
   const { workouts, user, syncState, settings } = useStore();
-  const nav = useStore((s) => s.nav);
-  const updateSettings = useStore((s) => s.updateSettings);
-
+  const nav = useStore((state) => state.nav);
+  const updateSettings = useStore((state) => state.updateSettings);
   const locale = settings.locale ?? (i18n.language.startsWith('it') ? 'it' : 'en');
-  const totalVolume = workouts.reduce((a, w) => a + w.volumeKg, 0);
+  const unit = settings.unit ?? 'kg';
+  const numberLocale = locale === 'it' ? 'it-IT' : 'en-GB';
+  const totalVolume = workouts.reduce((sum, workout) => sum + workout.volumeKg, 0);
+  const volume = `${displayVolume(totalVolume, unit).toLocaleString(numberLocale)} ${weightLabel(unit)}`;
 
   return (
     <div className="screen">
-      <div className="display screen-title">{t('nav.profile')}</div>
+      <PageHeader title={t('nav.profile')} />
 
-      <div className="card card-pad row" style={{ gap: 14 }}>
-        <span className="account-avatar" style={{ width: 52, height: 52, fontSize: 22 }}>
+      <div className="card profile-identity">
+        <span className="account-avatar profile-identity__avatar" aria-hidden="true">
           {(user?.name ?? 'O').charAt(0).toUpperCase()}
         </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>{user?.name ?? t('app.name')}</div>
-          <div className="mono small muted">
-            {t('profile.workouts', { n: workouts.length })} ·{' '}
-            {Math.round(totalVolume / 1000).toLocaleString(i18n.language)}t
+        <div className="profile-identity__copy">
+          <strong className="profile-identity__name">{user?.name ?? t('app.name')}</strong>
+          <div
+            className="profile-summary mono small muted"
+            role="group"
+            aria-label={t('profile.trainingSummary')}
+          >
+            <span>{t('profile.workouts', { count: workouts.length })}</span>
+            <span aria-hidden="true">·</span>
+            <span>{volume}</span>
           </div>
         </div>
-        <span
-          className="account-dot"
-          title={t(`settings.sync.${syncState}`)}
-          style={{
-            background:
-              syncState === 'synced'
-                ? 'var(--good)'
-                : syncState === 'error'
-                  ? 'var(--danger)'
-                  : 'var(--muted)',
-          }}
-        />
       </div>
 
-      <Section title={t('settings.title')}>
-        <div className="card-pad spread">
-          <span>{t('settings.language')}</span>
-          <div className="row" style={{ gap: 6 }}>
-            {(['it', 'en'] as const).map((l) => (
+      <Section id="profile-preferences" title={t('settings.title')}>
+        <div className="settings-row settings-row--control">
+          <strong id="profile-language-label">{t('settings.language')}</strong>
+          <div
+            className="seg settings-segment"
+            role="group"
+            aria-labelledby="profile-language-label"
+          >
+            {(['it', 'en'] as const).map((language) => (
               <button
-                key={l}
-                className={`btn ${locale === l ? 'btn-accent' : 'btn-ghost'}`}
-                style={{ padding: '9px 14px', fontSize: 14, minHeight: 40 }}
-                aria-pressed={locale === l}
-                onClick={() => void updateSettings({ locale: l })}
+                key={language}
+                className={`seg-btn ${locale === language ? 'on' : ''}`}
+                aria-pressed={locale === language}
+                onClick={() => void updateSettings({ locale: language })}
               >
-                {t(`settings.${l}`)}
+                {t(`settings.${language}`)}
               </button>
             ))}
           </div>
         </div>
-        <div className="card-pad spread" style={DIVIDER}>
-          <span>{t('settings.programStart')}</span>
-          <input
-            type="date"
-            aria-label={t('settings.programStart')}
-            value={settings.programStartDate ?? ''}
-            style={{ width: 'auto' }}
-            onChange={(e) => {
-              if (e.target.value) void updateSettings({ programStartDate: e.target.value });
-            }}
-          />
+        <div className="settings-row settings-row--control">
+          <strong>{t('settings.unit')}</strong>
+          <div className="seg settings-segment" role="group" aria-label={t('settings.unit')}>
+            {(['kg', 'lb'] as const).map((weightUnit) => (
+              <button
+                key={weightUnit}
+                className={`seg-btn ${unit === weightUnit ? 'on' : ''}`}
+                aria-pressed={unit === weightUnit}
+                onClick={() => void updateSettings({ unit: weightUnit })}
+              >
+                {t(`settings.${weightUnit}`)}
+              </button>
+            ))}
+          </div>
         </div>
       </Section>
 
-      <Section title={t('settings.data')}>
+      <Section id="profile-data" title={t('settings.data')}>
         <ExportRows />
         <button
-          className="card-pad spread"
-          style={{ ...DIVIDER, width: '100%', textAlign: 'left' }}
+          className="settings-row settings-action"
           onClick={() => nav({ view: 'importExport' })}
         >
-          <span>{t('settings.import')}</span>
-          <span className="muted"><IconForward aria-hidden /></span>
+          <strong className="settings-row__copy">{t('settings.import')}</strong>
+          <IconForward aria-hidden="true" />
         </button>
-        <div className="card-pad spread" style={DIVIDER}>
+        <div className="settings-row">
           <span>{t('settings.syncLabel')}</span>
-          <span className="chip">{t(`settings.sync.${syncState}`)}</span>
+          <strong className="settings-row__value" role="status">
+            {t(`settings.sync.${syncState}`)}
+          </strong>
         </div>
       </Section>
 
-      <Section title={t('settings.about')}>
-        <div className="card-pad stack">
-          <div className="spread">
+      <Section id="profile-about" title={t('settings.about')}>
+        <div className="settings-row settings-about">
+          <div className="settings-row__copy">
             <strong>{t('app.name')}</strong>
-            <span className="mono small muted">{t('settings.version', { v: version })}</span>
+            <p className="small muted">{t('app.tagline')}</p>
           </div>
-          <span className="muted small">{t('app.tagline')}</span>
-          <span className="muted small">{t('settings.attribution')}</span>
+          <span className="mono small muted">{t('settings.version', { v: version })}</span>
         </div>
+        <p className="settings-attribution small muted">{t('settings.attribution')}</p>
       </Section>
 
       <button
-        className="btn btn-danger btn-block"
-        style={{ marginTop: 22 }}
+        className="btn btn-danger btn-block profile-sign-out"
         onClick={() => void signOutUser()}
       >
         {t('settings.signOut')}
