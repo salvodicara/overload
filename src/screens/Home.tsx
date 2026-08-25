@@ -73,9 +73,11 @@ export function Home() {
                   {t('home.exercises', { n: next.exercises.length })}
                 </div>
               </div>
-              <button className="btn btn-accent btn-block" onClick={() => startWorkout(next.id)}>
-                {t('home.start')}
-              </button>
+              {!active && (
+                <button className="btn btn-accent btn-block" onClick={() => startWorkout(next.id)}>
+                  {t('home.start')}
+                </button>
+              )}
             </>
           ) : (
             <>

@@ -179,6 +179,22 @@ test('active workout is reachable from any tab via the banner', async ({ page })
   await expect(page.locator('.setrow.done')).toHaveCount(1);
 });
 
+test('home protects an active workout until it is resumed', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.locator('.setcheck').first().click();
+  const activeBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null'));
+  await page.getByRole('button', { name: /minimize|riduci/i }).click();
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  await expect(page.getByRole('heading', { name: /resume workout in progress|riprendi l'allenamento in corso/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(start|inizia)$/i })).toHaveCount(0);
+
+  await page.locator('section[aria-labelledby="resume-workout"]').getByRole('button', { name: /resume|riprendi/i }).click();
+  await expect(page.locator('.setrow.done')).toHaveCount(1);
+  await expect(page.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null'))).toEqual(activeBefore);
+});
+
 test('hardware back navigates the app', async ({ page }) => {
   await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('barbell squat');

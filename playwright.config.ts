@@ -10,6 +10,6 @@ export default defineConfig({
   webServer: {
     command: 'pnpm run dev:e2e',
     port: 5199,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
   },
 });
