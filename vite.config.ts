@@ -28,6 +28,7 @@ export default defineConfig({
           {
             urlPattern: ({ url }) =>
               url.origin === self.location.origin &&
+              url.search === '' &&
               (url.pathname === '/data/exercises.json' ||
                 url.pathname === '/data/instructions.it.json'),
             handler: 'StaleWhileRevalidate',
