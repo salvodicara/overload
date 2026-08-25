@@ -1,16 +1,31 @@
-import type { Backup } from './importer';
-import type { Routine, Settings, Workout } from './types';
+import type { BackupV2 } from './importer';
+import type {
+  CustomExercise,
+  ExerciseNote,
+  Folder,
+  Measurement,
+  NutritionDay,
+  Routine,
+  Settings,
+  Workout,
+} from './types';
 
 const CSV_HEADER = 'date,day,exercise,weight_kg,reps';
 
+export type BackupData = {
+  workouts: Workout[];
+  routines: Routine[];
+  folders: Folder[];
+  notes: ExerciseNote[];
+  measurements: Measurement[];
+  nutrition: NutritionDay[];
+  customExercises: CustomExercise[];
+  settings: Settings;
+};
+
 /** Full backup as pretty JSON, readable back by `parseBackup`. */
-export function toBackupJson(
-  workouts: Workout[],
-  routines: Routine[],
-  settings?: Settings,
-): string {
-  const backup: Backup = { version: 1, workouts, routines };
-  if (settings !== undefined) backup.settings = settings;
+export function toBackupJson(data: BackupData): string {
+  const backup: BackupV2 = { version: 2, ...data };
   return JSON.stringify(backup, null, 2);
 }
 

@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import type { BackupV2 } from './importer';
 import type { CustomExercise, ExerciseNote, Folder, Measurement, NutritionDay, Routine, Settings, Workout } from './types';
 
 export type OverloadDb = Dexie & {
@@ -128,4 +129,31 @@ export async function listRoutines(): Promise<Routine[]> {
 /** Writes an already-deduplicated import batch (see `planImport`). */
 export async function applyImport(fresh: Workout[]): Promise<void> {
   await db.workouts.bulkPut(fresh);
+}
+
+/** Restores a complete version 2 backup atomically across every local table. */
+export async function restoreBackupCollections(backup: BackupV2): Promise<void> {
+  await db.transaction(
+    'rw',
+    [
+      db.workouts,
+      db.routines,
+      db.folders,
+      db.notes,
+      db.measurements,
+      db.nutrition,
+      db.customExercises,
+      db.settings,
+    ],
+    async () => {
+      await db.workouts.bulkPut(backup.workouts);
+      await db.routines.bulkPut(backup.routines);
+      await db.folders.bulkPut(backup.folders);
+      await db.notes.bulkPut(backup.notes);
+      await db.measurements.bulkPut(backup.measurements);
+      await db.nutrition.bulkPut(backup.nutrition);
+      await db.customExercises.bulkPut(backup.customExercises);
+      await db.settings.bulkPut([backup.settings]);
+    },
+  );
 }

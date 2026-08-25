@@ -14,6 +14,7 @@ import {
   listNotes,
   listNutrition,
   listWorkouts,
+  restoreBackupCollections,
   saveFolder,
   saveCustomExercise,
   saveMeasurement,
@@ -41,6 +42,7 @@ import { loadCatalog, registerCustomExercises } from '../lib/exercises';
 import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 import { routineTechniqueMigrations } from '../lib/notes';
+import type { BackupV2 } from '../lib/importer';
 
 export type Route =
   | { view: 'home' }
@@ -197,6 +199,7 @@ export type Store = {
   saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<void>;
   deleteWorkout(id: string): Promise<void>;
   importWorkouts(fresh: Workout[]): Promise<void>;
+  restoreBackup(backup: BackupV2): Promise<void>;
 };
 
 const initialActive = readActive();
@@ -706,6 +709,24 @@ export const useStore = create<Store>((set, get) => ({
     await get().reload();
     const uid = get().user?.uid;
     if (uid) for (const w of fresh) void pushRecord(uid, 'workouts', w);
+  },
+
+  async restoreBackup(backup) {
+    await restoreBackupCollections(backup);
+    await get().reload();
+
+    const uid = get().user?.uid;
+    if (!uid) return;
+    for (const record of backup.workouts) await pushRecord(uid, 'workouts', record);
+    for (const record of backup.routines) await pushRecord(uid, 'routines', record);
+    for (const record of backup.folders) await pushRecord(uid, 'folders', record);
+    for (const record of backup.notes) await pushRecord(uid, 'notes', record);
+    for (const record of backup.measurements) await pushRecord(uid, 'measurements', record);
+    for (const record of backup.nutrition) await pushRecord(uid, 'nutrition', record);
+    for (const record of backup.customExercises) {
+      await pushRecord(uid, 'customExercises', record);
+    }
+    await pushRecord(uid, 'settings', backup.settings);
   },
 }));
 

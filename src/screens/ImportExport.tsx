@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, hevyAliasMap } from '../lib/exercises';
 import { toBackupJson, toCsv } from '../lib/exporter';
-import { parseBackup, planImport } from '../lib/importer';
+import { parseBackup, planImport, type BackupV2 } from '../lib/importer';
 import { parseHevyCsv } from '../lib/hevyCsv';
 import { toast, useStore } from '../state/useStore';
 import type { ExerciseNote, Routine, Workout } from '../lib/types';
@@ -22,6 +22,11 @@ export function ExportRows() {
   const { t, i18n } = useTranslation();
   const workouts = useStore((s) => s.workouts);
   const routines = useStore((s) => s.routines);
+  const folders = useStore((s) => s.folders);
+  const notes = useStore((s) => s.notes);
+  const measurements = useStore((s) => s.measurements);
+  const nutrition = useStore((s) => s.nutrition);
+  const customExercises = useStore((s) => s.customExercises);
   const settings = useStore((s) => s.settings);
   const divider = { borderTop: '1px solid var(--line)' };
 
@@ -34,7 +39,16 @@ export function ExportRows() {
           download(
             'overload-backup.json',
             'application/json',
-            toBackupJson(workouts, routines, settings),
+            toBackupJson({
+              workouts,
+              routines,
+              folders,
+              notes,
+              measurements,
+              nutrition,
+              customExercises,
+              settings,
+            }),
           )
         }
       >
@@ -66,6 +80,7 @@ type Preview = {
   unknown: string[];
   routines: Routine[];
   notes: ExerciseNote[];
+  backup: BackupV2 | null;
 };
 
 export function ImportExport() {
@@ -73,6 +88,7 @@ export function ImportExport() {
   const workouts = useStore((s) => s.workouts);
   const nav = useStore((s) => s.nav);
   const importWorkouts = useStore((s) => s.importWorkouts);
+  const restoreBackup = useStore((s) => s.restoreBackup);
   const importNotes = useStore((s) => s.importNotes);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -85,19 +101,28 @@ export function ImportExport() {
       let unknown: string[] = [];
       let routines: Routine[] = [];
       let notes: ExerciseNote[] = [];
+      let backup: BackupV2 | null = null;
       if (text.trimStart().startsWith('{')) {
-        const backup = parseBackup(text);
-        incoming = backup.workouts;
-        routines = backup.routines;
+        const parsed = parseBackup(text);
+        incoming = parsed.workouts;
+        routines = parsed.routines;
+        if (parsed.version === 2) {
+          backup = parsed;
+          notes = parsed.notes;
+        }
       } else {
         const parsed = parseHevyCsv(text, hevyAliasMap());
         incoming = parsed.workouts;
         unknown = parsed.unknownExercises;
         notes = parsed.notes;
       }
-      if (incoming.length === 0 && routines.length === 0) throw new Error('import.invalid');
-      const plan = planImport(new Set(workouts.map((w) => w.id)), incoming);
-      setPreview({ name: file.name, ...plan, unknown, routines, notes });
+      if (!backup && incoming.length === 0 && routines.length === 0) {
+        throw new Error('import.invalid');
+      }
+      const plan = backup
+        ? { fresh: backup.workouts, duplicates: 0 }
+        : planImport(new Set(workouts.map((w) => w.id)), incoming);
+      setPreview({ name: file.name, ...plan, unknown, routines, notes, backup });
     } catch {
       setPreview(null);
       toast(t('import.invalid'));
@@ -107,9 +132,13 @@ export function ImportExport() {
   async function confirm(): Promise<void> {
     if (!preview) return;
     setBusy(true);
-    for (const routine of preview.routines) await saveRoutine(routine);
-    await importWorkouts(preview.fresh);
-    if (preview.notes.length > 0) await importNotes(preview.notes);
+    if (preview.backup) {
+      await restoreBackup(preview.backup);
+    } else {
+      for (const routine of preview.routines) await saveRoutine(routine);
+      await importWorkouts(preview.fresh);
+      if (preview.notes.length > 0) await importNotes(preview.notes);
+    }
     setBusy(false);
     setPreview(null);
     toast(t('import.done', { n: preview.fresh.length }));

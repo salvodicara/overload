@@ -1,17 +1,38 @@
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applyImport,
   db,
   deleteWorkout,
   getSettings,
+  listCustomExercises,
+  listFolders,
+  listMeasurements,
+  listNotes,
+  listNutrition,
   listRoutines,
   listWorkouts,
+  restoreBackupCollections,
   saveRoutine,
   saveSettings,
   saveWorkout,
 } from '../db';
+import type { BackupV2 } from '../importer';
 import type { Routine, Workout } from '../types';
+
+const { pushRecordMock } = vi.hoisted(() => ({
+  pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
+}));
+
+vi.mock('../sync', () => ({
+  deleteRecord: vi.fn(async () => {}),
+  pushRecord: pushRecordMock,
+  startSync: vi.fn(() => () => {}),
+}));
+
+import { useStore } from '../../state/useStore';
+
+const originalReload = useStore.getState().reload;
 
 function workout(id: string, date: string, startTs: number): Workout {
   return {
@@ -26,9 +47,139 @@ function workout(id: string, date: string, startTs: number): Workout {
 }
 
 beforeEach(async () => {
-  await db.workouts.clear();
-  await db.routines.clear();
-  await db.settings.clear();
+  pushRecordMock.mockClear();
+  useStore.setState({ user: null, reload: originalReload });
+  await db.transaction(
+    'rw',
+    [
+      db.workouts,
+      db.routines,
+      db.folders,
+      db.notes,
+      db.measurements,
+      db.nutrition,
+      db.customExercises,
+      db.settings,
+    ],
+    async () => {
+      await Promise.all([
+        db.workouts.clear(),
+        db.routines.clear(),
+        db.folders.clear(),
+        db.notes.clear(),
+        db.measurements.clear(),
+        db.nutrition.clear(),
+        db.customExercises.clear(),
+        db.settings.clear(),
+      ]);
+    },
+  );
+});
+
+afterEach(() => {
+  useStore.setState({ user: null, reload: originalReload });
+});
+
+const COMPLETE_BACKUP: BackupV2 = {
+  version: 2,
+  workouts: [workout('restored', '2026-06-10', 1000)],
+  routines: [{ id: 'r1', name: 'Restore', exercises: [], updatedAt: 2 }],
+  folders: [{ id: 'f1', name: 'Cartella', updatedAt: 3 }],
+  notes: [
+    {
+      id: 'bench',
+      technique: 'Piedi saldi',
+      entries: [{ date: '2026-06-10', text: 'Buono' }],
+      updatedAt: 4,
+    },
+  ],
+  measurements: [{ id: 'm1', date: '2026-06-10', metric: 'weight', value: 80.5, updatedAt: 5 }],
+  nutrition: [
+    { id: '2026-06-10', date: '2026-06-10', kcal: 2300, proteinG: 175, updatedAt: 6 },
+  ],
+  customExercises: [
+    { id: 'custom:1', name: 'Press speciale', muscleGroup: 'shoulders', updatedAt: 7 },
+  ],
+  settings: {
+    id: 'settings',
+    unit: 'lb',
+    locale: 'it',
+    kcalTarget: 2400,
+    proteinTarget: 180,
+    weeklyGoal: 4,
+    updatedAt: 8,
+  },
+};
+
+describe('restoreBackupCollections', () => {
+  it('restores one record into every local table without changing stored values', async () => {
+    await restoreBackupCollections(COMPLETE_BACKUP);
+
+    expect(await listWorkouts()).toEqual(COMPLETE_BACKUP.workouts);
+    expect(await listRoutines()).toEqual(COMPLETE_BACKUP.routines);
+    expect(await listFolders()).toEqual(COMPLETE_BACKUP.folders);
+    expect(await listNotes()).toEqual(COMPLETE_BACKUP.notes);
+    expect(await listMeasurements()).toEqual(COMPLETE_BACKUP.measurements);
+    expect(await listNutrition()).toEqual(COMPLETE_BACKUP.nutrition);
+    expect(await listCustomExercises()).toEqual(COMPLETE_BACKUP.customExercises);
+    expect(await getSettings()).toEqual(COMPLETE_BACKUP.settings);
+  });
+
+  it('rolls back every table if a write in the transaction fails', async () => {
+    const original = workout('original', '2026-06-01', 1);
+    await saveWorkout(original);
+    const invalid = {
+      ...COMPLETE_BACKUP,
+      workouts: [workout('must-not-survive', '2026-06-11', 2)],
+      routines: [{ name: 'missing primary key', exercises: [], updatedAt: 9 }],
+    } as unknown as BackupV2;
+
+    await expect(restoreBackupCollections(invalid)).rejects.toThrow();
+
+    expect(await listWorkouts()).toEqual([original]);
+    expect(await listRoutines()).toEqual([]);
+    expect(await listFolders()).toEqual([]);
+    expect(await getSettings()).toEqual({ id: 'settings', updatedAt: 0 });
+  });
+});
+
+describe('backup restore store action', () => {
+  it('restores all collections, reloads once, and never syncs an anonymous import', async () => {
+    const reload = vi.fn(originalReload);
+    useStore.setState({ user: null, reload });
+
+    await useStore.getState().restoreBackup(COMPLETE_BACKUP);
+
+    expect(reload).toHaveBeenCalledOnce();
+    expect(useStore.getState()).toMatchObject({
+      workouts: COMPLETE_BACKUP.workouts,
+      routines: COMPLETE_BACKUP.routines,
+      folders: COMPLETE_BACKUP.folders,
+      notes: COMPLETE_BACKUP.notes,
+      measurements: COMPLETE_BACKUP.measurements,
+      nutrition: COMPLETE_BACKUP.nutrition,
+      customExercises: COMPLETE_BACKUP.customExercises,
+      settings: COMPLETE_BACKUP.settings,
+    });
+    expect(pushRecordMock).not.toHaveBeenCalled();
+  });
+
+  it('syncs an authenticated restore one collection at a time', async () => {
+    useStore.setState({ user: { uid: 'u1', name: null }, reload: vi.fn(originalReload) });
+
+    await useStore.getState().restoreBackup(COMPLETE_BACKUP);
+
+    expect(pushRecordMock.mock.calls.map(([, collection]) => collection)).toEqual([
+      'workouts',
+      'routines',
+      'folders',
+      'notes',
+      'measurements',
+      'nutrition',
+      'customExercises',
+      'settings',
+    ]);
+  });
 });
 
 describe('workouts repository', () => {

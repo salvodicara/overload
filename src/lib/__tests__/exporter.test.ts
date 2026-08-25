@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toBackupJson, toCsv } from '../exporter';
+import { toBackupJson, toCsv, type BackupData } from '../exporter';
 import { parseBackup } from '../importer';
 import type { Routine, Settings, Workout } from '../types';
 
@@ -34,6 +34,28 @@ const ROUTINES: Routine[] = [{ id: 'r1', name: 'Operazione Rientro', exercises: 
 
 const SETTINGS: Settings = { id: 'settings', programStartDate: '2026-06-01', updatedAt: 2 };
 
+const BACKUP_DATA: BackupData = {
+  workouts: WORKOUTS,
+  routines: ROUTINES,
+  folders: [{ id: 'folder-1', name: 'Forza', updatedAt: 3 }],
+  notes: [
+    {
+      id: 'squat',
+      technique: 'Tieni il brace',
+      entries: [{ date: '2026-06-01', text: 'Buona profondita' }],
+      updatedAt: 4,
+    },
+  ],
+  measurements: [{ id: 'm1', date: '2026-06-01', metric: 'weight', value: 82.5, updatedAt: 5 }],
+  nutrition: [
+    { id: '2026-06-01', date: '2026-06-01', kcal: 2400, proteinG: 180, updatedAt: 6 },
+  ],
+  customExercises: [
+    { id: 'custom:1', name: 'Press personale', muscleGroup: 'shoulders', updatedAt: 7 },
+  ],
+  settings: { ...SETTINGS, unit: 'lb', locale: 'it', weeklyGoal: 4 },
+};
+
 const NAMES: Record<string, string> = {
   squat: 'Squat',
   bench: 'Panca Piana, manubri',
@@ -41,24 +63,16 @@ const NAMES: Record<string, string> = {
 const exerciseName = (id: string): string => NAMES[id] ?? id;
 
 describe('toBackupJson', () => {
-  it('round-trips through parseBackup', () => {
-    const json = toBackupJson(WORKOUTS, ROUTINES, SETTINGS);
+  it('round-trips every local collection in a version 2 backup', () => {
+    const json = toBackupJson(BACKUP_DATA);
     expect(parseBackup(json)).toEqual({
-      version: 1,
-      workouts: WORKOUTS,
-      routines: ROUTINES,
-      settings: SETTINGS,
+      version: 2,
+      ...BACKUP_DATA,
     });
   });
 
-  it('round-trips without settings', () => {
-    const parsed = parseBackup(toBackupJson(WORKOUTS, ROUTINES, undefined));
-    expect(parsed.settings).toBeUndefined();
-    expect(parsed.workouts).toEqual(WORKOUTS);
-  });
-
   it('is pretty printed', () => {
-    expect(toBackupJson([], [], undefined)).toContain('\n  "version": 1');
+    expect(toBackupJson({ ...BACKUP_DATA, workouts: [] })).toContain('\n  "version": 2');
   });
 });
 
