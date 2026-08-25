@@ -56,17 +56,19 @@ export function ExerciseMedia({
   exercise: CatalogExercise;
   size?: 'thumb' | 'hero';
 }) {
-  const [failed, setFailed] = useState<[boolean, boolean]>([false, false]);
-  const fail = (i: 0 | 1) =>
+  const [failed, setFailed] = useState<Set<number>>(() => new Set());
+  const fail = (index: number) =>
     setFailed((prev) => {
-      const next: [boolean, boolean] = [prev[0], prev[1]];
-      next[i] = true;
+      const next = new Set(prev);
+      next.add(index);
       return next;
     });
 
   const media = exercise.media ?? [];
-  const first = failed[0] ? undefined : media[0];
-  const second = failed[1] ? undefined : media[1];
+  const available = media
+    .map((src, index) => ({ index, src }))
+    .filter(({ index }) => !failed.has(index))
+    .slice(0, size === 'hero' ? 2 : 1);
   const initial = (exercise.nameEn || exercise.nameIt || '?').trim().charAt(0).toUpperCase();
 
   return (
@@ -74,19 +76,18 @@ export function ExerciseMedia({
       <style href="overload-exercise-media" precedence="default">
         {CSS}
       </style>
-      {first ? (
-        <>
-          <img src={first} alt="" loading="lazy" onError={() => fail(0)} />
-          {size === 'hero' && second && (
-            <img
-              className="exmedia-b"
-              src={second}
-              alt=""
-              loading="lazy"
-              onError={() => fail(1)}
-            />
-          )}
-        </>
+      {available.length > 0 ? (
+        available.map(({ index, src }, position) => (
+          <img
+            key={index}
+            className={position === 1 ? 'exmedia-b' : undefined}
+            src={src}
+            alt=""
+            loading={size === 'hero' && position === 0 ? 'eager' : 'lazy'}
+            fetchPriority={size === 'hero' && position === 0 ? 'high' : 'auto'}
+            onError={() => fail(index)}
+          />
+        ))
       ) : (
         <div className="exmedia-fallback display" style={{ fontSize: size === 'thumb' ? 20 : 52 }}>
           {initial}

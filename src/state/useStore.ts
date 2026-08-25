@@ -46,7 +46,7 @@ import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
 import { loadCatalog, registerCustomExercises } from '../lib/exercises';
-import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
+import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, TrackingType, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 import { routineTechniqueMigrations } from '../lib/notes';
 import type { BackupV2 } from '../lib/importer';
@@ -389,7 +389,7 @@ export type Store = {
   deleteRoutine(id: string): Promise<AccountActionResult>;
   saveFolder(f: Folder): Promise<AccountActionResult>;
   deleteFolder(id: string): Promise<AccountActionResult>;
-  addExerciseToRoutine(routineId: string, exerciseId: string): Promise<AccountActionResult>;
+  addExerciseToRoutine(routineId: string, exerciseId: string, tracking?: TrackingType): Promise<AccountActionResult>;
   queueTechniqueNote(exerciseId: string, text: string): void;
   saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
   addNoteEntry(exerciseId: string, text: string): Promise<AccountActionResult>;
@@ -1108,13 +1108,20 @@ export const useStore = create<Store>((set, get) => ({
     set({ pendingRoutineChanges: null });
   },
 
-  async addExerciseToRoutine(routineId, exerciseId) {
+  async addExerciseToRoutine(routineId, exerciseId, tracking = 'weight_reps') {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     const routine = get().routines.find((r) => r.id === routineId);
     if (!routine) return appliedAccountAction(owner, undefined);
     const next = structuredClone(routine);
-    next.exercises.push({ exerciseId, sets: 3, repMin: 8, repMax: 12, restSec: 90 });
+    next.exercises.push({
+      exerciseId,
+      sets: 3,
+      repMin: 8,
+      repMax: 12,
+      restSec: 90,
+      tracking,
+    });
     next.updatedAt = Date.now();
     const result = await withOwnedLocalWrite(owner, async () => {
       await saveRoutine(next);

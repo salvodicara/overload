@@ -1,10 +1,20 @@
+import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
+
+const pushRecord = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('../sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../sync')>()),
+  pushRecord,
+  startSync: vi.fn(() => ({ stop: async () => undefined })),
+}));
+
 import { TEMPLATES } from '../../data/templates';
 import { installTemplatePack } from '../../screens/Train';
 import { confirmImportPreview } from '../../screens/ImportExport';
 import { createCustomExerciseFlow } from '../../screens/Library';
+import { db } from '../db';
 import type { BackupV2 } from '../importer';
-import { continueAccountAction } from '../../state/useStore';
+import { continueAccountAction, useStore, type AccountActionResult } from '../../state/useStore';
 
 const EMPTY_BACKUP: BackupV2 = {
   version: 2,
@@ -17,6 +27,30 @@ const EMPTY_BACKUP: BackupV2 = {
   customExercises: [],
   settings: { id: 'settings', updatedAt: 0 },
 };
+
+const storage = new Map<string, string>();
+
+async function signInForCurrentReceipt(): Promise<() => Promise<void>> {
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  });
+  storage.clear();
+  await db.delete();
+  await db.open();
+  useStore.getState().setUser(null);
+  await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
+  storage.set('overload_uid', 'flow-owner');
+  useStore.getState().setUser({ uid: 'flow-owner', name: null });
+  await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+  return async () => {
+    useStore.getState().setUser(null);
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
+    await db.delete();
+    vi.unstubAllGlobals();
+  };
+}
 
 describe('account-owned screen workflows', () => {
   it('stops a template install before any routine when the folder action becomes stale', async () => {
@@ -70,6 +104,7 @@ describe('account-owned screen workflows', () => {
         addExerciseToRoutine,
         nav,
         close,
+        isUiCurrent: () => true,
       },
     );
 
@@ -77,6 +112,118 @@ describe('account-owned screen workflows', () => {
     expect(addExerciseToRoutine).not.toHaveBeenCalled();
     expect(nav).not.toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('forwards the selected routine tracking only after current creation', async () => {
+    const cleanUp = await signInForCurrentReceipt();
+    try {
+      const created = await useStore.getState().createCustomExercise('Receipt source', 'core');
+      expect(created.status).toBe('applied');
+      if (created.status !== 'applied') throw new Error('current receipt missing');
+      const added: AccountActionResult = { ...created, value: undefined };
+      const addExerciseToRoutine = vi.fn(async () => added);
+      const nav = vi.fn();
+      const close = vi.fn();
+
+      const result = await createCustomExerciseFlow(
+        {
+          name: 'Band pull-apart',
+          muscleGroup: 'shoulders',
+          tracking: 'reps',
+          pickFor: { routineId: 'routine-a' },
+        },
+        {
+          createCustomExercise: vi.fn(async () => created),
+          addExerciseToRoutine,
+          nav,
+          close,
+          isUiCurrent: () => true,
+        },
+      );
+
+      expect(result).toEqual(created);
+      expect(addExerciseToRoutine).toHaveBeenCalledOnce();
+      expect(addExerciseToRoutine).toHaveBeenCalledWith('routine-a', created.value, 'reps');
+      expect(close).toHaveBeenCalledOnce();
+      expect(nav).toHaveBeenCalledWith({ view: 'routineEditor', id: 'routine-a' });
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  it('stops custom-exercise UI continuation when the sheet is dismissed while creating', async () => {
+    const cleanUp = await signInForCurrentReceipt();
+    try {
+      const created = await useStore.getState().createCustomExercise('Receipt source', 'core');
+      expect(created.status).toBe('applied');
+      if (created.status !== 'applied') throw new Error('current receipt missing');
+      type AppliedCreation = Extract<AccountActionResult<string>, { status: 'applied' }>;
+      let resolveCreate!: (receipt: AppliedCreation) => void;
+      const pendingCreate = new Promise<AppliedCreation>((resolve) => {
+        resolveCreate = resolve;
+      });
+      let uiCurrent = true;
+      const addExerciseToRoutine = vi.fn();
+      const close = vi.fn();
+      const nav = vi.fn();
+      const flow = createCustomExerciseFlow(
+        {
+          name: 'Carry',
+          muscleGroup: 'core',
+          tracking: 'duration',
+          pickFor: { routineId: 'routine-a' },
+        },
+        {
+          createCustomExercise: vi.fn(async () => pendingCreate),
+          addExerciseToRoutine,
+          close,
+          nav,
+          isUiCurrent: () => uiCurrent,
+        },
+      );
+
+      uiCurrent = false;
+      resolveCreate(created);
+      await expect(flow).resolves.toEqual({ status: 'stale' });
+      expect(addExerciseToRoutine).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  it('does not close or navigate when adding the created exercise becomes stale', async () => {
+    const cleanUp = await signInForCurrentReceipt();
+    try {
+      const created = await useStore.getState().createCustomExercise('Receipt source', 'core');
+      expect(created.status).toBe('applied');
+      if (created.status !== 'applied') throw new Error('current receipt missing');
+      const close = vi.fn();
+      const nav = vi.fn();
+
+      const result = await createCustomExerciseFlow(
+        {
+          name: 'Carry',
+          muscleGroup: 'core',
+          tracking: 'duration',
+          pickFor: { routineId: 'routine-a' },
+        },
+        {
+          createCustomExercise: vi.fn(async () => created),
+          addExerciseToRoutine: vi.fn(async () => ({ status: 'stale' as const })),
+          close,
+          nav,
+          isUiCurrent: () => true,
+        },
+      );
+
+      expect(result).toEqual({ status: 'stale' });
+      expect(close).not.toHaveBeenCalled();
+      expect(nav).not.toHaveBeenCalled();
+    } finally {
+      await cleanUp();
+    }
   });
 
   it('does not run create-routine success UI after a stale save', async () => {

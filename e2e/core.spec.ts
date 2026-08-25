@@ -1565,6 +1565,219 @@ test('custom exercise sheet closes from its scrim', async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
+test('library keeps labelled search, filters, and scroll context through hardware Back', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
+  const searchId = await search.getAttribute('id');
+  expect(searchId).toBeTruthy();
+  await expect(page.locator(`label[for="${searchId}"]`)).toBeVisible();
+
+  const filters = page.getByRole('group', { name: /muscle group|gruppo muscolare/i });
+  const filterButtons = filters.getByRole('button');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(
+      await filterButtons.evaluateAll((buttons) =>
+        buttons.every((button) => button.getBoundingClientRect().height >= 44),
+      ),
+    ).toBe(true);
+  }
+
+  await search.fill('barbell');
+  const legs = filters.getByRole('button', { name: /^(legs|gambe)$/i });
+  await legs.click();
+  await expect(legs).toHaveAttribute('aria-pressed', 'true');
+  const results = page.getByRole('list', { name: /exercise results|risultati esercizi/i });
+  const resultButtons = results.getByRole('button');
+  await expect.poll(() => resultButtons.count()).toBeGreaterThan(4);
+  const selected = resultButtons.nth(4);
+  await selected.scrollIntoViewIfNeeded();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await selected.click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+
+  await page.goBack();
+  await expect(search).toHaveValue('barbell');
+  await expect(legs).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+});
+
+test('routine custom exercise creates once with its selected prescription tracking', async ({
+  page,
+}) => {
+  await openNeutralRoutineEditor(page);
+  await page.getByRole('button', { name: /^\+ (exercise|esercizio)$/i }).click();
+  await page
+    .getByRole('button', { name: /create custom exercise|crea esercizio personalizzato/i })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: /create custom exercise|crea esercizio personalizzato/i,
+  });
+  await dialog.getByLabel(/exercise name|nome esercizio/i).fill('Band pull-apart');
+  await dialog.getByLabel(/muscle group|gruppo muscolare/i).selectOption('shoulders');
+  await dialog
+    .getByLabel(/tracking for this routine|tracciamento per questa scheda/i)
+    .selectOption('reps');
+  const create = dialog.getByRole('button', { name: /^(create|crea)$/i });
+  await create.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(page.getByRole('heading', { name: /edit routine|modifica scheda/i })).toBeVisible();
+  const exercise = page.locator('.card').filter({ hasText: 'Band pull-apart' });
+  await expect(exercise).toHaveCount(1);
+  await expect(exercise.getByLabel(/^(tracking|tracciamento)$/i)).toHaveValue('reps');
+  expect(
+    await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('overload');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      try {
+        const [routine, customExercises] = await Promise.all([
+          new Promise<{ exercises: Array<{ exerciseId: string; tracking?: string }> }>(
+            (resolve, reject) => {
+              const request = database
+                .transaction('routines', 'readonly')
+                .objectStore('routines')
+                .get('full-body-a');
+              request.onerror = () => reject(request.error);
+              request.onsuccess = () => resolve(request.result);
+            },
+          ),
+          new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
+            const request = database
+              .transaction('customExercises', 'readonly')
+              .objectStore('customExercises')
+              .getAll();
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          }),
+        ]);
+        const created = routine.exercises.filter((item) => item.exerciseId.startsWith('custom:'));
+        return {
+          customCount: customExercises.length,
+          routineCount: created.length,
+          tracking: created[0]?.tracking,
+          customHasTracking: customExercises.some((item) => 'tracking' in item),
+        };
+      } finally {
+        database.close();
+      }
+    }),
+  ).toEqual({
+    customCount: 1,
+    routineCount: 1,
+    tracking: 'reps',
+    customHasTracking: false,
+  });
+});
+
+test('custom exercise detail omits a media hero when no media exists', async ({ page }) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await page
+    .getByRole('button', { name: /create custom exercise|crea esercizio personalizzato/i })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: /create custom exercise|crea esercizio personalizzato/i,
+  });
+  await dialog.getByLabel(/exercise name|nome esercizio/i).fill('No-media carry');
+  await dialog.getByLabel(/muscle group|gruppo muscolare/i).selectOption('core');
+  await dialog.getByRole('button', { name: /^(create|crea)$/i }).click();
+
+  await expect(page.getByRole('heading', { name: 'No-media carry', exact: true })).toBeVisible();
+  await expect(page.locator('.exercise-detail__media')).toHaveCount(0);
+  await expect(page.locator('.exmedia:not(.exmedia-thumb)')).toHaveCount(0);
+});
+
+test('exercise detail promotes valid media, stays static when reduced, and defers video', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await page.route('**/exercise-media/Barbell_Squat/0.jpg', async (route) => {
+    await route.fulfill({ status: 404, body: '' });
+  });
+  await openExerciseDetail(page);
+  const media = page.locator('.exercise-detail__media .exmedia');
+  await expect(media.locator('img')).toHaveCount(1);
+  await expect(media.locator('img')).toHaveAttribute('src', /Barbell_Squat\/1\.jpg$/);
+  await expect(media.locator('img')).toHaveAttribute('loading', 'eager');
+  await expect(media.locator('.exmedia-fallback')).toHaveCount(0);
+
+  await page.unroute('**/exercise-media/Barbell_Squat/0.jpg');
+  await page.goBack();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openExerciseDetail(page);
+  const frames = page.locator('.exercise-detail__media img');
+  await expect(frames).toHaveCount(2);
+  expect(
+    await frames.nth(1).evaluate((image) => {
+      const style = getComputedStyle(image);
+      return { animationName: style.animationName, opacity: style.opacity };
+    }),
+  ).toEqual({ animationName: 'none', opacity: '0' });
+
+  await expect(page.locator('iframe')).toHaveCount(0);
+  await page.getByRole('button', { name: /watch technique|guarda la tecnica/i }).click();
+  await expect(page.locator('iframe')).toHaveAttribute('src', /youtube-nocookie\.com/);
+
+  const headings = await page
+    .getByRole('heading', { level: 2 })
+    .evaluateAll((elements) => elements.map((element) => element.textContent?.trim()));
+  const techniqueIndex = headings.findIndex((heading) =>
+    /^Technique|^Tecnica/i.test(heading ?? ''),
+  );
+  const journalIndex = headings.findIndex((heading) => /^Journal|^Diario/i.test(heading ?? ''));
+  const instructionsIndex = headings.findIndex((heading) =>
+    /^How to|^Esecuzione/i.test(heading ?? ''),
+  );
+  expect(techniqueIndex).toBeGreaterThanOrEqual(0);
+  expect(journalIndex).toBeGreaterThan(techniqueIndex);
+  expect(instructionsIndex).toBeGreaterThan(journalIndex);
+});
+
+test('exercise Technique reports failure and stale saves before a current retry closes it', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openExerciseDetail(page);
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const { useStore } = (await import(modulePath)) as typeof import('../src/state/useStore');
+    const original = useStore.getState().saveTechniqueNote;
+    let attempt = 0;
+    useStore.setState({
+      saveTechniqueNote: async (...args) => {
+        attempt += 1;
+        if (attempt === 1) throw new Error('local write failed');
+        if (attempt === 2) return { status: 'stale' as const };
+        return original(...args);
+      },
+    });
+  });
+
+  const trigger = page.getByRole('button', { name: /^technique|^tecnica/i });
+  await trigger.click();
+  await page.getByRole('textbox', { name: /^technique|^tecnica/i }).fill('Retry cue');
+  const done = page.getByRole('button', { name: /^done$|^fatto$/i });
+
+  await done.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('alert')).toContainText(/could not save|impossibile salvare/i);
+  await done.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await done.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('program delete confirmation ignores its scrim without replacing the dialog', async ({
   page,
 }) => {
@@ -1624,8 +1837,7 @@ test('routines are fully editable and deletable', async ({ page }) => {
   await page.getByRole('button', { name: /^\+ (exercise|esercizio)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('squat');
   await page
-    .locator('.card', { hasText: /barbell squat/i })
-    .first()
+    .getByRole('button', { name: /^(barbell squat legs|squat con bilanciere gambe)$/i })
     .click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await expect(page.getByText(/barbell squat/i).first()).toBeVisible();

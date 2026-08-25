@@ -1484,6 +1484,350 @@ textarea:disabled {
   border-left: 1px dashed var(--line);
 }
 
+/* ---------- exercise discovery and detail ---------- */
+
+.library-tools {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  margin: 0 calc(-1 * var(--pad));
+  padding: var(--space-2) var(--pad) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.library-filters {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-1);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.library-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.library-filter {
+  flex: none;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-control);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.library-filter[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  color: var(--accent-text);
+}
+
+.library-results,
+.library-loading,
+.exercise-performance-list,
+.exercise-journal {
+  list-style: none;
+}
+
+.library-results,
+.library-loading {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.library-results > li,
+.library-loading > .library-result {
+  border-bottom: 1px solid var(--line);
+}
+
+.library-result {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  text-align: left;
+}
+
+.library-result:disabled {
+  color: var(--muted);
+  cursor: wait;
+  opacity: 0.66;
+}
+
+.library-result__body {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.library-result__name {
+  min-width: 0;
+  font-weight: 680;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.library-result__meta,
+.exercise-detail__metadata {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+}
+
+.library-result--skeleton {
+  pointer-events: none;
+}
+
+.library-result--skeleton > span {
+  display: block;
+  border-radius: var(--r-control);
+  background: var(--surface2);
+}
+
+.library-result__thumb {
+  width: 56px;
+  height: 56px;
+}
+
+.library-result--skeleton .library-result__copy {
+  width: min(58%, 220px);
+  height: 30px;
+}
+
+.library-empty {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-10) var(--space-4) var(--space-6);
+  text-align: center;
+}
+
+.library-create-action {
+  margin-top: var(--space-4);
+}
+
+.form-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.form-feedback {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-control);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.form-feedback--error {
+  border: 1px solid color-mix(in srgb, var(--danger) 48%, var(--line));
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  color: var(--danger);
+}
+
+.library-screen > .form-feedback {
+  margin-top: var(--space-3);
+}
+
+.exercise-detail .page-header__title {
+  font-size: clamp(23px, 7vw, var(--text-xl));
+  overflow-wrap: anywhere;
+}
+
+.exercise-detail__media {
+  margin-top: var(--space-1);
+}
+
+.exercise-detail__identity {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.exercise-detail__section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.exercise-detail__section > h2 {
+  margin-bottom: var(--space-2);
+  font-size: 18px;
+  font-weight: 780;
+  line-height: 1.2;
+}
+
+.exercise-detail__performance {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+
+.exercise-performance-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.exercise-performance-list > li {
+  padding: 5px var(--space-2);
+  border-radius: 6px;
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.exercise-journal {
+  border-top: 1px solid var(--line);
+}
+
+.exercise-journal > li {
+  border-bottom: 1px solid var(--line);
+}
+
+.exercise-journal__entry {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  gap: 3px;
+  align-content: center;
+  padding: var(--space-2) 0;
+  text-align: left;
+}
+
+.exercise-journal__entry--linked {
+  position: relative;
+  padding-right: var(--space-6);
+}
+
+.exercise-journal__entry--linked::after {
+  position: absolute;
+  top: 50%;
+  right: var(--space-1);
+  color: var(--muted);
+  content: '›';
+  font-size: 22px;
+  transform: translateY(-50%);
+}
+
+.exercise-journal__entry--imported {
+  color: var(--muted);
+}
+
+.exercise-journal__topline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 11px;
+}
+
+.exercise-journal__imported {
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.exercise-journal__text {
+  display: block;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.exercise-detail__instructions {
+  max-width: 65ch;
+}
+
+.exercise-detail__instructions ol {
+  padding-left: 22px;
+}
+
+.exercise-detail__instructions li {
+  margin-bottom: var(--space-2);
+  line-height: 1.55;
+}
+
+.exercise-detail__video {
+  margin-top: var(--space-4);
+}
+
+.exercise-detail__video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--surface2);
+}
+
+.exercise-detail__video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.exercise-detail__loading {
+  display: grid;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.exercise-detail__loading-media {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--r-card);
+  background: var(--surface2);
+}
+
+@media (hover: hover) {
+  .library-result:hover .library-result__name,
+  .exercise-journal__entry--linked:hover .exercise-journal__text {
+    color: var(--accent-text);
+  }
+}
+
+@media (max-width: 359px) {
+  .library-result {
+    gap: var(--space-2);
+  }
+
+  .exercise-detail__performance {
+    padding-inline: var(--space-2);
+  }
+}
+
 /* ---------- bottom sheet ---------- */
 
 dialog.sheet-scrim {

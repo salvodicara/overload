@@ -145,8 +145,12 @@
   },
   "library": {
     "title": "Exercises",
+    "searchLabel": "Search exercises",
     "search": "Search exercises…",
     "all": "All",
+    "muscleGroup": "Muscle group",
+    "results": "Exercise results",
+    "loading": "Loading exercises",
     "muscle": {
       "chest": "Chest",
       "back": "Back",
@@ -158,11 +162,19 @@
     },
     "watch": "Watch technique on YouTube",
     "noResults": "No exercises found",
+    "noResultsHint": "Try another name or muscle group.",
     "pickTitle": "Add exercise",
     "back": "Back",
     "howTo": "How to",
     "create": "+ Create custom exercise",
-    "createNamePh": "Exercise name…"
+    "exerciseName": "Exercise name",
+    "trackingForRoutine": "Tracking for this routine",
+    "trackingHint": "This choice only applies to this routine.",
+    "creating": "Creating…",
+    "addError": "Could not add the exercise. Try again.",
+    "createError": "Could not create the exercise. Try again.",
+    "detailLoading": "Loading exercise details…",
+    "instructionsLoading": "Loading translated instructions…"
   },
   "settings": {
     "title": "More",
@@ -297,7 +309,8 @@
     "previousSession": "Previous session · {{date}}",
     "latestPerformance": "Latest working performance · {{unit}}",
     "journal": "Journal",
-    "importedJournal": "Imported note"
+    "importedJournal": "Imported note",
+    "techniqueSaveError": "Could not save your technique note. Try again."
   },
   "body": {
     "weight": "Weight",
