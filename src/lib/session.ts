@@ -1,5 +1,6 @@
 import { suggest } from './progression';
 import {
+  kindOf,
   trackingOf,
   type RoutineExercise,
   type SetKind,
@@ -24,6 +25,40 @@ export type ActiveExercise = {
   restOverride?: number;
   sessionNote?: string;
 };
+
+export type ActiveSession = {
+  routineId: string;
+  startTs: number;
+  ex: ActiveExercise[];
+  restUntil?: number | null;
+  restExerciseId?: string | null;
+  restTotalSec?: number | null;
+};
+
+export type PersistedActiveSession = Omit<ActiveSession, 'ex'> & {
+  ex: (Omit<ActiveExercise, 'tracking' | 'sets'> & {
+    tracking?: TrackingType;
+    sets: (Omit<ActiveSet, 'durationSec' | 'kind'> & {
+      durationSec?: number | null;
+      kind?: SetKind;
+    })[];
+  })[];
+};
+
+export function normalizeActiveSession(active: PersistedActiveSession): ActiveSession {
+  return {
+    ...active,
+    ex: active.ex.map((exercise) => ({
+      ...exercise,
+      tracking: trackingOf(exercise.tracking),
+      sets: exercise.sets.map((set) => ({
+        ...set,
+        durationSec: set.durationSec ?? null,
+        kind: kindOf(set.kind),
+      })),
+    })),
+  };
+}
 
 function activeSet(
   tracking: TrackingType,

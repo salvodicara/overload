@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildActiveExercise, completedSets } from '../session';
 
@@ -190,5 +191,93 @@ describe('active session helpers', () => {
 
     expect(useStore.getState().active?.ex[0].sets[0].kind).toBe('working');
     expect(JSON.parse(storage.get('overload_active') ?? 'null').ex[0].sets[0].kind).toBe('working');
+  });
+
+  it('rehydrates legacy active rows before add, completion, and routine proposals', async () => {
+    const legacy = {
+      routineId: 'routine',
+      startTs: 1,
+      ex: [
+        {
+          exerciseId: 'squat',
+          hintKey: 'suggest.repeat',
+          sets: [{ weightKg: 60, reps: 5, done: true }],
+        },
+      ],
+    };
+    storage.set('overload_active', JSON.stringify(legacy));
+    vi.resetModules();
+    const { db } = await import('../db');
+    await db.workouts.clear();
+    const { useStore: rehydratedStore } = await import('../../state/useStore');
+
+    expect(rehydratedStore.getState().active).toEqual({
+      routineId: 'routine',
+      startTs: 1,
+      ex: [
+        {
+          exerciseId: 'squat',
+          tracking: 'weight_reps',
+          hintKey: 'suggest.repeat',
+          sets: [
+            {
+              weightKg: 60,
+              reps: 5,
+              durationSec: null,
+              kind: 'working',
+              done: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(JSON.parse(storage.get('overload_active') ?? 'null')).toEqual(
+      rehydratedStore.getState().active,
+    );
+
+    rehydratedStore.setState({
+      routines: [
+        {
+          id: 'routine',
+          name: 'Legacy routine',
+          exercises: [
+            {
+              exerciseId: 'squat',
+              sets: 2,
+              repMin: 5,
+              repMax: 5,
+              restSec: 120,
+            },
+          ],
+          updatedAt: 1,
+        },
+      ],
+      workouts: [],
+    });
+
+    rehydratedStore.getState().addSet(0);
+    expect(rehydratedStore.getState().active?.ex[0].sets[1]).toEqual({
+      weightKg: 60,
+      reps: null,
+      durationSec: null,
+      kind: 'working',
+      done: false,
+    });
+
+    const workout = await rehydratedStore.getState().finishWorkout();
+    expect(workout?.sets).toEqual([
+      {
+        exerciseId: 'squat',
+        weightKg: 60,
+        reps: 5,
+        done: true,
+        tracking: 'weight_reps',
+        kind: 'working',
+      },
+    ]);
+    expect(rehydratedStore.getState().pendingRoutineChanges).toEqual({
+      routineId: 'routine',
+      items: [{ exerciseId: 'squat', sets: 1 }],
+    });
   });
 });

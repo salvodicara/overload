@@ -28,8 +28,10 @@ import { computeVolume, flagPrs } from '../lib/volume';
 import {
   buildActiveExercise,
   completedSets,
-  type ActiveExercise,
+  normalizeActiveSession,
+  type ActiveSession,
   type ActiveSet,
+  type PersistedActiveSession,
 } from '../lib/session';
 import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
@@ -54,16 +56,7 @@ export type Route =
 
 export type AppUser = { uid: string; name: string | null };
 
-export type { ActiveSet };
-export type ActiveSession = {
-  routineId: string;
-  startTs: number;
-  ex: ActiveExercise[];
-  /** Persisted so a running rest timer survives reloads and PWA eviction. */
-  restUntil?: number | null;
-  restExerciseId?: string | null;
-  restTotalSec?: number | null;
-};
+export type { ActiveSession, ActiveSet };
 
 const ACTIVE_KEY = 'overload_active';
 const UID_KEY = 'overload_uid';
@@ -71,11 +64,14 @@ const UID_KEY = 'overload_uid';
 function readActive(): ActiveSession | null {
   try {
     const raw = JSON.parse(localStorage.getItem(ACTIVE_KEY) ?? 'null') as
-      | (ActiveSession & { dayIndex?: number })
+      | (PersistedActiveSession & { dayIndex?: number })
       | null;
     // Sessions persisted under the pre-folders model are discarded.
     if (raw && raw.dayIndex !== undefined) return null;
-    return raw;
+    if (!raw) return null;
+    const active = normalizeActiveSession(raw);
+    if (JSON.stringify(active) !== JSON.stringify(raw)) persistActive(active);
+    return active;
   } catch {
     return null;
   }
