@@ -956,10 +956,23 @@ test('active workout adapts rows without shifting working previous values', asyn
   }
 });
 
-test('technique trigger exposes its native disabled save state', async ({ page }) => {
+test('disabled Technique trigger CSS preserves its geometry', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await setStoredLocale(page, 'en');
   await startNeutralWorkout(page);
-  const techniqueTrigger = page.locator('.workout-note__trigger').first();
+  const techniqueTrigger = page
+    .getByRole('button', { name: /^Technique\b/ })
+    .and(page.locator('[aria-controls="workout-note-0-technique-content"]'));
+  await expect(techniqueTrigger).toHaveCount(1);
+  await expect(techniqueTrigger).toHaveAttribute(
+    'aria-controls',
+    'workout-note-0-technique-content',
+  );
+  await expect(techniqueTrigger.locator('.workout-note__scope')).toHaveText('Technique');
+  await expect(techniqueTrigger.locator('.workout-note__scope')).toHaveAttribute(
+    'id',
+    'workout-note-0-technique-label',
+  );
   await expect(techniqueTrigger).toBeEnabled();
 
   const enabled = await techniqueTrigger.evaluate(async (button) => {
