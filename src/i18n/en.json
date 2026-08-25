@@ -55,6 +55,13 @@
     "welcomeCta": "Pick a plan",
     "thisWeek": "This week",
     "sessions": "workouts",
+    "nextWorkout": "Next workout",
+    "weekDays": "This week's days",
+    "trained": "trained",
+    "workingSets": "working sets",
+    "volume": "volume",
+    "recent": "Recent workouts",
+    "allHistory": "All history",
     "moreExercises": "+ {{n}} more exercises"
   },
   "workout": {
@@ -196,7 +203,9 @@
     "newName": "New routine",
     "empty": "No routines yet: create one.",
     "templates": "Templates",
-    "useTemplate": "Use"
+    "useTemplate": "Use",
+    "edit": "Edit {{routine}}",
+    "start": "Start {{routine}}"
   },
   "editor": {
     "title": "Edit routine",

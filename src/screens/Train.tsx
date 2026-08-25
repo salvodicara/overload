@@ -37,6 +37,7 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
     <div className="card card-pad row">
       <button
         style={{ flex: 1, minWidth: 0, textAlign: 'left' }}
+        aria-label={t('routines.edit', { routine: routine.name })}
         onClick={() => nav({ view: 'routineEditor', id: routine.id })}
       >
         <span style={{ fontWeight: 700, fontSize: 16, display: 'block' }}>{routine.name}</span>
@@ -50,6 +51,7 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
       </button>
       <button
         className={`btn ${suggested ? 'btn-accent' : 'btn-ghost'}`}
+        aria-label={t('routines.start', { routine: routine.name })}
         disabled={routine.exercises.length === 0}
         onClick={() => startWorkout(routine.id)}
       >

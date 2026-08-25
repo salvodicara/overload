@@ -12,6 +12,7 @@ const TABS: { view: Route['view']; key: string; Icon: ComponentType<SVGProps<SVG
 ];
 
 const GROUP: Partial<Record<Route['view'], Route['view']>> = {
+  history: 'home',
   workoutDetail: 'home',
   summary: 'home',
   routineEditor: 'train',

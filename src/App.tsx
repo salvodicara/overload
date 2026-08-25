@@ -8,6 +8,7 @@ import { ActiveWorkoutBar } from './components/ActiveWorkoutBar';
 import { RestWatcher } from './components/RestWatcher';
 import { RestBar } from './components/RestBar';
 import { Login } from './screens/Login';
+import { Home } from './screens/Home';
 import { History } from './screens/History';
 import { Train } from './screens/Train';
 import { Profile } from './screens/Profile';
@@ -26,6 +27,8 @@ function Screen() {
   const route = useStore((s) => s.route);
   switch (route.view) {
     case 'home':
+      return <Home />;
+    case 'history':
       return <History />;
     case 'train':
       return <Train />;

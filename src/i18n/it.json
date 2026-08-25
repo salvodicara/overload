@@ -55,6 +55,13 @@
     "welcomeCta": "Scegli una scheda",
     "thisWeek": "Questa settimana",
     "sessions": "allenamenti",
+    "nextWorkout": "Prossimo allenamento",
+    "weekDays": "I giorni di questa settimana",
+    "trained": "allenato",
+    "workingSets": "serie di lavoro",
+    "volume": "volume",
+    "recent": "Allenamenti recenti",
+    "allHistory": "Tutto lo storico",
     "moreExercises": "+ altri {{n}} esercizi"
   },
   "workout": {
@@ -196,7 +203,9 @@
     "newName": "Nuova scheda",
     "empty": "Nessuna scheda: creane una.",
     "templates": "Template",
-    "useTemplate": "Usa"
+    "useTemplate": "Usa",
+    "edit": "Modifica {{routine}}",
+    "start": "Inizia {{routine}}"
   },
   "editor": {
     "title": "Modifica scheda",

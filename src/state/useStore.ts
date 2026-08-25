@@ -53,6 +53,7 @@ import type { BackupV2 } from '../lib/importer';
 
 export type Route =
   | { view: 'home' }
+  | { view: 'history' }
   | { view: 'train' }
   | { view: 'profile' }
   | { view: 'workout' }
@@ -217,7 +218,7 @@ async function withOwnedLocalWrite<T>(
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
 const scrollMemory = new Map<string, number>();
-const RESTORE_SCROLL = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile', 'workout']);
+const RESTORE_SCROLL = new Set<Route['view']>(['home', 'history', 'train', 'library', 'progress', 'profile', 'workout']);
 const ROUTE_KEY = 'overload_route';
 const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile']);
 
