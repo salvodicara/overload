@@ -29,6 +29,7 @@ import {
   pushRecord,
   pushRecordStrict,
   startSync,
+  type SyncController,
   type SyncState,
 } from '../lib/sync';
 import { computeVolume, flagPrs } from '../lib/volume';
@@ -123,8 +124,59 @@ function i18nToast(key: string): string {
   return translate ? translate(key) : key;
 }
 
-let stopSync: (() => void) | null = null;
-let authTransition = 0;
+type AuthState = 'loading' | 'ready' | 'signedOut' | 'error';
+type Owner = Readonly<{ uid: string; generation: number }>;
+type PendingBoot = {
+  uid: string;
+  generation: number;
+  user: AppUser;
+  promise: Promise<void>;
+};
+
+let authGeneration = 0;
+let currentOwner: Owner | null = null;
+let pendingBoot: PendingBoot | null = null;
+let syncController: SyncController | null = null;
+let localWriteTail: Promise<void> = Promise.resolve();
+
+function withLocalWriteBarrier<T>(work: () => Promise<T>): Promise<T> {
+  const run = localWriteTail.then(work, work);
+  localWriteTail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+function owns(owner: Owner): boolean {
+  return (
+    currentOwner?.uid === owner.uid &&
+    currentOwner.generation === owner.generation &&
+    authGeneration === owner.generation
+  );
+}
+
+function generationIsCurrent(owner: Owner): boolean {
+  return authGeneration === owner.generation;
+}
+
+function captureOwner(): Owner | null {
+  return currentOwner ? { ...currentOwner } : null;
+}
+
+type OwnedResult<T> = { status: 'ok'; value: T } | { status: 'stale' };
+
+async function withOwnedLocalWrite<T>(
+  owner: Owner,
+  work: () => Promise<T>,
+): Promise<OwnedResult<T>> {
+  return withLocalWriteBarrier(async () => {
+    if (!owns(owner)) return { status: 'stale' };
+    const value = await work();
+    if (!owns(owner)) return { status: 'stale' };
+    return { status: 'ok', value };
+  });
+}
 
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
@@ -156,13 +208,14 @@ function clearRoutinePushTimers(): void {
   routinePushTimers.clear();
 }
 
-function debouncedPushRoutine(uid: string, routineId: string): void {
+function debouncedPushRoutine(owner: Owner, routineId: string): void {
   clearTimeout(routinePushTimers.get(routineId));
   routinePushTimers.set(
     routineId,
     setTimeout(() => {
+      if (!owns(owner)) return;
       const rec = useStore.getState().routines.find((x) => x.id === routineId);
-      if (rec) void pushRecord(uid, 'routines', rec);
+      if (rec) void pushRecord(owner.uid, 'routines', rec);
     }, 600),
   );
 }
@@ -170,6 +223,7 @@ function debouncedPushRoutine(uid: string, routineId: string): void {
 export type Store = {
   route: Route;
   user: AppUser | null | undefined;
+  authState: AuthState;
   settings: Settings;
   workouts: Workout[];
   routines: Routine[];
@@ -224,11 +278,76 @@ export type Store = {
   restoreBackup(backup: BackupV2): Promise<void>;
 };
 
+type HydratedCollections = {
+  workouts: Workout[];
+  routines: Routine[];
+  folders: Folder[];
+  notes: ExerciseNote[];
+  measurements: Measurement[];
+  nutrition: NutritionDay[];
+  customExercises: CustomExercise[];
+  settings: Settings;
+  techniqueMigrations: ExerciseNote[];
+};
+
+async function loadHydratedCollections(): Promise<HydratedCollections> {
+  const [workouts, routines, folders, notes, measurements, nutrition, customExercises, settings] =
+    await Promise.all([
+      listWorkouts(),
+      listRoutines(),
+      listFolders(),
+      listNotes(),
+      listMeasurements(),
+      listNutrition(),
+      listCustomExercises(),
+      getSettings(),
+    ]);
+  const techniqueMigrations = routineTechniqueMigrations(routines, notes);
+  for (const migration of techniqueMigrations) await saveNote(migration);
+  const migratedById = new Map(techniqueMigrations.map((note) => [note.id, note]));
+  const mergedNotes = [
+    ...notes.map((note) => migratedById.get(note.id) ?? note),
+    ...techniqueMigrations.filter((note) => !notes.some((existing) => existing.id === note.id)),
+  ];
+  return {
+    workouts,
+    routines,
+    folders,
+    notes: mergedNotes,
+    measurements,
+    nutrition,
+    customExercises,
+    settings,
+    techniqueMigrations,
+  };
+}
+
+async function reloadForOwner(
+  owner: Owner,
+  set: (state: Partial<Store>) => void,
+): Promise<void> {
+  const hydrated = await withLocalWriteBarrier(async () => {
+    if (!owns(owner)) return null;
+    await migrateLegacyRoutines();
+    if (!owns(owner)) return null;
+    return loadHydratedCollections();
+  });
+  if (!hydrated || !owns(owner)) return;
+  const { techniqueMigrations, ...collections } = hydrated;
+  registerCustomExercises(collections.customExercises);
+  set(collections);
+  for (const migration of techniqueMigrations) {
+    if (!owns(owner)) return;
+    await pushRecord(owner.uid, 'notes', migration);
+  }
+}
+
 const initialActive = readActive();
 
 export const useStore = create<Store>((set, get) => ({
   route: savedRoute(),
   user: undefined,
+  authState: 'loading',
   settings: { id: 'settings', updatedAt: 0 },
   workouts: [],
   routines: [],
@@ -268,124 +387,138 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setUser(user) {
-    const transition = ++authTransition;
-    const prev = get().user;
-    set({ user });
-    if (import.meta.env.VITE_E2E === '1') return;
-    if (!user) {
-      clearRoutinePushTimers();
-      stopSync?.();
-      stopSync = null;
-      set({ syncState: 'offline' });
+    if (user && pendingBoot?.uid === user.uid) {
+      pendingBoot.user = user;
       return;
     }
-
-    if (user.uid === prev?.uid) return;
-
-    // Stop the previous account before touching its local snapshot so an
-    // in-flight listener cannot repopulate the database during the switch.
-    clearRoutinePushTimers();
-    stopSync?.();
-    stopSync = null;
-
-    let lastUid: string | null = null;
-    try {
-      lastUid = localStorage.getItem(UID_KEY);
-      localStorage.setItem(UID_KEY, user.uid);
-    } catch {
-      /* storage unavailable */
+    if (user && owns({ uid: user.uid, generation: currentOwner?.generation ?? -1 })) {
+      set({ user });
+      return;
     }
-    const changedUid =
-      (lastUid !== null && lastUid !== user.uid) ||
-      (prev != null && prev.uid !== user.uid);
+    if (!user && !pendingBoot && !currentOwner && get().authState === 'signedOut') return;
+
+    const previousOwner = currentOwner;
+    const previousSync = syncController;
+    const generation = ++authGeneration;
+    const owner: Owner | null = user ? { uid: user.uid, generation } : null;
+    currentOwner = null;
+    syncController = null;
+    clearRoutinePushTimers();
+    if (!user || previousOwner) releaseWakeLock();
+    set({ user: undefined, authState: 'loading', syncState: 'offline' });
 
     const boot = async (): Promise<void> => {
-      if (changedUid) {
-        persistActive(null);
-        releaseWakeLock();
-        set({
-          workouts: [],
-          routines: [],
-          folders: [],
-          notes: [],
-          measurements: [],
-          nutrition: [],
-          customExercises: [],
-          settings: { id: 'settings', updatedAt: 0 },
-          active: null,
-          restUntil: null,
-          restExerciseId: null,
-          restTotalSec: null,
-          pendingRoutineChanges: null,
-        });
-        registerCustomExercises([]);
-        await clearAllUserData();
-      }
+      try {
+        await previousSync?.stop();
+        if (authGeneration !== generation) return;
 
-      // Auth can change again while IndexedDB is clearing. A stale transition
-      // must never start syncing the account that is no longer signed in.
-      if (transition !== authTransition || get().user?.uid !== user.uid) return;
-      stopSync = startSync(
-        user.uid,
-        (s) => set({ syncState: s }),
-        () => void get().reload(),
-      );
+        if (!user || !owner) {
+          await withLocalWriteBarrier(async () => undefined);
+          if (authGeneration !== generation) return;
+          set({ user: null, authState: 'signedOut', syncState: 'offline' });
+          return;
+        }
+
+        let storedUid: string | null = null;
+        try {
+          storedUid = localStorage.getItem(UID_KEY);
+        } catch {
+          /* storage unavailable */
+        }
+        const changedUid =
+          (storedUid !== null && storedUid !== user.uid) ||
+          (previousOwner !== null && previousOwner.uid !== user.uid);
+
+        const hydrated = await withLocalWriteBarrier(async () => {
+          if (!generationIsCurrent(owner)) return null;
+          if (changedUid) await clearAllUserData();
+          if (!generationIsCurrent(owner)) return null;
+          await migrateLegacyRoutines();
+          if (!generationIsCurrent(owner)) return null;
+          return loadHydratedCollections();
+        });
+        if (!hydrated || !generationIsCurrent(owner)) return;
+
+        if (changedUid) {
+          persistActive(null);
+          registerCustomExercises([]);
+          set({
+            active: null,
+            restUntil: null,
+            restExerciseId: null,
+            restTotalSec: null,
+            pendingRoutineChanges: null,
+          });
+        }
+        try {
+          localStorage.setItem(UID_KEY, user.uid);
+        } catch {
+          /* storage unavailable */
+        }
+
+        currentOwner = owner;
+        const readyUser = pendingBoot?.generation === generation ? pendingBoot.user : user;
+        const { techniqueMigrations: _techniqueMigrations, ...collections } = hydrated;
+        registerCustomExercises(collections.customExercises);
+        set({
+          ...collections,
+          user: readyUser,
+          authState: 'ready',
+          route: get().active ? { view: 'workout' } : get().route,
+        });
+        if (get().active) acquireWakeLock();
+
+        if (typeof window !== 'undefined') {
+          void loadCatalog().then(() => {
+            if (!owns(owner)) return;
+            registerCustomExercises(get().customExercises);
+            set({ catalogReady: true });
+          });
+        }
+
+        if (import.meta.env.VITE_E2E !== '1' && owns(owner)) {
+          syncController = startSync(
+            owner.uid,
+            (syncState) => {
+              if (owns(owner)) set({ syncState });
+            },
+            async () => {
+              if (owns(owner)) await reloadForOwner(owner, set);
+            },
+          );
+        }
+      } catch {
+        if (authGeneration === generation) {
+          currentOwner = null;
+          set({ user: undefined, authState: 'error', syncState: 'offline' });
+        }
+      } finally {
+        if (pendingBoot?.generation === generation) pendingBoot = null;
+      }
     };
-    void boot();
+    const promise = boot();
+    if (user) pendingBoot = { uid: user.uid, generation, user, promise };
+    else pendingBoot = { uid: '', generation, user: { uid: '', name: null }, promise };
   },
 
   async init() {
-    void loadCatalog().then(() => {
-      registerCustomExercises(get().customExercises);
-      set({ catalogReady: true });
-    });
-    await migrateLegacyRoutines(get().user?.uid);
-    await get().reload();
-    if (get().active) set({ route: { view: 'workout' } });
+    await pendingBoot?.promise;
   },
 
   async reload() {
-    await migrateLegacyRoutines(get().user?.uid);
-    const [workouts, routines, folders, notes, measurements, nutrition, customExercises, settings] =
-      await Promise.all([
-        listWorkouts(),
-        listRoutines(),
-        listFolders(),
-        listNotes(),
-        listMeasurements(),
-        listNutrition(),
-        listCustomExercises(),
-        getSettings(),
-      ]);
-    const techniqueMigrations = routineTechniqueMigrations(routines, notes);
-    const uid = get().user?.uid;
-    for (const migration of techniqueMigrations) {
-      await saveNote(migration);
-      if (uid) void pushRecord(uid, 'notes', migration);
-    }
-    const migratedById = new Map(techniqueMigrations.map((note) => [note.id, note]));
-    const mergedNotes = [
-      ...notes.map((note) => migratedById.get(note.id) ?? note),
-      ...techniqueMigrations.filter((note) => !notes.some((existing) => existing.id === note.id)),
-    ];
-    registerCustomExercises(customExercises);
-    set({
-      workouts,
-      routines,
-      folders,
-      notes: mergedNotes,
-      measurements,
-      nutrition,
-      customExercises,
-      settings,
-    });
+    const owner = captureOwner();
+    if (!owner) return;
+    await reloadForOwner(owner, set);
   },
 
   async updateSettings(patch) {
-    const settings = await saveSettings(patch);
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, () => saveSettings(patch));
+    if (result.status === 'stale' || !owns(owner)) return;
+    const settings = result.value;
     set({ settings });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'settings', settings);
+    if (owns(owner)) await pushRecord(owner.uid, 'settings', settings);
   },
 
   startWorkout(routineId) {
@@ -494,6 +627,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async finishWorkout() {
+    const owner = captureOwner();
+    if (!owner) return null;
     const active = get().active;
     if (!active) return null;
     const routine = get().routines.find((r) => r.id === active.routineId);
@@ -541,7 +676,11 @@ export const useStore = create<Store>((set, get) => ({
         if (change.restSec !== undefined || change.sets !== undefined) items.push(change);
       }
     }
-    await saveWorkout(workout);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveWorkout(workout);
+      return workout;
+    });
+    if (result.status === 'stale' || !owns(owner)) return null;
     persistActive(null);
     releaseWakeLock();
     set({
@@ -552,8 +691,7 @@ export const useStore = create<Store>((set, get) => ({
       route: { view: 'summary', workoutId: workout.id },
       pendingRoutineChanges: routine && items.length > 0 ? { routineId: routine.id, items } : null,
     });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'workouts', workout);
+    if (owns(owner)) await pushRecord(owner.uid, 'workouts', workout);
     return workout;
   },
 
@@ -571,50 +709,77 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async saveRoutine(r) {
+    const owner = captureOwner();
+    if (!owner) return;
     const next = { ...r, updatedAt: Date.now() };
-    await saveRoutine(next);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveRoutine(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     const list = get().routines;
     set({
       routines: list.some((x) => x.id === next.id)
         ? list.map((x) => (x.id === next.id ? next : x))
         : [...list, next],
     });
-    const uid = get().user?.uid;
-    if (uid) debouncedPushRoutine(uid, next.id);
+    debouncedPushRoutine(owner, next.id);
   },
 
   async deleteRoutine(id) {
-    await dbDeleteRoutine(id);
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await dbDeleteRoutine(id);
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ routines: get().routines.filter((r) => r.id !== id) });
-    const uid = get().user?.uid;
-    if (uid) void deleteRecord(uid, 'routines', id);
+    if (owns(owner)) await deleteRecord(owner.uid, 'routines', id);
   },
 
   async saveFolder(f) {
+    const owner = captureOwner();
+    if (!owner) return;
     const next = { ...f, updatedAt: Date.now() };
-    await saveFolder(next);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveFolder(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     const list = get().folders;
     set({
       folders: list.some((x) => x.id === next.id)
         ? list.map((x) => (x.id === next.id ? next : x))
         : [...list, next],
     });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'folders', next);
+    if (owns(owner)) await pushRecord(owner.uid, 'folders', next);
   },
 
   async deleteFolder(id) {
+    const owner = captureOwner();
+    if (!owner) return;
     // Routines inside a deleted folder become ungrouped, never deleted.
-    for (const r of get().routines.filter((x) => x.folderId === id)) {
-      await get().saveRoutine({ ...r, folderId: undefined });
-    }
-    await dbDeleteFolder(id);
-    set({ folders: get().folders.filter((f) => f.id !== id) });
-    const uid = get().user?.uid;
-    if (uid) void deleteRecord(uid, 'folders', id);
+    const moved = get().routines
+      .filter((routine) => routine.folderId === id)
+      .map((routine) => ({ ...routine, folderId: undefined, updatedAt: Date.now() }));
+    const result = await withOwnedLocalWrite(owner, async () => {
+      for (const routine of moved) await saveRoutine(routine);
+      await dbDeleteFolder(id);
+      return moved;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
+    const movedById = new Map(moved.map((routine) => [routine.id, routine]));
+    set({
+      folders: get().folders.filter((folder) => folder.id !== id),
+      routines: get().routines.map((routine) => movedById.get(routine.id) ?? routine),
+    });
+    for (const routine of moved) debouncedPushRoutine(owner, routine.id);
+    if (owns(owner)) await deleteRecord(owner.uid, 'folders', id);
   },
 
   async addNoteEntry(exerciseId, text) {
+    const owner = captureOwner();
+    if (!owner) return;
     const trimmed = text.trim();
     if (!trimmed) return;
     const date = todayISO();
@@ -627,71 +792,104 @@ export const useStore = create<Store>((set, get) => ({
     if (today) today.text = trimmed;
     else next.entries.push({ date, text: trimmed });
     next.updatedAt = Date.now();
-    await saveNote(next);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveNote(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ notes: [...get().notes.filter((n) => n.id !== exerciseId), next] });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'notes', next);
+    if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
   },
 
   async importNotes(incoming) {
-    let merged = 0;
-    const uid = get().user?.uid;
-    for (const inc of incoming) {
-      const existing = get().notes.find((n) => n.id === inc.id);
-      const next: ExerciseNote = existing
-        ? structuredClone(existing)
-        : { id: inc.id, entries: [], updatedAt: 0 };
-      const have = new Set(next.entries.map((x) => x.date));
-      let changed = false;
-      for (const entry of inc.entries) {
-        // Existing entries win: imports never overwrite what the user wrote.
-        if (!have.has(entry.date)) {
-          next.entries.push(entry);
-          changed = true;
+    const owner = captureOwner();
+    if (!owner) return 0;
+    const base = get().notes;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      const mergedNotes = [...base];
+      const changedNotes: ExerciseNote[] = [];
+      for (const inc of incoming) {
+        const existing = mergedNotes.find((note) => note.id === inc.id);
+        const next: ExerciseNote = existing
+          ? structuredClone(existing)
+          : { id: inc.id, entries: [], updatedAt: 0 };
+        const have = new Set(next.entries.map((entry) => entry.date));
+        let changed = false;
+        for (const entry of inc.entries) {
+          // Existing entries win: imports never overwrite what the user wrote.
+          if (!have.has(entry.date)) {
+            next.entries.push(entry);
+            changed = true;
+          }
         }
+        if (!changed) continue;
+        next.entries.sort((a, b) => a.date.localeCompare(b.date));
+        next.updatedAt = Date.now();
+        await saveNote(next);
+        const index = mergedNotes.findIndex((note) => note.id === inc.id);
+        if (index >= 0) mergedNotes[index] = next;
+        else mergedNotes.push(next);
+        changedNotes.push(next);
       }
-      if (!changed) continue;
-      next.entries.sort((a, b) => a.date.localeCompare(b.date));
-      next.updatedAt = Date.now();
-      await saveNote(next);
-      set({ notes: [...get().notes.filter((n) => n.id !== inc.id), next] });
-      if (uid) void pushRecord(uid, 'notes', next);
-      merged += 1;
+      return { mergedNotes, changedNotes };
+    });
+    if (result.status === 'stale' || !owns(owner)) return 0;
+    set({ notes: result.value.mergedNotes });
+    for (const note of result.value.changedNotes) {
+      if (!owns(owner)) return result.value.changedNotes.length;
+      await pushRecord(owner.uid, 'notes', note);
     }
-    return merged;
+    return result.value.changedNotes.length;
   },
 
   async createCustomExercise(name, muscleGroup) {
+    const owner = captureOwner();
+    if (!owner) return '';
     const x: CustomExercise = {
       id: `custom:${crypto.randomUUID()}`,
       name: name.trim(),
       muscleGroup,
       updatedAt: Date.now(),
     };
-    await saveCustomExercise(x);
-    registerCustomExercises([x]);
-    set({ customExercises: [...get().customExercises, x] });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'customExercises', x);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveCustomExercise(x);
+      return [...get().customExercises, x];
+    });
+    if (result.status === 'stale' || !owns(owner)) return '';
+    const next = result.value;
+    registerCustomExercises(next);
+    set({ customExercises: next });
+    if (owns(owner)) await pushRecord(owner.uid, 'customExercises', x);
     return x.id;
   },
 
   async addMeasurement(metric, value, date) {
+    const owner = captureOwner();
+    if (!owner) return;
     const m: Measurement = { id: crypto.randomUUID(), date, metric, value, updatedAt: Date.now() };
-    await saveMeasurement(m);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveMeasurement(m);
+      return m;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ measurements: [...get().measurements, m].sort((a, b) => a.date.localeCompare(b.date)) });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'measurements', m);
+    if (owns(owner)) await pushRecord(owner.uid, 'measurements', m);
   },
 
   async deleteMeasurement(id) {
-    await dbDeleteMeasurement(id);
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await dbDeleteMeasurement(id);
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ measurements: get().measurements.filter((m) => m.id !== id) });
-    const uid = get().user?.uid;
-    if (uid) void deleteRecord(uid, 'measurements', id);
+    if (owns(owner)) await deleteRecord(owner.uid, 'measurements', id);
   },
 
   async saveNutritionDay(date, patch) {
+    const owner = captureOwner();
+    if (!owner) return;
     const existing = get().nutrition.find((n) => n.id === date);
     const next: NutritionDay = {
       id: date,
@@ -701,13 +899,18 @@ export const useStore = create<Store>((set, get) => ({
       ...patch,
       updatedAt: Date.now(),
     };
-    await saveNutrition(next);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveNutrition(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ nutrition: [...get().nutrition.filter((n) => n.id !== date), next] });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'nutrition', next);
+    if (owns(owner)) await pushRecord(owner.uid, 'nutrition', next);
   },
 
   async applyRoutineChanges() {
+    const owner = captureOwner();
+    if (!owner) return;
     const pending = get().pendingRoutineChanges;
     if (!pending) return;
     const routine = get().routines.find((r) => r.id === pending.routineId);
@@ -722,7 +925,16 @@ export const useStore = create<Store>((set, get) => ({
       if (item.restSec !== undefined) rx.restSec = item.restSec;
       if (item.sets !== undefined) rx.sets = item.sets;
     }
-    await get().saveRoutine(next);
+    next.updatedAt = Date.now();
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveRoutine(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
+    set({
+      routines: get().routines.map((routine) => (routine.id === next.id ? next : routine)),
+    });
+    debouncedPushRoutine(owner, next.id);
     set({ pendingRoutineChanges: null });
   },
 
@@ -731,60 +943,116 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async addExerciseToRoutine(routineId, exerciseId) {
+    const owner = captureOwner();
+    if (!owner) return;
     const routine = get().routines.find((r) => r.id === routineId);
     if (!routine) return;
     const next = structuredClone(routine);
     next.exercises.push({ exerciseId, sets: 3, repMin: 8, repMax: 12, restSec: 90 });
-    await get().saveRoutine(next);
+    next.updatedAt = Date.now();
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveRoutine(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
+    set({
+      routines: get().routines.map((current) => (current.id === next.id ? next : current)),
+    });
+    debouncedPushRoutine(owner, next.id);
   },
 
   async saveTechniqueNote(exerciseId, text) {
+    const owner = captureOwner();
+    if (!owner) return;
     const existing = get().notes.find((note) => note.id === exerciseId);
     const next: ExerciseNote = {
       ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
       technique: text.trim(),
       updatedAt: Date.now(),
     };
-    await saveNote(next);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await saveNote(next);
+      return next;
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ notes: [...get().notes.filter((note) => note.id !== exerciseId), next] });
-    const uid = get().user?.uid;
-    if (uid) void pushRecord(uid, 'notes', next);
+    if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
   },
 
   async deleteWorkout(id) {
-    await dbDeleteWorkout(id);
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await dbDeleteWorkout(id);
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
     set({ workouts: get().workouts.filter((w) => w.id !== id) });
-    const uid = get().user?.uid;
-    if (uid) void deleteRecord(uid, 'workouts', id);
+    if (owns(owner)) await deleteRecord(owner.uid, 'workouts', id);
   },
 
   async importWorkouts(fresh) {
-    await dbApplyImport(fresh);
-    await get().reload();
-    const uid = get().user?.uid;
-    if (uid) for (const w of fresh) void pushRecord(uid, 'workouts', w);
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await dbApplyImport(fresh);
+      await migrateLegacyRoutines();
+      return loadHydratedCollections();
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
+    const { techniqueMigrations: _techniqueMigrations, ...collections } = result.value;
+    registerCustomExercises(collections.customExercises);
+    set(collections);
+    for (const workout of fresh) {
+      if (!owns(owner)) return;
+      await pushRecord(owner.uid, 'workouts', workout);
+    }
   },
 
   async restoreBackup(backup) {
-    await restoreBackupCollections(backup);
-    await get().reload();
-
-    const uid = get().user?.uid;
-    if (!uid) return;
+    const owner = captureOwner();
+    if (!owner) return;
+    const result = await withOwnedLocalWrite(owner, async () => {
+      await restoreBackupCollections(backup);
+      await migrateLegacyRoutines();
+      return loadHydratedCollections();
+    });
+    if (result.status === 'stale' || !owns(owner)) return;
+    const { techniqueMigrations: _techniqueMigrations, ...collections } = result.value;
+    registerCustomExercises(collections.customExercises);
+    set(collections);
     try {
-      for (const record of backup.workouts) await pushRecordStrict(uid, 'workouts', record);
-      for (const record of backup.routines) await pushRecordStrict(uid, 'routines', record);
-      for (const record of backup.folders) await pushRecordStrict(uid, 'folders', record);
-      for (const record of backup.notes) await pushRecordStrict(uid, 'notes', record);
+      for (const record of backup.workouts) {
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'workouts', record);
+      }
+      for (const record of backup.routines) {
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'routines', record);
+      }
+      for (const record of backup.folders) {
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'folders', record);
+      }
+      for (const record of backup.notes) {
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'notes', record);
+      }
       for (const record of backup.measurements) {
-        await pushRecordStrict(uid, 'measurements', record);
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'measurements', record);
       }
-      for (const record of backup.nutrition) await pushRecordStrict(uid, 'nutrition', record);
+      for (const record of backup.nutrition) {
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'nutrition', record);
+      }
       for (const record of backup.customExercises) {
-        await pushRecordStrict(uid, 'customExercises', record);
+        if (!owns(owner)) return;
+        await pushRecordStrict(owner.uid, 'customExercises', record);
       }
-      await pushRecordStrict(uid, 'settings', backup.settings);
+      if (!owns(owner)) return;
+      await pushRecordStrict(owner.uid, 'settings', backup.settings);
     } catch (error) {
+      if (!owns(owner)) return;
       throw new BackupCloudSyncError(error);
     }
   },

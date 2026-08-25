@@ -2,6 +2,16 @@ import 'fake-indexeddb/auto';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildActiveExercise, completedSets } from '../session';
 
+vi.mock('../sync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../sync')>()),
+  pushRecord: vi.fn(() => Promise.resolve()),
+  startSync: vi.fn(() => ({ stop: async () => undefined })),
+}));
+vi.mock('../wakeLock', () => ({
+  acquireWakeLock: vi.fn(),
+  releaseWakeLock: vi.fn(),
+}));
+
 const storage = new Map<string, string>();
 let useStore: typeof import('../../state/useStore').useStore;
 
@@ -14,7 +24,9 @@ beforeAll(async () => {
   ({ useStore } = await import('../../state/useStore'));
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  useStore.getState().setUser(null);
+  await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
   storage.clear();
   useStore.setState({ active: null });
 });
@@ -210,6 +222,10 @@ describe('active session helpers', () => {
     const { db } = await import('../db');
     await db.workouts.clear();
     const { useStore: rehydratedStore } = await import('../../state/useStore');
+
+    storage.set('overload_uid', 'user-1');
+    rehydratedStore.getState().setUser({ uid: 'user-1', name: null });
+    await vi.waitFor(() => expect(rehydratedStore.getState().authState).toBe('ready'));
 
     expect(rehydratedStore.getState().active).toEqual({
       routineId: 'routine',

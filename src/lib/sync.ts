@@ -43,50 +43,71 @@ const isBrowser = (): boolean => typeof window !== 'undefined';
 /** Firestore rejects `undefined` field values; strip them before writing. */
 const sanitize = <T,>(rec: T): T => JSON.parse(JSON.stringify(rec)) as T;
 
-async function syncAll(uid: string): Promise<{ pulled: number; pushFailures: number }> {
+async function syncAll(
+  uid: string,
+  isActive: () => boolean,
+): Promise<{ pulled: number; pushFailures: number }> {
   const { getFirestore, collection, getDocs, setDoc, doc } = await import('firebase/firestore');
+  if (!isActive()) return { pulled: 0, pushFailures: 0 };
   const fs = getFirestore();
   let pulled = 0;
   let pushFailures = 0;
 
   const syncOne = async <T extends Synced>(
     name: SyncCollection,
-    local: T[],
+    readLocal: () => Promise<T[]>,
     writeLocal: (rows: T[]) => Promise<unknown>,
   ): Promise<void> => {
+    if (!isActive()) return;
+    const local = await readLocal();
+    if (!isActive()) return;
     const snapshot = await getDocs(collection(fs, 'users', uid, name));
+    if (!isActive()) return;
     const remote = snapshot.docs.map((d) => d.data() as T);
     const { push, pull } = diffForSync(local, remote);
 
     if (pull.length > 0) {
+      if (!isActive()) return;
       await writeLocal(pull);
+      if (!isActive()) return;
       pulled += pull.length;
     }
     // One unwritable record must not block the rest of the queue.
     for (const record of push) {
+      if (!isActive()) return;
       try {
         await setDoc(doc(fs, 'users', uid, name, record.id), sanitize(record));
+        if (!isActive()) return;
       } catch (err) {
+        if (!isActive()) return;
         pushFailures += 1;
         console.warn(`sync push failed: ${name}/${record.id}`, err);
       }
     }
   };
 
-  const settings = await getSettings();
-  await syncOne('workouts', await listWorkouts(), (rows) => db.workouts.bulkPut(rows));
-  await syncOne('routines', await listRoutines(), (rows) => db.routines.bulkPut(rows));
-  await syncOne('folders', await listFolders(), (rows) => db.folders.bulkPut(rows));
-  await syncOne('notes', await listNotes(), (rows) => db.notes.bulkPut(rows));
-  await syncOne('measurements', await listMeasurements(), (rows) => db.measurements.bulkPut(rows));
-  await syncOne('nutrition', await listNutrition(), (rows) => db.nutrition.bulkPut(rows));
-  await syncOne('customExercises', await listCustomExercises(), (rows) => db.customExercises.bulkPut(rows));
+  await syncOne('workouts', listWorkouts, (rows) => db.workouts.bulkPut(rows));
+  await syncOne('routines', listRoutines, (rows) => db.routines.bulkPut(rows));
+  await syncOne('folders', listFolders, (rows) => db.folders.bulkPut(rows));
+  await syncOne('notes', listNotes, (rows) => db.notes.bulkPut(rows));
+  await syncOne('measurements', listMeasurements, (rows) => db.measurements.bulkPut(rows));
+  await syncOne('nutrition', listNutrition, (rows) => db.nutrition.bulkPut(rows));
+  await syncOne('customExercises', listCustomExercises, (rows) => db.customExercises.bulkPut(rows));
   // A never-saved settings record (updatedAt 0) has nothing worth pushing.
-  await syncOne('settings', settings.updatedAt > 0 ? [settings] : [], (rows) =>
-    db.settings.bulkPut(rows),
+  await syncOne(
+    'settings',
+    async () => {
+      const settings = await getSettings();
+      return settings.updatedAt > 0 ? [settings] : [];
+    },
+    (rows) => db.settings.bulkPut(rows),
   );
   return { pulled, pushFailures };
 }
+
+export type SyncController = {
+  stop(): Promise<void>;
+};
 
 /**
  * Starts LWW mirroring of the local Dexie tables against
@@ -97,42 +118,73 @@ async function syncAll(uid: string): Promise<{ pulled: number; pushFailures: num
 export function startSync(
   uid: string,
   onState?: (s: SyncState) => void,
-  onPulled?: () => void,
-): () => void {
-  const report = (s: SyncState): void => onState?.(s);
+  onPulled?: () => void | Promise<void>,
+): SyncController {
+  let disposed = false;
+  let rerunRequested = false;
+  let inFlight: Promise<void> | null = null;
+  const isActive = (): boolean => !disposed;
+  const report = (s: SyncState): void => {
+    if (isActive()) onState?.(s);
+  };
 
-  const run = (): void => {
+  const runOnce = async (): Promise<void> => {
+    if (!isActive()) return;
     if (isBrowser() && navigator.onLine === false) {
       report('offline');
       return;
     }
     report('pending');
-    void syncAll(uid).then(
-      ({ pulled, pushFailures }) => {
-        report(pushFailures > 0 ? 'error' : 'synced');
-        if (pulled > 0) onPulled?.();
-      },
-      () => report('error'),
-    );
+    try {
+      const { pulled, pushFailures } = await syncAll(uid, isActive);
+      if (!isActive()) return;
+      report(pushFailures > 0 ? 'error' : 'synced');
+      if (pulled > 0 && isActive()) await onPulled?.();
+    } catch {
+      report('error');
+    }
   };
 
-  run();
+  const requestRun = (): void => {
+    if (!isActive()) return;
+    if (inFlight) {
+      rerunRequested = true;
+      return;
+    }
+    inFlight = (async () => {
+      do {
+        rerunRequested = false;
+        await runOnce();
+      } while (rerunRequested && isActive());
+    })().finally(() => {
+      inFlight = null;
+    });
+  };
 
-  if (!isBrowser()) return () => {};
+  requestRun();
 
   const onVisible = (): void => {
-    if (document.visibilityState === 'visible') run();
+    if (document.visibilityState === 'visible') requestRun();
   };
   const onOffline = (): void => report('offline');
 
-  window.addEventListener('online', run);
-  window.addEventListener('offline', onOffline);
-  document.addEventListener('visibilitychange', onVisible);
+  if (isBrowser()) {
+    window.addEventListener('online', requestRun);
+    window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisible);
+  }
 
-  return () => {
-    window.removeEventListener('online', run);
-    window.removeEventListener('offline', onOffline);
-    document.removeEventListener('visibilitychange', onVisible);
+  return {
+    async stop(): Promise<void> {
+      disposed = true;
+      rerunRequested = false;
+      if (isBrowser()) {
+        window.removeEventListener('online', requestRun);
+        window.removeEventListener('offline', onOffline);
+        document.removeEventListener('visibilitychange', onVisible);
+      }
+      await inFlight;
+    },
   };
 }
 

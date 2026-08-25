@@ -69,8 +69,8 @@ export default function App() {
   const { t, i18n } = useTranslation();
   registerTranslator(t);
   const user = useStore((s) => s.user);
+  const authState = useStore((s) => s.authState);
   const setUser = useStore((s) => s.setUser);
-  const init = useStore((s) => s.init);
   const locale = useStore((s) => s.settings.locale);
 
   useEffect(() => {
@@ -94,13 +94,20 @@ export default function App() {
   }, [setUser]);
 
   useEffect(() => {
-    if (user) void init();
-  }, [user, init]);
-
-  useEffect(() => {
     if (locale && locale !== i18n.language) setLocale(locale);
   }, [locale, i18n.language]);
 
+  if (authState === 'error') {
+    return (
+      <div
+        className="screen"
+        role="alert"
+        style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', textAlign: 'center' }}
+      >
+        {t('login.dataError')}
+      </div>
+    );
+  }
   if (user === undefined && import.meta.env.VITE_E2E !== '1') {
     return (
       <div

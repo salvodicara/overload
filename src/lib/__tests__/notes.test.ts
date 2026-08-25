@@ -2,9 +2,11 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const pushRecord = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const startSync = vi.hoisted(() => vi.fn(() => ({ stop: async () => undefined })));
 vi.mock('../sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../sync')>()),
   pushRecord,
+  startSync,
 }));
 
 import { db, saveNote, saveRoutine } from '../db';
@@ -12,6 +14,8 @@ import { exerciseJournal, routineTechniqueMigrations } from '../notes';
 import type { ExerciseNote, Routine, Workout } from '../types';
 import { useStore } from '../../state/useStore';
 import workoutSource from '../../screens/Workout.tsx?raw';
+
+const storage = new Map<string, string>();
 
 const routineWith = (exerciseId: string, note: string): Routine => ({
   id: crypto.randomUUID(),
@@ -122,6 +126,14 @@ describe('exercise journal', () => {
 
 describe('note persistence', () => {
   beforeEach(async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    });
+    useStore.getState().setUser(null);
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
+    storage.clear();
     pushRecord.mockClear();
     await Promise.all([db.notes.clear(), db.routines.clear(), db.workouts.clear()]);
     useStore.setState({
@@ -132,6 +144,10 @@ describe('note persistence', () => {
       active: null,
       pendingRoutineChanges: null,
     });
+    storage.set('overload_uid', 'user-1');
+    useStore.getState().setUser({ uid: 'user-1', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    pushRecord.mockClear();
   });
 
   it('reload migrates a routine note once and preserves imported entries', async () => {
@@ -177,7 +193,6 @@ describe('note persistence', () => {
 
   it('pushes a migrated routine technique when authenticated', async () => {
     await saveRoutine(routineWith('bench', 'Scapole ferme'));
-    useStore.setState({ user: { uid: 'user-1', name: null } });
 
     await useStore.getState().reload();
 
@@ -190,8 +205,6 @@ describe('note persistence', () => {
   });
 
   it('pushes a saved technique when authenticated', async () => {
-    useStore.setState({ user: { uid: 'user-1', name: null } });
-
     await useStore.getState().saveTechniqueNote('bench', 'Brace hard');
 
     expect(pushRecord).toHaveBeenCalledWith(

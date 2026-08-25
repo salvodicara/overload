@@ -20,6 +20,7 @@
     "google": "Continua con Google",
     "loading": "Accesso in corso…",
     "error": "Accesso non riuscito. Riprova: se il problema resta, dimmelo.",
+    "dataError": "Non è stato possibile aprire i dati in sicurezza. Chiudi l'app e riprova.",
     "reset": "Problemi di accesso? Ripulisci l'app e riprova"
   },
   "phase": {

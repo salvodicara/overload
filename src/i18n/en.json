@@ -20,6 +20,7 @@
     "google": "Continue with Google",
     "loading": "Signing in…",
     "error": "Sign-in failed. Try again; tell me if it persists.",
+    "dataError": "Your data could not be opened safely. Close the app and try again.",
     "reset": "Sign-in trouble? Clean the app and retry"
   },
   "phase": {

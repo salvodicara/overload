@@ -1,4 +1,6 @@
 import 'fake-indexeddb/auto';
+import Dexie from 'dexie';
+import type { PromiseExtended } from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TEMPLATES } from '../../data/templates';
 import {
@@ -26,23 +28,25 @@ import type { Routine, Workout } from '../types';
 const {
   pushRecordMock,
   pushRecordStrictMock,
+  acquireWakeLockMock,
   releaseWakeLockMock,
   startSyncMock,
   startSyncObserverMock,
   stopSyncMock,
 } = vi.hoisted(() => {
   const startSyncObserverMock = vi.fn((_uid: string) => {});
-  const stopSyncMock = vi.fn();
+  const stopSyncMock = vi.fn(async () => {});
   return {
     pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
     pushRecordStrictMock: vi.fn(
       async (_uid: string, _collection: string, _record: unknown) => {},
     ),
+    acquireWakeLockMock: vi.fn(),
     releaseWakeLockMock: vi.fn(),
     startSyncObserverMock,
     startSyncMock: vi.fn((uid: string) => {
       startSyncObserverMock(uid);
-      return stopSyncMock;
+      return { stop: stopSyncMock };
     }),
     stopSyncMock,
   };
@@ -56,7 +60,7 @@ vi.mock('../sync', () => ({
 }));
 
 vi.mock('../wakeLock', () => ({
-  acquireWakeLock: vi.fn(),
+  acquireWakeLock: acquireWakeLockMock,
   releaseWakeLock: releaseWakeLockMock,
 }));
 
@@ -64,6 +68,16 @@ import { BackupCloudSyncError, useStore, type ActiveSession } from '../../state/
 
 const originalReload = useStore.getState().reload;
 const storage = new Map<string, string>();
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 
 function workout(id: string, date: string, startTs: number): Workout {
   return {
@@ -77,7 +91,14 @@ function workout(id: string, date: string, startTs: number): Workout {
   };
 }
 
+async function login(uid: string, name: string | null = null): Promise<void> {
+  storage.set('overload_uid', uid);
+  useStore.getState().setUser({ uid, name });
+  await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+}
+
 beforeEach(async () => {
+  vi.restoreAllMocks();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => storage.set(key, value),
@@ -87,12 +108,15 @@ beforeEach(async () => {
   pushRecordMock.mockClear();
   pushRecordStrictMock.mockReset();
   pushRecordStrictMock.mockResolvedValue(undefined);
+  acquireWakeLockMock.mockClear();
   releaseWakeLockMock.mockClear();
   startSyncMock.mockClear();
   startSyncObserverMock.mockReset();
-  stopSyncMock.mockClear();
+  stopSyncMock.mockReset();
+  stopSyncMock.mockResolvedValue(undefined);
   useStore.setState({
     user: null,
+    authState: 'signedOut',
     reload: originalReload,
     workouts: [],
     routines: [],
@@ -135,9 +159,10 @@ beforeEach(async () => {
   );
 });
 
-afterEach(() => {
+afterEach(async () => {
   useStore.getState().setUser(null);
-  useStore.setState({ user: null, reload: originalReload });
+  await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
+  useStore.setState({ user: null, authState: 'signedOut', reload: originalReload });
 });
 
 const COMPLETE_BACKUP: BackupV2 = {
@@ -194,7 +219,78 @@ describe('clearAllUserData', () => {
 });
 
 describe('account transitions', () => {
-  it('preserves data on sign-out but clears every prior-account surface before syncing a different UID', async () => {
+  it('updates same-UID profile metadata after readiness without rebooting or rehydrating', async () => {
+    await login('account-a', 'A first');
+    const readSpy = vi.spyOn(db.routines, 'toArray');
+    const clearSpy = vi.spyOn(db.routines, 'clear');
+
+    useStore.getState().setUser({ uid: 'account-a', name: 'A latest' });
+
+    expect(useStore.getState()).toMatchObject({
+      user: { uid: 'account-a', name: 'A latest' },
+      authState: 'ready',
+    });
+    expect(readSpy).not.toHaveBeenCalled();
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(startSyncMock).toHaveBeenCalledOnce();
+  });
+
+  it('joins duplicate same-UID notifications while stop and clear are deferred', async () => {
+    storage.set('overload_uid', 'account-a');
+    useStore.getState().setUser({ uid: 'account-a', name: 'A' });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    await restoreBackupCollections(COMPLETE_BACKUP);
+
+    const stop = deferred<void>();
+    stopSyncMock.mockReturnValueOnce(stop.promise);
+    const clear = deferred<void>();
+    const originalClear = db.workouts.clear.bind(db.workouts);
+    const clearSpy = vi.spyOn(db.workouts, 'clear').mockImplementationOnce(() =>
+      Dexie.waitFor(clear.promise).then(() => originalClear()) as PromiseExtended<void>,
+    );
+
+    useStore.getState().setUser({ uid: 'account-b', name: 'B first' });
+    useStore.getState().setUser({ uid: 'account-b', name: 'B latest' });
+
+    expect(useStore.getState()).toMatchObject({ user: undefined, authState: 'loading' });
+    expect(storage.get('overload_uid')).toBe('account-a');
+    expect(clearSpy).not.toHaveBeenCalled();
+    expect(startSyncMock).toHaveBeenCalledTimes(1);
+
+    stop.resolve();
+    await vi.waitFor(() => expect(clearSpy).toHaveBeenCalledOnce());
+    expect(storage.get('overload_uid')).toBe('account-a');
+    expect(startSyncMock).toHaveBeenCalledTimes(1);
+
+    clear.resolve();
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    expect(useStore.getState().user).toEqual({ uid: 'account-b', name: 'B latest' });
+    expect(storage.get('overload_uid')).toBe('account-b');
+    expect(startSyncMock.mock.calls.map(([uid]) => uid)).toEqual(['account-a', 'account-b']);
+    expect(await Promise.all([
+      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
+      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
+    ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('keeps the previous UID marker and blocks readiness when account clearing rejects', async () => {
+    storage.set('overload_uid', 'account-a');
+    useStore.getState().setUser({ uid: 'account-a', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    await restoreBackupCollections(COMPLETE_BACKUP);
+    vi.spyOn(db.workouts, 'clear').mockRejectedValueOnce(new Error('storage unavailable'));
+
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('error'));
+
+    expect(useStore.getState().user).toBeUndefined();
+    expect(storage.get('overload_uid')).toBe('account-a');
+    expect(startSyncMock.mock.calls.map(([uid]) => uid)).toEqual(['account-a']);
+    expect(await db.workouts.count()).toBe(1);
+  });
+
+  it('preserves the signed-out active snapshot, releases its wake lock, and reacquires only after same-UID readiness', async () => {
     const active: ActiveSession = {
       routineId: 'r1',
       startTs: 1,
@@ -215,12 +311,11 @@ describe('account transitions', () => {
         },
       ],
     };
-    await restoreBackupCollections(COMPLETE_BACKUP);
     storage.set('overload_uid', 'account-a');
     storage.set('overload_active', JSON.stringify(active));
+    useStore.getState().setUser({ uid: 'account-a', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
     useStore.setState({
-      ...COMPLETE_BACKUP,
-      user: null,
       active,
       restUntil: 10_000,
       restExerciseId: 'bench',
@@ -231,64 +326,24 @@ describe('account transitions', () => {
       },
     });
 
-    useStore.getState().setUser({ uid: 'account-a', name: null });
-    expect(startSyncMock).toHaveBeenCalledWith('account-a', expect.any(Function), expect.any(Function));
-
     useStore.getState().setUser(null);
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
 
-    expect(stopSyncMock).toHaveBeenCalledOnce();
-    expect(storage.has('overload_active')).toBe(true);
-    expect(await Promise.all([
-      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
-      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
-    ])).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
-
-    const syncSnapshots: Promise<{
-      uid: string;
-      counts: number[];
-      state: ReturnType<typeof useStore.getState>;
-      persistedActive: string | undefined;
-    }>[] = [];
-    startSyncObserverMock.mockImplementation((uid: string) => {
-      syncSnapshots.push((async () => ({
-        uid,
-        counts: await Promise.all([
-          db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
-          db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
-        ]),
-        state: useStore.getState(),
-        persistedActive: storage.get('overload_active'),
-      }))());
-    });
-
-    useStore.getState().setUser({ uid: 'account-b', name: null });
-    await vi.waitFor(() => expect(startSyncMock).toHaveBeenCalledTimes(2));
-
-    const switched = await syncSnapshots[0];
-    expect(switched.uid).toBe('account-b');
-    expect(switched.counts).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(switched.persistedActive).toBeUndefined();
-    expect(switched.state).toMatchObject({
-      workouts: [],
-      routines: [],
-      folders: [],
-      notes: [],
-      measurements: [],
-      nutrition: [],
-      customExercises: [],
-      settings: { id: 'settings', updatedAt: 0 },
-      active: null,
-      restUntil: null,
-      restExerciseId: null,
-      restTotalSec: null,
-      pendingRoutineChanges: null,
-    });
     expect(releaseWakeLockMock).toHaveBeenCalledOnce();
+    expect(storage.has('overload_active')).toBe(true);
+    expect(useStore.getState().active).toEqual(active);
+    expect(acquireWakeLockMock).not.toHaveBeenCalled();
+
+    useStore.getState().setUser({ uid: 'account-a', name: 'A again' });
+    expect(acquireWakeLockMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    expect(acquireWakeLockMock).toHaveBeenCalledOnce();
+    expect(useStore.getState().active).toEqual(active);
   });
 
   it('cancels a queued routine push when the account signs out', async () => {
-    storage.set('overload_uid', 'account-a');
-    useStore.getState().setUser({ uid: 'account-a', name: null });
+    await login('account-a');
     await useStore.getState().saveRoutine({
       id: 'queued',
       name: 'Queued routine',
@@ -300,6 +355,129 @@ describe('account transitions', () => {
     await new Promise((resolve) => setTimeout(resolve, 650));
 
     expect(pushRecordMock).not.toHaveBeenCalled();
+  });
+
+  it('discards a reload snapshot whose owner changes while the local read is pending', async () => {
+    await login('account-a');
+    const stale = workout('stale-a', '2026-08-25', 1);
+    const read = deferred<Workout[]>();
+    const readSpy = vi
+      .spyOn(db.workouts, 'toArray')
+      .mockReturnValueOnce(read.promise as PromiseExtended<Workout[]>);
+
+    const reload = useStore.getState().reload();
+    await vi.waitFor(() => expect(readSpy).toHaveBeenCalledOnce());
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    read.resolve([stale]);
+    await reload;
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    expect(useStore.getState().user?.uid).toBe('account-b');
+    expect(useStore.getState().workouts).toEqual([]);
+    expect(await db.workouts.toArray()).toEqual([]);
+  });
+
+  it('fences a deferred routine write before a different account can clear and become ready', async () => {
+    await login('account-a');
+    const write = deferred<string>();
+    const putSpy = vi
+      .spyOn(db.routines, 'put')
+      .mockReturnValueOnce(write.promise as PromiseExtended<string>);
+    const clearSpy = vi.spyOn(db.routines, 'clear');
+
+    const save = useStore.getState().saveRoutine({
+      id: 'routine-a',
+      name: 'Account A routine',
+      exercises: [],
+      updatedAt: 1,
+    });
+    try {
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(useStore.getState().authState).toBe('loading');
+      expect(clearSpy).not.toHaveBeenCalled();
+    } finally {
+      write.resolve('routine-a');
+    }
+    await save;
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    expect(useStore.getState().routines).toEqual([]);
+    expect(await db.routines.toArray()).toEqual([]);
+    expect(pushRecordMock).not.toHaveBeenCalledWith(
+      'account-b',
+      'routines',
+      expect.objectContaining({ id: 'routine-a' }),
+    );
+  });
+
+  it('fences deferred workout completion from the next account', async () => {
+    await login('account-a');
+    const routine: Routine = {
+      id: 'routine-a',
+      name: 'A routine',
+      exercises: [{ exerciseId: 'bench', sets: 1, repMin: 5, repMax: 5, restSec: 60 }],
+      updatedAt: 1,
+    };
+    useStore.setState({
+      routines: [routine],
+      active: {
+        routineId: routine.id,
+        startTs: 1,
+        ex: [
+          {
+            exerciseId: 'bench',
+            tracking: 'weight_reps',
+            hintKey: 'suggest.repeat',
+            sets: [{ weightKg: 20, reps: 5, durationSec: null, kind: 'working', done: true }],
+          },
+        ],
+      },
+    });
+    const write = deferred<string>();
+    const putSpy = vi
+      .spyOn(db.workouts, 'put')
+      .mockReturnValueOnce(write.promise as PromiseExtended<string>);
+    const clearSpy = vi.spyOn(db.workouts, 'clear');
+
+    const finish = useStore.getState().finishWorkout();
+    try {
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(useStore.getState().authState).toBe('loading');
+      expect(clearSpy).not.toHaveBeenCalled();
+    } finally {
+      write.resolve('workout-a');
+    }
+    await finish;
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+    expect(useStore.getState().workouts).toEqual([]);
+    expect(await db.workouts.toArray()).toEqual([]);
+    expect(pushRecordMock).not.toHaveBeenCalledWith(
+      'account-b',
+      'workouts',
+      expect.anything(),
+    );
+  });
+
+  it('stops an authenticated restore loop when its owner changes', async () => {
+    await login('account-a');
+    const firstPush = deferred<void>();
+    pushRecordStrictMock.mockReturnValueOnce(firstPush.promise);
+
+    const restore = useStore.getState().restoreBackup(COMPLETE_BACKUP);
+    await vi.waitFor(() => expect(pushRecordStrictMock).toHaveBeenCalledOnce());
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    firstPush.resolve();
+    await restore;
+
+    expect(pushRecordStrictMock).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().workouts).toEqual([]);
+    expect(await db.workouts.toArray()).toEqual([]);
   });
 });
 
@@ -359,6 +537,23 @@ describe('neutral starter data', () => {
 
     expect(searchExercises('Private carry', null, 'en')).toEqual([]);
   });
+
+  it('keeps both custom exercises searchable after two sequential creations', async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })));
+    await loadCatalog();
+    vi.stubGlobal('fetch', originalFetch);
+    await login('account-a');
+
+    const first = await useStore.getState().createCustomExercise('Alpha carry', 'core');
+    const second = await useStore.getState().createCustomExercise('Beta carry', 'core');
+
+    expect(
+      searchExercises('carry', null, 'en')
+        .map((exercise) => exercise.id)
+        .filter((id) => id.startsWith('custom:')),
+    ).toEqual([first, second]);
+  });
 });
 
 describe('restoreBackupCollections', () => {
@@ -394,28 +589,18 @@ describe('restoreBackupCollections', () => {
 });
 
 describe('backup restore store action', () => {
-  it('restores all collections, reloads once, and never syncs an anonymous import', async () => {
-    const reload = vi.fn(originalReload);
-    useStore.setState({ user: null, reload });
+  it('does not admit an anonymous restore before an account is ready', async () => {
+    useStore.setState({ user: null, authState: 'signedOut' });
 
     await useStore.getState().restoreBackup(COMPLETE_BACKUP);
 
-    expect(reload).toHaveBeenCalledOnce();
-    expect(useStore.getState()).toMatchObject({
-      workouts: COMPLETE_BACKUP.workouts,
-      routines: COMPLETE_BACKUP.routines,
-      folders: COMPLETE_BACKUP.folders,
-      notes: COMPLETE_BACKUP.notes,
-      measurements: COMPLETE_BACKUP.measurements,
-      nutrition: COMPLETE_BACKUP.nutrition,
-      customExercises: COMPLETE_BACKUP.customExercises,
-      settings: COMPLETE_BACKUP.settings,
-    });
+    expect(await listWorkouts()).toEqual([]);
+    expect(useStore.getState().workouts).toEqual([]);
     expect(pushRecordStrictMock).not.toHaveBeenCalled();
   });
 
   it('syncs an authenticated restore one collection at a time', async () => {
-    useStore.setState({ user: { uid: 'u1', name: null }, reload: vi.fn(originalReload) });
+    await login('u1');
 
     await useStore.getState().restoreBackup(COMPLETE_BACKUP);
 
@@ -432,8 +617,7 @@ describe('backup restore store action', () => {
   });
 
   it('rejects an authenticated restore when a required cloud write fails', async () => {
-    const reload = vi.fn(originalReload);
-    useStore.setState({ user: { uid: 'u1', name: null }, reload });
+    await login('u1');
     pushRecordStrictMock.mockRejectedValueOnce(new Error('permission denied'));
 
     const restore = useStore.getState().restoreBackup(COMPLETE_BACKUP);
@@ -441,7 +625,6 @@ describe('backup restore store action', () => {
     await expect(restore).rejects.toBeInstanceOf(BackupCloudSyncError);
     await expect(restore).rejects.toMatchObject({ cause: new Error('permission denied') });
 
-    expect(reload).toHaveBeenCalledOnce();
     expect(await listWorkouts()).toEqual(COMPLETE_BACKUP.workouts);
   });
 });
