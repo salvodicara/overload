@@ -512,3 +512,7 @@ Use the finishing-development-branch skill. Add Firebase Hosting cache headers s
 - [ ] **Step 5: Smoke-test production and record evidence**
 
 Open the deployed URL and verify login shell, Home, routine editing, warm-up, active workout, Technique/This session, finish/history/journal, unit switch, backup download/import preview, offline reload, and both locales. Confirm the deployed revision matches the pushed main commit. Commit any production-only fix with a focused regression test, redeploy, and repeat this step.
+
+- [ ] **Step 6: Deliver a result-only visual gallery**
+
+Capture the deployed Italian mobile experience with realistic data across Login, Home, Train, Routine Editor, active Workout, both note scopes, Summary, History, Workout Detail, Exercise Detail/Journal, Library, Progress, Nutrition, Profile, and Import/Export. Include representative dark/light views where the theme materially changes the result. Store the final images under `~/Workspace/Codex` outside the repository and present them with the live URL; keep the user-facing handoff focused on the product result, not implementation details.
