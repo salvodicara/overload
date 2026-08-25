@@ -15,6 +15,7 @@ import type { ExerciseNote, Routine, Workout } from '../types';
 import { useStore } from '../../state/useStore';
 import workoutSource from '../../screens/Workout.tsx?raw';
 import noteEditorSource from '../../components/NoteEditor.tsx?raw';
+import storeSource from '../../state/useStore.ts?raw';
 
 const storage = new Map<string, string>();
 
@@ -346,6 +347,25 @@ describe('note persistence', () => {
     }
   });
 
+  it('settles a failed debounce save so a later Technique retry can persist', async () => {
+    const timer = fakeTechniqueTimer();
+    const put = vi.spyOn(db.notes, 'put').mockRejectedValueOnce(new Error('disk full'));
+    try {
+      useStore.getState().queueTechniqueNote('bench', 'Failed debounce');
+      timer.release();
+      await vi.waitFor(() => expect(put).toHaveBeenCalledOnce());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      await expect(useStore.getState().saveTechniqueNote('bench', 'Recovered cue')).resolves.toMatchObject({
+        status: 'applied',
+      });
+      expect((await db.notes.get('bench'))?.technique).toBe('Recovered cue');
+    } finally {
+      put.mockRestore();
+      timer.restore();
+    }
+  });
+
   it('uses the existing Technique save boundary to consume a queued draft once', async () => {
     const timer = fakeTechniqueTimer();
     try {
@@ -446,6 +466,15 @@ describe('note persistence', () => {
         'user-2',
         'notes',
         expect.objectContaining({ technique: 'Account A durable cue' }),
+      );
+      await expect(useStore.getState().saveTechniqueNote('bench', 'Account B cue')).resolves.toMatchObject({
+        status: 'applied',
+      });
+      expect((await db.notes.get('bench'))?.technique).toBe('Account B cue');
+      expect(pushRecord).toHaveBeenCalledWith(
+        'user-2',
+        'notes',
+        expect.objectContaining({ technique: 'Account B cue' }),
       );
     } finally {
       write.resolve('bench');
@@ -630,5 +659,9 @@ describe('active Workout note API contract', () => {
 
   it('locks Technique text input while Done is committing', () => {
     expect(noteEditorSource).toMatch(/<textarea[\s\S]*disabled=\{disabled\}/);
+  });
+
+  it('detaches pending Technique remote sequences on account invalidation', () => {
+    expect(storeSource).toContain('techniqueSaveSequences.clear()');
   });
 });

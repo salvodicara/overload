@@ -251,6 +251,7 @@ type PendingTechniqueSave = {
 };
 type TechniqueSaveSequence = {
   remoteTail: Promise<void>;
+  reservations: number;
 };
 const techniqueSaveTimers = new Map<string, PendingTechniqueSave>();
 const techniqueSaveSequences = new Map<string, TechniqueSaveSequence>();
@@ -262,6 +263,7 @@ function clearRoutinePushTimers(): void {
 function clearTechniqueSaveTimers(): void {
   for (const pending of techniqueSaveTimers.values()) clearTimeout(pending.timer);
   techniqueSaveTimers.clear();
+  techniqueSaveSequences.clear();
 }
 
 function techniqueSequenceKey(owner: Owner, exerciseId: string): string {
@@ -278,10 +280,11 @@ function queueTechniqueSave(
   const key = techniqueSequenceKey(owner, exerciseId);
   let sequence = techniqueSaveSequences.get(key);
   if (!sequence) {
-    sequence = { remoteTail: Promise.resolve() };
+    sequence = { remoteTail: Promise.resolve(), reservations: 0 };
     techniqueSaveSequences.set(key, sequence);
   }
   const current = sequence;
+  const reservation = ++current.reservations;
   const admitted = owns(owner);
   const local = withLocalWriteBarrier(async () => {
     if (!admitted) return null;
@@ -304,11 +307,20 @@ function queueTechniqueSave(
     );
     current.remoteTail = remoteTail;
     void remoteTail.then(() => {
-      if (techniqueSaveSequences.get(key) === current && current.remoteTail === remoteTail) {
+      if (
+        techniqueSaveSequences.get(key) === current &&
+        current.reservations === reservation &&
+        current.remoteTail === remoteTail
+      ) {
         techniqueSaveSequences.delete(key);
       }
     });
     return accountActionForOwner(owner, undefined);
+  });
+  void saving.catch(() => {
+    if (techniqueSaveSequences.get(key) === current && current.reservations === reservation) {
+      techniqueSaveSequences.delete(key);
+    }
   });
   return saving;
 }
@@ -1143,7 +1155,7 @@ export const useStore = create<Store>((set, get) => ({
         text,
         () => get().notes,
         (notes) => set({ notes }),
-      );
+      ).catch(() => {});
     }, 500);
     techniqueSaveTimers.set(exerciseId, pending);
   },
