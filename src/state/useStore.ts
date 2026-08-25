@@ -40,6 +40,7 @@ import { todayISO } from '../lib/format';
 import { loadCatalog, registerCustomExercises } from '../lib/exercises';
 import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, Workout } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
+import { routineTechniqueMigrations } from '../lib/notes';
 
 export type Route =
   | { view: 'home' }
@@ -187,6 +188,7 @@ export type Store = {
   saveFolder(f: Folder): Promise<void>;
   deleteFolder(id: string): Promise<void>;
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
+  saveTechniqueNote(exerciseId: string, text: string): Promise<void>;
   addNoteEntry(exerciseId: string, text: string): Promise<void>;
   importNotes(incoming: ExerciseNote[]): Promise<number>;
   createCustomExercise(name: string, muscleGroup: string): Promise<string>;
@@ -298,8 +300,28 @@ export const useStore = create<Store>((set, get) => ({
         listCustomExercises(),
         getSettings(),
       ]);
+    const techniqueMigrations = routineTechniqueMigrations(routines, notes);
+    const uid = get().user?.uid;
+    for (const migration of techniqueMigrations) {
+      await saveNote(migration);
+      if (uid) void pushRecord(uid, 'notes', migration);
+    }
+    const migratedById = new Map(techniqueMigrations.map((note) => [note.id, note]));
+    const mergedNotes = [
+      ...notes.map((note) => migratedById.get(note.id) ?? note),
+      ...techniqueMigrations.filter((note) => !notes.some((existing) => existing.id === note.id)),
+    ];
     registerCustomExercises(customExercises);
-    set({ workouts, routines, folders, notes, measurements, nutrition, customExercises, settings });
+    set({
+      workouts,
+      routines,
+      folders,
+      notes: mergedNotes,
+      measurements,
+      nutrition,
+      customExercises,
+      settings,
+    });
   },
 
   async updateSettings(patch) {
@@ -431,6 +453,10 @@ export const useStore = create<Store>((set, get) => ({
       return null;
     }
     const flagged = flagPrs(doneSets, get().workouts, date);
+    const exerciseNotes = active.ex.flatMap(({ exerciseId, sessionNote }) => {
+      const text = sessionNote?.trim();
+      return text ? [{ exerciseId, text }] : [];
+    });
     const workout: Workout = {
       id: workoutId('app', date, `${routine?.name ?? 'w'}-${active.startTs}`),
       routineId: active.routineId,
@@ -440,6 +466,7 @@ export const useStore = create<Store>((set, get) => ({
       endTs: Date.now(),
       sets: flagged,
       volumeKg: computeVolume(flagged),
+      ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
       updatedAt: Date.now(),
       source: 'app',
     };
@@ -652,6 +679,19 @@ export const useStore = create<Store>((set, get) => ({
     const next = structuredClone(routine);
     next.exercises.push({ exerciseId, sets: 3, repMin: 8, repMax: 12, restSec: 90 });
     await get().saveRoutine(next);
+  },
+
+  async saveTechniqueNote(exerciseId, text) {
+    const existing = get().notes.find((note) => note.id === exerciseId);
+    const next: ExerciseNote = {
+      ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
+      technique: text.trim(),
+      updatedAt: Date.now(),
+    };
+    await saveNote(next);
+    set({ notes: [...get().notes.filter((note) => note.id !== exerciseId), next] });
+    const uid = get().user?.uid;
+    if (uid) void pushRecord(uid, 'notes', next);
   },
 
   async deleteWorkout(id) {

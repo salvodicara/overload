@@ -30,6 +30,7 @@ export type Workout = {
   sets: SetLog[];
   volumeKg: number;
   note?: string;
+  exerciseNotes?: { exerciseId: string; text: string }[];
   updatedAt: number;
   source: 'app' | 'hevy';
 };
@@ -62,6 +63,7 @@ export type Routine = {
 export type ExerciseNote = {
   /** exerciseId */
   id: string;
+  technique?: string;
   entries: { date: string; text: string }[];
   updatedAt: number;
 };
