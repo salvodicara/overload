@@ -345,6 +345,78 @@ describe('note persistence', () => {
     }
   });
 
+  it('flushes the latest queued Technique edit once at an explicit Done boundary', async () => {
+    const timer = fakeTechniqueTimer();
+    try {
+      useStore.getState().queueTechniqueNote('bench', '  Brace before unracking  ');
+
+      const result = await useStore
+        .getState()
+        .flushTechniqueNote('bench', '  Brace before unracking  ');
+
+      expect(result.status).toBe('applied');
+      expect(useStore.getState().notes).toEqual([
+        expect.objectContaining({ id: 'bench', technique: 'Brace before unracking' }),
+      ]);
+      expect(await db.notes.get('bench')).toEqual(
+        expect.objectContaining({ id: 'bench', technique: 'Brace before unracking' }),
+      );
+      expect(pushRecord).toHaveBeenCalledTimes(1);
+
+      timer.release();
+      await Promise.resolve();
+      expect(pushRecord).toHaveBeenCalledTimes(1);
+    } finally {
+      timer.restore();
+    }
+  });
+
+  it('commits Done for account A before an account switch and never sends it to account B', async () => {
+    useStore.getState().queueTechniqueNote('bench', 'Account A cue');
+    const result = await useStore.getState().flushTechniqueNote('bench', 'Account A cue');
+
+    expect(result.status).toBe('applied');
+    expect(await db.notes.get('bench')).toEqual(
+      expect.objectContaining({ technique: 'Account A cue' }),
+    );
+    expect(pushRecord).toHaveBeenCalledWith(
+      'user-1',
+      'notes',
+      expect.objectContaining({ id: 'bench', technique: 'Account A cue' }),
+    );
+
+    storage.set('overload_uid', 'user-1');
+    useStore.getState().setUser({ uid: 'user-2', name: null });
+    await useStore.getState().init();
+
+    expect(useStore.getState().user?.uid).toBe('user-2');
+    expect(pushRecord).not.toHaveBeenCalledWith(
+      'user-2',
+      'notes',
+      expect.objectContaining({ technique: 'Account A cue' }),
+    );
+  });
+
+  it('flushes the final text when Done races an already-started debounce save', async () => {
+    const timer = fakeTechniqueTimer();
+    try {
+      useStore.getState().queueTechniqueNote('bench', 'First cue');
+      timer.release();
+      useStore.getState().queueTechniqueNote('bench', 'Final cue');
+
+      await useStore.getState().flushTechniqueNote('bench', 'Final cue');
+
+      expect(await db.notes.get('bench')).toEqual(
+        expect.objectContaining({ technique: 'Final cue' }),
+      );
+      expect(useStore.getState().notes).toEqual([
+        expect.objectContaining({ id: 'bench', technique: 'Final cue' }),
+      ]);
+    } finally {
+      timer.restore();
+    }
+  });
+
   it('pushes a saved technique when authenticated', async () => {
     await useStore.getState().saveTechniqueNote('bench', 'Brace hard');
 
@@ -420,6 +492,7 @@ describe('active Workout note API contract', () => {
   it('uses Technique and This session actions without the legacy dated-entry action', () => {
     expect(workoutSource).not.toContain('addNoteEntry');
     expect(workoutSource).toContain('queueTechniqueNote');
+    expect(workoutSource).toContain('flushTechniqueNote');
     expect(workoutSource).toContain('updateSessionNote');
     expect(workoutSource).toContain('note?.technique');
     expect(workoutSource).toContain('e.sessionNote');

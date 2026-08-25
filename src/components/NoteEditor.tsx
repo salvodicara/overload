@@ -18,7 +18,7 @@ export function NoteEditor({
   labelledBy: string;
   doneLabel: string;
   onChangeText: (text: string) => void;
-  onDone: () => void;
+  onDone: (text: string) => void | Promise<void>;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -47,7 +47,11 @@ export function NoteEditor({
           onChangeText(el.value);
         }}
       />
-      <button type="button" className="btn btn-ghost note-editor__done" onClick={onDone}>
+      <button
+        type="button"
+        className="btn btn-ghost note-editor__done"
+        onClick={() => onDone(ref.current?.value ?? initial)}
+      >
         {doneLabel}
       </button>
     </div>

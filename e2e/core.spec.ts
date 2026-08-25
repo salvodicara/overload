@@ -772,6 +772,14 @@ test('technique persists globally and session notes stay on their workouts', asy
   const session = page.getByRole('button', { name: /^this session|^questa sessione/i }).first();
   await expect(technique).toHaveAttribute('aria-expanded', 'false');
   await expect(session).toHaveAttribute('aria-expanded', 'false');
+  expect(
+    await page.locator('.workout-note__trigger').evaluateAll((triggers) =>
+      triggers.every((trigger) => {
+        const controlledId = trigger.getAttribute('aria-controls');
+        return controlledId !== null && document.getElementById(controlledId) !== null;
+      }),
+    ),
+  ).toBe(true);
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 700 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
@@ -786,15 +794,56 @@ test('technique persists globally and session notes stay on their workouts', asy
 
   await technique.click();
   await expect(technique).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    await page.getByRole('textbox', { name: /^technique|^tecnica/i }).evaluate((editor) => {
+      const labelId = editor.getAttribute('aria-labelledby');
+      return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
+    }),
+  ).toBe('Technique');
   await page.getByLabel(/^technique|^tecnica/i).fill('Seat at 4');
   const done = page.getByRole('button', { name: /^done|^fatto/i });
   expect(
     await done.evaluate((button) => button.getBoundingClientRect().height),
   ).toBeGreaterThanOrEqual(44);
   await done.click();
+  await expect(done).toHaveCount(0);
+  await expect(technique).toContainText('Seat at 4');
+  expect(
+    await page.evaluate(async () => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('overload');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      const note = await new Promise<{ technique?: string } | undefined>((resolve, reject) => {
+        const request = database
+          .transaction('notes', 'readonly')
+          .objectStore('notes')
+          .get('Barbell_Squat');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      database.close();
+      return note?.technique;
+    }),
+  ).toBe('Seat at 4');
+  expect(
+    await page.locator('.workout-note__trigger').evaluateAll((triggers) =>
+      triggers.every((trigger) => {
+        const controlledId = trigger.getAttribute('aria-controls');
+        return controlledId !== null && document.getElementById(controlledId) !== null;
+      }),
+    ),
+  ).toBe(true);
 
   await session.click();
   await expect(session).toHaveAttribute('aria-expanded', 'true');
+  expect(
+    await page.getByRole('textbox', { name: /^this session|^questa sessione/i }).evaluate((editor) => {
+      const labelId = editor.getAttribute('aria-labelledby');
+      return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
+    }),
+  ).toBe('This session');
   await page.getByLabel(/^this session|^questa sessione/i).fill('First session');
   await expect
     .poll(() =>

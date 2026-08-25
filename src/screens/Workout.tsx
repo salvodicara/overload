@@ -41,6 +41,7 @@ export function Workout() {
   const finish = useStore((s) => s.finishWorkout);
   const notes = useStore((s) => s.notes);
   const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
+  const flushTechniqueNote = useStore((s) => s.flushTechniqueNote);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((s) => s.setRestOverride);
   const [confirming, setConfirming] = useState(false);
@@ -223,12 +224,13 @@ export function Workout() {
                             ▾
                           </span>
                         </button>
-                        {techniqueExpanded && (
-                          <div
-                            id={techniqueContentId}
-                            className="workout-note__content"
-                            role="group"
-                          >
+                        <div
+                          id={techniqueContentId}
+                          className="workout-note__content"
+                          role="group"
+                          hidden={!techniqueExpanded}
+                        >
+                          {techniqueExpanded && (
                             <NoteEditor
                               key={`technique:${exerciseIndex}`}
                               initial={note?.technique ?? ''}
@@ -236,10 +238,13 @@ export function Workout() {
                               labelledBy={techniqueLabelId}
                               doneLabel={t('notes.done')}
                               onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
-                              onDone={() => toggleNote(techniqueKey)}
+                              onDone={async (text) => {
+                                await flushTechniqueNote(exercise.exerciseId, text);
+                                toggleNote(techniqueKey);
+                              }}
                             />
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </section>
                       <section className="workout-note">
                         <button
@@ -262,29 +267,36 @@ export function Workout() {
                             ▾
                           </span>
                         </button>
-                        {sessionExpanded && (
-                          <div id={sessionContentId} className="workout-note__content" role="group">
-                            {previousSession && (
-                              <p className="workout-note__context">
-                                <span>
-                                  {t('notes.previousSession', {
-                                    date: fmtDate(previousSession.date, i18n.language),
-                                  })}
-                                </span>
-                                <span>{previousSession.text}</span>
-                              </p>
-                            )}
-                            <NoteEditor
-                              key={`session:${exerciseIndex}`}
-                              initial={exercise.sessionNote ?? ''}
-                              placeholder={t('notes.sessionPlaceholder')}
-                              labelledBy={sessionLabelId}
-                              doneLabel={t('notes.done')}
-                              onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
-                              onDone={() => toggleNote(sessionKey)}
-                            />
-                          </div>
-                        )}
+                        <div
+                          id={sessionContentId}
+                          className="workout-note__content"
+                          role="group"
+                          hidden={!sessionExpanded}
+                        >
+                          {sessionExpanded && (
+                            <>
+                              {previousSession && (
+                                <p className="workout-note__context">
+                                  <span>
+                                    {t('notes.previousSession', {
+                                      date: fmtDate(previousSession.date, i18n.language),
+                                    })}
+                                  </span>
+                                  <span>{previousSession.text}</span>
+                                </p>
+                              )}
+                              <NoteEditor
+                                key={`session:${exerciseIndex}`}
+                                initial={exercise.sessionNote ?? ''}
+                                placeholder={t('notes.sessionPlaceholder')}
+                                labelledBy={sessionLabelId}
+                                doneLabel={t('notes.done')}
+                                onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
+                                onDone={() => toggleNote(sessionKey)}
+                              />
+                            </>
+                          )}
+                        </div>
                       </section>
                     </div>
                   );
