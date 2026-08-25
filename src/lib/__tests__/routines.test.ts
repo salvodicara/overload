@@ -29,6 +29,10 @@ describe('nextRoutine', () => {
     expect(nextRoutine([ungroupedA, ungroupedB], [], [done('u-a', 200)])?.id).toBe('u-b');
   });
 
+  it('considers program routines in the fallback after an ungrouped workout', () => {
+    expect(nextRoutine([ungroupedA, a, b], [program], [done('u-a', 200)])?.id).toBe('a');
+  });
+
   it('sorts completion evidence by start timestamp rather than array position', () => {
     expect(nextRoutine([a, b], [program], [done('b', 200), done('a', 100)])?.id).toBe('a');
   });

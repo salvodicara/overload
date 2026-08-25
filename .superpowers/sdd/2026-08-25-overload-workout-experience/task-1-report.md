@@ -59,3 +59,47 @@ Message: `feat: derive the next routine from user history`
 - [x] Tests were observed failing before production implementation and passing afterward.
 - [x] No new dependency or product-specific routine behavior was introduced.
 - [x] `git diff --check` is clean.
+
+## Fix round 1 (review P1)
+
+The review identified that an ungrouped or deleted-folder latest workout incorrectly restricted least-recent fallback to ungrouped routines. The approved fallback considers every stored routine, while the known-folder cycle remains unchanged.
+
+### RED
+
+Added the mixed-history regression `considers program routines in the fallback after an ungrouped workout` and ran:
+
+```text
+pnpm vitest run src/lib/__tests__/routines.test.ts
+```
+
+Result: exit 1 as expected; 5 tests passed and the new test failed with `expected 'u-a' to be 'a'`, proving the current fallback omitted untouched program routines.
+
+### GREEN
+
+Changed only the fallback candidate set to all stored routines and reran:
+
+```text
+pnpm vitest run src/lib/__tests__/routines.test.ts
+```
+
+Result: exit 0; 1 test file and 6 tests passed.
+
+### Verification
+
+```text
+pnpm vitest run && pnpm build && git diff --check
+```
+
+Result: exit 0; 14 test files and 165 tests passed, i18n checked 246 keys, TypeScript/Vite/PWA build succeeded, and the diff check was clean. The existing Vite warning about application chunks over 500 kB remains unchanged.
+
+### Fix commit
+
+SHA: `56d04418102782a93b4abcc719bcf4e0be7f1452` (the fix commit created before this report metadata amendment).
+
+Message: `fix: include every routine in fallback selection`
+
+### Fix-round self-review
+
+- [x] Only `src/lib/routines.ts`, `src/lib/__tests__/routines.test.ts`, and this report changed.
+- [x] Known-folder cycle semantics and deterministic evidence tie-breakers are unchanged.
+- [x] The regression was observed failing before the candidate-set correction and passing afterward.

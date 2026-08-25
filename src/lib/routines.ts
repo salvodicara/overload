@@ -19,7 +19,7 @@ export function lastCompletedFor(routine: Routine, workouts: Workout[]): Workout
 /**
  * Select the routine that should be offered as the next workout.
  * Program order is the user's stored routine order; history only determines
- * which routine is current and which ungrouped routine is oldest.
+ * which routine is current and which fallback routine is oldest.
  */
 export function nextRoutine(
   routines: Routine[],
@@ -46,12 +46,7 @@ export function nextRoutine(
     }
   }
 
-  const ungrouped = routines.filter(
-    (routine) => !routine.folderId || !knownFolderIds.has(routine.folderId),
-  );
-  const candidates = ungrouped.length > 0 ? ungrouped : routines;
-
-  return candidates.reduce((oldest, routine) => {
+  return routines.reduce((oldest, routine) => {
     const oldestCompletion = lastCompletedFor(oldest, workouts);
     const routineCompletion = lastCompletedFor(routine, workouts);
     if (!oldestCompletion) return oldest;
