@@ -67,17 +67,32 @@ vi.mock('../wakeLock', () => ({
 
 import { BackupCloudSyncError, useStore, type ActiveSession } from '../../state/useStore';
 
+type RoutineSave = ReturnType<ReturnType<typeof useStore.getState>['saveRoutine']>;
+
 const originalReload = useStore.getState().reload;
 const storage = new Map<string, string>();
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
+  let settled = false;
   const promise = new Promise<T>((done, fail) => {
     resolve = done;
     reject = fail;
   });
-  return { promise, resolve, reject };
+  return {
+    promise,
+    resolve(value: T) {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    },
+    reject(reason: unknown) {
+      if (settled) return;
+      settled = true;
+      reject(reason);
+    },
+  };
 }
 
 function workout(id: string, date: string, startTs: number): Workout {
@@ -423,18 +438,25 @@ describe('account transitions', () => {
       .mockReturnValueOnce(write.promise as PromiseExtended<string>);
 
     const first = useStore.getState().saveRoutine({ ...base, warmup: 'Persist me' });
-    await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
-    expect(useStore.getState().routines[0]).toMatchObject({ warmup: 'Persist me' });
+    let second: RoutineSave | undefined;
+    try {
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      expect(useStore.getState().routines[0]).toMatchObject({ warmup: 'Persist me' });
 
-    const remounted = useStore.getState().routines[0];
-    const second = useStore.getState().saveRoutine({ ...remounted, name: 'Renamed' });
-    expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      const remounted = useStore.getState().routines[0];
+      second = useStore.getState().saveRoutine({ ...remounted, name: 'Renamed' });
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
 
-    write.resolve('routine-a');
-    await expect(first).resolves.toMatchObject({ status: 'applied' });
-    await expect(second).resolves.toMatchObject({ status: 'applied' });
-    expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
-    expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      write.resolve('routine-a');
+      await expect(first).resolves.toMatchObject({ status: 'applied' });
+      await expect(second).resolves.toMatchObject({ status: 'applied' });
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+    } finally {
+      write.resolve('routine-a');
+      await first.catch(() => {});
+      await second?.catch(() => {});
+    }
   });
 
   it('does not roll back a newer optimistic routine after an earlier write fails', async () => {
@@ -445,18 +467,108 @@ describe('account transitions', () => {
     vi.spyOn(db.routines, 'put').mockReturnValueOnce(write.promise as PromiseExtended<string>);
 
     const first = useStore.getState().saveRoutine({ ...base, warmup: 'Persist me' });
-    await vi.waitFor(() => expect(useStore.getState().routines[0]?.warmup).toBe('Persist me'));
-    const second = useStore.getState().saveRoutine({
-      ...useStore.getState().routines[0],
-      name: 'Renamed',
-    });
-    const rejected = expect(first).rejects.toThrow('disk full');
-    write.reject(new Error('disk full'));
-    await rejected;
-    await expect(second).resolves.toMatchObject({ status: 'applied' });
+    let second: RoutineSave | undefined;
+    try {
+      await vi.waitFor(() => expect(useStore.getState().routines[0]?.warmup).toBe('Persist me'));
+      second = useStore.getState().saveRoutine({
+        ...useStore.getState().routines[0],
+        name: 'Renamed',
+      });
+      const rejected = expect(first).rejects.toThrow('disk full');
+      write.reject(new Error('disk full'));
+      await rejected;
+      await expect(second).resolves.toMatchObject({ status: 'applied' });
 
-    expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
-    expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+    } finally {
+      write.reject(new Error('disk full'));
+      await first.catch(() => {});
+      await second?.catch(() => {});
+    }
+  });
+
+  it('rolls consecutive failed routine drafts back to the durable record', async () => {
+    await login('account-a');
+    const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
+    await saveRoutine(base);
+    useStore.setState({ routines: [base] });
+    const firstWrite = deferred<string>();
+    const secondWrite = deferred<string>();
+    const putSpy = vi
+      .spyOn(db.routines, 'put')
+      .mockReturnValueOnce(firstWrite.promise as PromiseExtended<string>)
+      .mockReturnValueOnce(secondWrite.promise as PromiseExtended<string>);
+    let first: RoutineSave | undefined;
+    let second: RoutineSave | undefined;
+    try {
+      first = useStore.getState().saveRoutine({ ...base, warmup: 'Optimistic only' });
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      second = useStore.getState().saveRoutine({
+        ...useStore.getState().routines[0],
+        name: 'Also optimistic',
+      });
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Also optimistic', warmup: 'Optimistic only',
+      });
+
+      const firstRejected = expect(first).rejects.toThrow('first write failed');
+      firstWrite.reject(new Error('first write failed'));
+      await firstRejected;
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledTimes(2));
+      const secondRejected = expect(second).rejects.toThrow('second write failed');
+      secondWrite.reject(new Error('second write failed'));
+      await secondRejected;
+
+      expect(useStore.getState().routines).toEqual([base]);
+      expect(await listRoutines()).toEqual([base]);
+    } finally {
+      firstWrite.reject(new Error('first write failed'));
+      secondWrite.reject(new Error('second write failed'));
+      if (first) await first.catch(() => {});
+      if (second) await second.catch(() => {});
+    }
+  });
+
+  it('rolls a failed later routine draft back to the first durable save', async () => {
+    await login('account-a');
+    const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
+    useStore.setState({ routines: [base] });
+    const firstWrite = deferred<string>();
+    const secondWrite = deferred<string>();
+    const originalPut = db.routines.put.bind(db.routines);
+    const putSpy = vi
+      .spyOn(db.routines, 'put')
+      .mockImplementationOnce((routine) => (
+        firstWrite.promise.then(() => originalPut(routine)) as PromiseExtended<string>
+      ))
+      .mockReturnValueOnce(secondWrite.promise as PromiseExtended<string>);
+    let first: RoutineSave | undefined;
+    let second: RoutineSave | undefined;
+    try {
+      first = useStore.getState().saveRoutine({ ...base, warmup: 'Durable preparation' });
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      firstWrite.resolve('routine-a');
+      await expect(first).resolves.toMatchObject({ status: 'applied' });
+      const durable = await db.routines.get('routine-a');
+
+      second = useStore.getState().saveRoutine({
+        ...useStore.getState().routines[0],
+        name: 'Failed rename',
+      });
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledTimes(2));
+      const secondRejected = expect(second).rejects.toThrow('second write failed');
+      secondWrite.reject(new Error('second write failed'));
+      await secondRejected;
+
+      expect(useStore.getState().routines).toEqual([durable]);
+      expect(await listRoutines()).toEqual([durable]);
+    } finally {
+      firstWrite.resolve('routine-a');
+      secondWrite.reject(new Error('second write failed'));
+      if (first) await first.catch(() => {});
+      if (second) await second.catch(() => {});
+    }
   });
 
   it('does not restore an optimistic old-account routine after an account switch', async () => {
@@ -467,15 +579,20 @@ describe('account transitions', () => {
     const save = useStore.getState().saveRoutine({
       id: 'routine-a', name: 'Account A routine', exercises: [], updatedAt: 1,
     });
-    await vi.waitFor(() => expect(useStore.getState().routines[0]?.id).toBe('routine-a'));
-    useStore.getState().setUser({ uid: 'account-b', name: null });
-    write.reject(new Error('old account write failed'));
-    await expect(save).rejects.toThrow('old account write failed');
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    try {
+      await vi.waitFor(() => expect(useStore.getState().routines[0]?.id).toBe('routine-a'));
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      write.reject(new Error('old account write failed'));
+      await expect(save).rejects.toThrow('old account write failed');
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
-    expect(useStore.getState().user?.uid).toBe('account-b');
-    expect(useStore.getState().routines).toEqual([]);
-    expect(await db.routines.toArray()).toEqual([]);
+      expect(useStore.getState().user?.uid).toBe('account-b');
+      expect(useStore.getState().routines).toEqual([]);
+      expect(await db.routines.toArray()).toEqual([]);
+    } finally {
+      write.reject(new Error('old account write failed'));
+      await save.catch(() => {});
+    }
   });
 
   it('fences deferred workout completion from the next account', async () => {

@@ -768,7 +768,6 @@ export const useStore = create<Store>((set, get) => ({
     if (!owner) return STALE_ACCOUNT_ACTION;
     const next = { ...r, updatedAt: Date.now() };
     const list = get().routines;
-    const previous = list.find((routine) => routine.id === next.id);
     set({
       routines: list.some((x) => x.id === next.id)
         ? list.map((x) => (x.id === next.id ? next : x))
@@ -783,13 +782,16 @@ export const useStore = create<Store>((set, get) => ({
       debouncedPushRoutine(owner, next.id);
       return appliedAccountAction(owner, undefined);
     } catch (error) {
-      // A newer save (or another account) is now authoritative; only undo this exact draft.
+      // A newer save (or another account) is authoritative; otherwise restore durable state.
       if (owns(owner) && get().routines.find((routine) => routine.id === next.id) === next) {
-        set({
-          routines: previous
-            ? get().routines.map((routine) => (routine.id === next.id ? previous : routine))
-            : get().routines.filter((routine) => routine.id !== next.id),
-        });
+        const durable = (await listRoutines()).find((routine) => routine.id === next.id);
+        if (owns(owner) && get().routines.find((routine) => routine.id === next.id) === next) {
+          set({
+            routines: durable
+              ? get().routines.map((routine) => (routine.id === next.id ? durable : routine))
+              : get().routines.filter((routine) => routine.id !== next.id),
+          });
+        }
       }
       throw error;
     }
