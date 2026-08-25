@@ -201,6 +201,11 @@ function TrainingSection() {
         </h2>
         <LineChart points={points} label={chartLabel} formatValue={formatAxisValue} />
         <p className="small muted">{caption}</p>
+        {pr && (
+          <p className="small mono">
+            {t('progress.latestPr')} · {formatSession(pr)}
+          </p>
+        )}
       </section>
 
       <dl

@@ -10,7 +10,7 @@ type LineChartProps = {
   formatValue?: (value: number) => string;
 };
 
-const PAD = { top: 14, right: 14, bottom: 20, left: 40 };
+const PAD = { top: 14, right: 14, bottom: 20, left: 44 };
 const TICKS = 4;
 
 /** Nice round step so the ~4 gridlines land on readable kg values. */
@@ -60,7 +60,8 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       const ink = cssVar(canvas, '--ink', '#f2f4f0');
       const surface = cssVar(canvas, '--surface', '#14171a');
       const mono = cssVar(canvas, '--font-mono', 'monospace');
-      ctx.font = `11px ${mono}`;
+      const labelSize = cssVar(canvas, '--text-xs', '12px');
+      ctx.font = `${labelSize} ${mono}`;
       ctx.textBaseline = 'middle';
 
       const plotW = width - PAD.left - PAD.right;
@@ -145,8 +146,13 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
 
     draw();
     const ro = new ResizeObserver(draw);
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
     ro.observe(wrap);
-    return () => ro.disconnect();
+    colorScheme.addEventListener('change', draw);
+    return () => {
+      ro.disconnect();
+      colorScheme.removeEventListener('change', draw);
+    };
   }, [points, height, locale, formatValue]);
 
   return (

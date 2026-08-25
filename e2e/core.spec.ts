@@ -2475,8 +2475,16 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
     /Best\s*132\.3 lb × 4 reps.*Last\s*121\.3 lb × 8 reps.*Sessions\s*3/,
   );
   const weightedChart = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i });
+  const weightedCanvas = weightedChart.locator('canvas');
   await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8 reps/);
-  await expect(weightedChart.locator('canvas')).toHaveAttribute('aria-hidden', 'true');
+  await expect(weightedCanvas).toHaveAttribute('aria-hidden', 'true');
+  expect(
+    await weightedCanvas.evaluate((node) =>
+      Number.parseFloat((node as HTMLCanvasElement).getContext('2d')?.font ?? ''),
+    ),
+  ).toBeGreaterThanOrEqual(12);
+  const latestPr = page.getByText(/^Latest PR ·/);
+  await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8 reps');
   await expect(page.getByRole('img', { name: /Weekly volume/i })).toHaveAttribute(
     'aria-label',
     /281\.1 lb.*661\.4 lb/,
@@ -2484,11 +2492,75 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
 
   await exercise.selectOption({ label: 'Hanging Leg Raise' });
   await expect(summary('Hanging Leg Raise')).toContainText(/14 reps.*Sessions\s*2/);
+  await expect(latestPr).toHaveCount(0);
   await exercise.selectOption({ label: 'Plank' });
   await expect(summary('Plank')).toContainText(/45 seconds.*Sessions\s*2/);
   await expect(summary('Plank')).not.toContainText('300');
+  await expect(latestPr).toHaveCount(0);
 
   await expectNarrowTouchTargets(page, tablist.getByRole('tab'));
+});
+
+test('progress chart redraws when the system theme changes', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  const canvas = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i }).locator('canvas');
+  const lightRender = await canvas.evaluate((node) => (node as HTMLCanvasElement).toDataURL());
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect
+    .poll(() =>
+      canvas.evaluate((node, before) => {
+        const element = node as HTMLCanvasElement;
+        return {
+          accent: getComputedStyle(element).getPropertyValue('--accent').trim(),
+          redrawn: element.toDataURL() !== before,
+        };
+      }, lightRender),
+    )
+    .toEqual({ accent: '#c9f73a', redrawn: true });
+});
+
+test('body filters show a disabled treatment without shifting during save', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.getByRole('tab', { name: 'Body' }).click();
+  await page.getByRole('button', { name: 'Add measurement' }).click();
+  await page.getByLabel('Weight (lb)').fill('222');
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const storeModule = (await import(modulePath)) as typeof import('../src/state/useStore');
+    storeModule.useStore.setState({
+      addMeasurement: () => new Promise<never>(() => undefined),
+    });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  });
+  const weight = page.getByRole('group', { name: 'Measurement type' }).getByRole('button', {
+    name: 'Weight',
+  });
+  const appearance = () =>
+    weight.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return {
+        background: style.backgroundColor,
+        border: style.borderTopColor,
+        color: style.color,
+        cursor: style.cursor,
+        opacity: style.opacity,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      };
+    });
+  const enabled = await appearance();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(weight).toBeDisabled();
+  const pending = await appearance();
+  expect(pending.background).not.toBe(enabled.background);
+  expect(pending.border).not.toBe(enabled.border);
+  expect(pending.color).not.toBe(enabled.color);
+  expect(Number(pending.opacity)).toBeLessThan(Number(enabled.opacity));
+  expect(pending.cursor).toBe('not-allowed');
+  expect(pending.rect).toEqual(enabled.rect);
 });
 
 test('body converts only weight and names empty, single and trend states', async ({ page }) => {
