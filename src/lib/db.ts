@@ -131,6 +131,35 @@ export async function applyImport(fresh: Workout[]): Promise<void> {
   await db.workouts.bulkPut(fresh);
 }
 
+/** Removes all data owned by the current account in one atomic transaction. */
+export async function clearAllUserData(): Promise<void> {
+  await db.transaction(
+    'rw',
+    [
+      db.workouts,
+      db.routines,
+      db.folders,
+      db.notes,
+      db.measurements,
+      db.nutrition,
+      db.customExercises,
+      db.settings,
+    ],
+    async () => {
+      await Promise.all([
+        db.workouts.clear(),
+        db.routines.clear(),
+        db.folders.clear(),
+        db.notes.clear(),
+        db.measurements.clear(),
+        db.nutrition.clear(),
+        db.customExercises.clear(),
+        db.settings.clear(),
+      ]);
+    },
+  );
+}
+
 /** Restores a complete version 2 backup atomically across every local table. */
 export async function restoreBackupCollections(backup: BackupV2): Promise<void> {
   await db.transaction(

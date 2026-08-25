@@ -1,7 +1,9 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TEMPLATES } from '../../data/templates';
 import {
   applyImport,
+  clearAllUserData,
   db,
   deleteWorkout,
   getSettings,
@@ -18,25 +20,50 @@ import {
   saveWorkout,
 } from '../db';
 import type { BackupV2 } from '../importer';
+import { loadCatalog, registerCustomExercises, searchExercises } from '../exercises';
 import type { Routine, Workout } from '../types';
 
-const { pushRecordMock, pushRecordStrictMock } = vi.hoisted(() => ({
-  pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
-  pushRecordStrictMock: vi.fn(
-    async (_uid: string, _collection: string, _record: unknown) => {},
-  ),
-}));
+const {
+  pushRecordMock,
+  pushRecordStrictMock,
+  releaseWakeLockMock,
+  startSyncMock,
+  startSyncObserverMock,
+  stopSyncMock,
+} = vi.hoisted(() => {
+  const startSyncObserverMock = vi.fn((_uid: string) => {});
+  const stopSyncMock = vi.fn();
+  return {
+    pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
+    pushRecordStrictMock: vi.fn(
+      async (_uid: string, _collection: string, _record: unknown) => {},
+    ),
+    releaseWakeLockMock: vi.fn(),
+    startSyncObserverMock,
+    startSyncMock: vi.fn((uid: string) => {
+      startSyncObserverMock(uid);
+      return stopSyncMock;
+    }),
+    stopSyncMock,
+  };
+});
 
 vi.mock('../sync', () => ({
   deleteRecord: vi.fn(async () => {}),
   pushRecord: pushRecordMock,
   pushRecordStrict: pushRecordStrictMock,
-  startSync: vi.fn(() => () => {}),
+  startSync: startSyncMock,
 }));
 
-import { BackupCloudSyncError, useStore } from '../../state/useStore';
+vi.mock('../wakeLock', () => ({
+  acquireWakeLock: vi.fn(),
+  releaseWakeLock: releaseWakeLockMock,
+}));
+
+import { BackupCloudSyncError, useStore, type ActiveSession } from '../../state/useStore';
 
 const originalReload = useStore.getState().reload;
+const storage = new Map<string, string>();
 
 function workout(id: string, date: string, startTs: number): Workout {
   return {
@@ -51,10 +78,36 @@ function workout(id: string, date: string, startTs: number): Workout {
 }
 
 beforeEach(async () => {
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+    removeItem: (key: string) => storage.delete(key),
+  });
+  storage.clear();
   pushRecordMock.mockClear();
   pushRecordStrictMock.mockReset();
   pushRecordStrictMock.mockResolvedValue(undefined);
-  useStore.setState({ user: null, reload: originalReload });
+  releaseWakeLockMock.mockClear();
+  startSyncMock.mockClear();
+  startSyncObserverMock.mockReset();
+  stopSyncMock.mockClear();
+  useStore.setState({
+    user: null,
+    reload: originalReload,
+    workouts: [],
+    routines: [],
+    folders: [],
+    notes: [],
+    measurements: [],
+    nutrition: [],
+    customExercises: [],
+    settings: { id: 'settings', updatedAt: 0 },
+    active: null,
+    restUntil: null,
+    restExerciseId: null,
+    restTotalSec: null,
+    pendingRoutineChanges: null,
+  });
   await db.transaction(
     'rw',
     [
@@ -83,6 +136,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  useStore.getState().setUser(null);
   useStore.setState({ user: null, reload: originalReload });
 });
 
@@ -116,6 +170,196 @@ const COMPLETE_BACKUP: BackupV2 = {
     updatedAt: 8,
   },
 };
+
+describe('clearAllUserData', () => {
+  it('clears every user-owned table together', async () => {
+    await db.workouts.put({
+      id: 'w', date: '2026-08-25', startTs: 1, sets: [], volumeKg: 0, updatedAt: 1, source: 'app',
+    });
+    await db.routines.put({ id: 'r', name: 'Routine', exercises: [], updatedAt: 1 });
+    await db.folders.put({ id: 'f', name: 'Program', updatedAt: 1 });
+    await db.notes.put({ id: 'bench', entries: [], technique: 'Brace', updatedAt: 1 });
+    await db.measurements.put({ id: 'm', date: '2026-08-25', metric: 'weight', value: 80, updatedAt: 1 });
+    await db.nutrition.put({ id: '2026-08-25', date: '2026-08-25', kcal: 2000, proteinG: 120, updatedAt: 1 });
+    await db.customExercises.put({ id: 'custom:x', name: 'Carry', muscleGroup: 'core', updatedAt: 1 });
+    await db.settings.put({ id: 'settings', locale: 'it', updatedAt: 1 });
+
+    await clearAllUserData();
+
+    expect(await Promise.all([
+      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
+      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
+    ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe('account transitions', () => {
+  it('preserves data on sign-out but clears every prior-account surface before syncing a different UID', async () => {
+    const active: ActiveSession = {
+      routineId: 'r1',
+      startTs: 1,
+      ex: [
+        {
+          exerciseId: 'bench',
+          tracking: 'weight_reps',
+          hintKey: 'suggest.repeat',
+          sets: [
+            {
+              weightKg: 20,
+              reps: 10,
+              durationSec: null,
+              kind: 'working',
+              done: true,
+            },
+          ],
+        },
+      ],
+    };
+    await restoreBackupCollections(COMPLETE_BACKUP);
+    storage.set('overload_uid', 'account-a');
+    storage.set('overload_active', JSON.stringify(active));
+    useStore.setState({
+      ...COMPLETE_BACKUP,
+      user: null,
+      active,
+      restUntil: 10_000,
+      restExerciseId: 'bench',
+      restTotalSec: 90,
+      pendingRoutineChanges: {
+        routineId: 'r1',
+        items: [{ exerciseId: 'bench', restSec: 120 }],
+      },
+    });
+
+    useStore.getState().setUser({ uid: 'account-a', name: null });
+    expect(startSyncMock).toHaveBeenCalledWith('account-a', expect.any(Function), expect.any(Function));
+
+    useStore.getState().setUser(null);
+
+    expect(stopSyncMock).toHaveBeenCalledOnce();
+    expect(storage.has('overload_active')).toBe(true);
+    expect(await Promise.all([
+      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
+      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
+    ])).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+
+    const syncSnapshots: Promise<{
+      uid: string;
+      counts: number[];
+      state: ReturnType<typeof useStore.getState>;
+      persistedActive: string | undefined;
+    }>[] = [];
+    startSyncObserverMock.mockImplementation((uid: string) => {
+      syncSnapshots.push((async () => ({
+        uid,
+        counts: await Promise.all([
+          db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
+          db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
+        ]),
+        state: useStore.getState(),
+        persistedActive: storage.get('overload_active'),
+      }))());
+    });
+
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    await vi.waitFor(() => expect(startSyncMock).toHaveBeenCalledTimes(2));
+
+    const switched = await syncSnapshots[0];
+    expect(switched.uid).toBe('account-b');
+    expect(switched.counts).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(switched.persistedActive).toBeUndefined();
+    expect(switched.state).toMatchObject({
+      workouts: [],
+      routines: [],
+      folders: [],
+      notes: [],
+      measurements: [],
+      nutrition: [],
+      customExercises: [],
+      settings: { id: 'settings', updatedAt: 0 },
+      active: null,
+      restUntil: null,
+      restExerciseId: null,
+      restTotalSec: null,
+      pendingRoutineChanges: null,
+    });
+    expect(releaseWakeLockMock).toHaveBeenCalledOnce();
+  });
+
+  it('cancels a queued routine push when the account signs out', async () => {
+    storage.set('overload_uid', 'account-a');
+    useStore.getState().setUser({ uid: 'account-a', name: null });
+    await useStore.getState().saveRoutine({
+      id: 'queued',
+      name: 'Queued routine',
+      exercises: [],
+      updatedAt: 1,
+    });
+
+    useStore.getState().setUser(null);
+    await new Promise((resolve) => setTimeout(resolve, 650));
+
+    expect(pushRecordMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('neutral starter data', () => {
+  it('offers a neutral two-day full-body pack whose routines copy into one folder', () => {
+    const fullBody = TEMPLATES.find((pack) => pack.folder.id === 'full-body-folder');
+
+    expect(fullBody?.routines.map((routine) => routine.name)).toEqual(['Full Body A', 'Full Body B']);
+    expect(fullBody?.routines.every((routine) => routine.folderId === fullBody.folder.id)).toBe(true);
+    expect(fullBody?.routines.flatMap((routine) => routine.exercises)).not.toContainEqual(
+      expect.objectContaining({ startWeightKg: expect.any(Number) }),
+    );
+  });
+
+  it('sorts exercise search alphabetically without curated-result priority', async () => {
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => [
+        {
+          id: 'Dumbbell_Bench_Press',
+          name: 'Zulu press',
+          equipment: 'dumbbell',
+          primaryMuscles: ['chest'],
+          secondaryMuscles: [],
+          instructions: [],
+          images: [],
+        },
+        {
+          id: 'alpha-carry',
+          name: 'Alpha carry',
+          equipment: 'other',
+          primaryMuscles: ['abdominals'],
+          secondaryMuscles: [],
+          instructions: [],
+          images: [],
+        },
+      ],
+    })));
+
+    await loadCatalog();
+
+    expect(searchExercises('', null, 'en').map((exercise) => exercise.id)).toEqual([
+      'alpha-carry',
+      'Dumbbell_Bench_Press',
+    ]);
+    vi.stubGlobal('fetch', originalFetch);
+  });
+
+  it('removes custom exercises from the in-memory catalog when the active collection is cleared', () => {
+    registerCustomExercises([
+      { id: 'custom:private', name: 'Private carry', muscleGroup: 'core' },
+    ]);
+    expect(searchExercises('Private carry', null, 'en')).toHaveLength(1);
+
+    registerCustomExercises([]);
+
+    expect(searchExercises('Private carry', null, 'en')).toEqual([]);
+  });
+});
 
 describe('restoreBackupCollections', () => {
   it('restores one record into every local table without changing stored values', async () => {

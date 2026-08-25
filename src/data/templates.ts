@@ -1,12 +1,43 @@
 import type { Folder, Routine } from '../lib/types';
-import { SEED_FOLDER, SEED_ROUTINES } from './seedRoutine';
 
 export type TemplatePack = { folder: Folder; routines: Routine[] };
 
 // Starter packs offered on the Workout tab. "Using" one copies its folder and
 // routines into the user's data (deterministic ids → re-adding is idempotent).
 export const TEMPLATES: TemplatePack[] = [
-  { folder: SEED_FOLDER, routines: SEED_ROUTINES },
+  {
+    folder: { id: 'full-body-folder', name: 'Full Body A/B', updatedAt: 1 },
+    routines: [
+      {
+        id: 'full-body-a',
+        name: 'Full Body A',
+        folderId: 'full-body-folder',
+        updatedAt: 1,
+        exercises: [
+          { exerciseId: 'Barbell_Squat', sets: 3, repMin: 6, repMax: 10, restSec: 150, incrementKg: 5 },
+          { exerciseId: 'Dumbbell_Bench_Press', sets: 3, repMin: 8, repMax: 12, restSec: 120 },
+          { exerciseId: 'Seated_Cable_Rows', sets: 3, repMin: 8, repMax: 12, restSec: 90 },
+          { exerciseId: 'Romanian_Deadlift', sets: 3, repMin: 8, repMax: 12, restSec: 120, incrementKg: 5 },
+          { exerciseId: 'Seated_Side_Lateral_Raise', sets: 2, repMin: 12, repMax: 15, restSec: 60 },
+          { exerciseId: 'Plank', sets: 3, repMin: 30, repMax: 60, restSec: 60, tracking: 'duration' },
+        ],
+      },
+      {
+        id: 'full-body-b',
+        name: 'Full Body B',
+        folderId: 'full-body-folder',
+        updatedAt: 1,
+        exercises: [
+          { exerciseId: 'Barbell_Deadlift', sets: 3, repMin: 5, repMax: 8, restSec: 150, incrementKg: 5 },
+          { exerciseId: 'Smith_Machine_Incline_Bench_Press', sets: 3, repMin: 8, repMax: 12, restSec: 120 },
+          { exerciseId: 'Wide-Grip_Lat_Pulldown', sets: 3, repMin: 8, repMax: 12, restSec: 90 },
+          { exerciseId: 'Dumbbell_Lunges', sets: 3, repMin: 8, repMax: 12, restSec: 90 },
+          { exerciseId: 'Face_Pull', sets: 2, repMin: 12, repMax: 15, restSec: 60 },
+          { exerciseId: 'Hanging_Leg_Raise', sets: 3, repMin: 8, repMax: 15, restSec: 60, tracking: 'reps' },
+        ],
+      },
+    ],
+  },
   {
     folder: { id: 'ppl-folder', name: 'Push / Pull / Legs', updatedAt: 1 },
     routines: [

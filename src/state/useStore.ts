@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import {
   applyImport as dbApplyImport,
-  db,
+  clearAllUserData,
   deleteFolder as dbDeleteFolder,
   deleteRoutine as dbDeleteRoutine,
   deleteMeasurement as dbDeleteMeasurement,
@@ -124,6 +124,7 @@ function i18nToast(key: string): string {
 }
 
 let stopSync: (() => void) | null = null;
+let authTransition = 0;
 
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
@@ -150,6 +151,11 @@ function savedRoute(): Route {
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
 const routinePushTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function clearRoutinePushTimers(): void {
+  for (const timer of routinePushTimers.values()) clearTimeout(timer);
+  routinePushTimers.clear();
+}
+
 function debouncedPushRoutine(uid: string, routineId: string): void {
   clearTimeout(routinePushTimers.get(routineId));
   routinePushTimers.set(
@@ -262,38 +268,70 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   setUser(user) {
+    const transition = ++authTransition;
     const prev = get().user;
     set({ user });
     if (import.meta.env.VITE_E2E === '1') return;
-    if (user && user.uid !== prev?.uid) {
-      // A different Google account on this device must never inherit (or
-      // upload) the previous account's local data.
-      let lastUid: string | null = null;
-      try {
-        lastUid = localStorage.getItem(UID_KEY);
-        localStorage.setItem(UID_KEY, user.uid);
-      } catch {
-        /* storage unavailable */
-      }
-      const boot = async (): Promise<void> => {
-        if (lastUid && lastUid !== user.uid) {
-          persistActive(null);
-          await Promise.all([db.workouts.clear(), db.routines.clear(), db.settings.clear()]);
-          set({ workouts: [], routines: [], settings: { id: 'settings', updatedAt: 0 }, active: null });
-        }
-        stopSync?.();
-        stopSync = startSync(
-          user.uid,
-          (s) => set({ syncState: s }),
-          () => void get().reload(),
-        );
-      };
-      void boot();
-    }
     if (!user) {
+      clearRoutinePushTimers();
       stopSync?.();
       stopSync = null;
+      set({ syncState: 'offline' });
+      return;
     }
+
+    if (user.uid === prev?.uid) return;
+
+    // Stop the previous account before touching its local snapshot so an
+    // in-flight listener cannot repopulate the database during the switch.
+    clearRoutinePushTimers();
+    stopSync?.();
+    stopSync = null;
+
+    let lastUid: string | null = null;
+    try {
+      lastUid = localStorage.getItem(UID_KEY);
+      localStorage.setItem(UID_KEY, user.uid);
+    } catch {
+      /* storage unavailable */
+    }
+    const changedUid =
+      (lastUid !== null && lastUid !== user.uid) ||
+      (prev != null && prev.uid !== user.uid);
+
+    const boot = async (): Promise<void> => {
+      if (changedUid) {
+        persistActive(null);
+        releaseWakeLock();
+        set({
+          workouts: [],
+          routines: [],
+          folders: [],
+          notes: [],
+          measurements: [],
+          nutrition: [],
+          customExercises: [],
+          settings: { id: 'settings', updatedAt: 0 },
+          active: null,
+          restUntil: null,
+          restExerciseId: null,
+          restTotalSec: null,
+          pendingRoutineChanges: null,
+        });
+        registerCustomExercises([]);
+        await clearAllUserData();
+      }
+
+      // Auth can change again while IndexedDB is clearing. A stale transition
+      // must never start syncing the account that is no longer signed in.
+      if (transition !== authTransition || get().user?.uid !== user.uid) return;
+      stopSync = startSync(
+        user.uid,
+        (s) => set({ syncState: s }),
+        () => void get().reload(),
+      );
+    };
+    void boot();
   },
 
   async init() {

@@ -42,6 +42,7 @@ export function muscleGroup(ex: Exercise): MuscleGroup {
 
 let catalog: Map<string, CatalogExercise> | null = null;
 let loading: Promise<Map<string, CatalogExercise>> | null = null;
+const customExerciseIds = new Set<string>();
 
 export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
   loading ??= fetch('/data/exercises.json')
@@ -74,6 +75,8 @@ export function registerCustomExercises(
 ): void {
   const map = catalog;
   if (!map) return;
+  for (const id of customExerciseIds) map.delete(id);
+  customExerciseIds.clear();
   for (const x of list) {
     map.set(x.id, {
       id: x.id,
@@ -83,6 +86,7 @@ export function registerCustomExercises(
       media: [],
       instructions: [],
     });
+    customExerciseIds.add(x.id);
   }
 }
 
@@ -118,9 +122,7 @@ export function searchExercises(query: string, group: MuscleGroup | null, locale
     .sort((a, b) => {
       const an = locale === 'it' ? a.nameIt : a.nameEn;
       const bn = locale === 'it' ? b.nameIt : b.nameEn;
-      const aCur = a.id in CURATED ? 0 : 1;
-      const bCur = b.id in CURATED ? 0 : 1;
-      return aCur - bCur || an.localeCompare(bn);
+      return an.localeCompare(bn, locale);
     });
 }
 
