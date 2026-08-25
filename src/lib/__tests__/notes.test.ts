@@ -33,15 +33,17 @@ function fakeTechniqueTimer() {
   const techniqueTimer = 1234 as unknown as ReturnType<typeof setTimeout>;
   let releaseTechniqueTimer!: () => void;
   const cleared = vi.fn();
-  const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation((
-    (handler: TimerHandler, delay?: number, ...args: unknown[]) => {
-      if (delay === 500 && typeof handler === 'function') {
-        releaseTechniqueTimer = () => handler(...args);
-        return techniqueTimer;
-      }
-      return realSetTimeout(handler, delay, ...args);
+  const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+    handler: TimerHandler,
+    delay?: number,
+    ...args: unknown[]
+  ) => {
+    if (delay === 500 && typeof handler === 'function') {
+      releaseTechniqueTimer = () => handler(...args);
+      return techniqueTimer;
     }
-  ) as typeof setTimeout);
+    return realSetTimeout(handler, delay, ...args);
+  }) as typeof setTimeout);
   const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout').mockImplementation((timer) => {
     if (timer === techniqueTimer) cleared();
     else realClearTimeout(timer);
@@ -112,7 +114,10 @@ describe('routine technique migration', () => {
       entries: [{ date: '2026-08-20', text: 'Legacy entry' }],
       updatedAt: 20,
     };
-    const [migration] = routineTechniqueMigrations([routineWith('bench', 'Routine note')], [existing]);
+    const [migration] = routineTechniqueMigrations(
+      [routineWith('bench', 'Routine note')],
+      [existing],
+    );
 
     expect(migration).toEqual({
       id: 'bench',
@@ -267,10 +272,12 @@ describe('note persistence', () => {
     const init = useStore.getState().init();
     try {
       await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
-        ...existing,
-        technique: 'Boot technique',
-      }));
+      await vi.waitFor(() =>
+        expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
+          ...existing,
+          technique: 'Boot technique',
+        }),
+      );
       const settled = vi.fn();
       void init.then(settled);
       await vi.waitFor(() => expect(settled).toHaveBeenCalledOnce());
@@ -330,9 +337,11 @@ describe('note persistence', () => {
     try {
       useStore.getState().queueTechniqueNote('bench', '  Same account text  ');
       timer.release();
-      await vi.waitFor(() => expect(useStore.getState().notes).toEqual([
-        expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
-      ]));
+      await vi.waitFor(() =>
+        expect(useStore.getState().notes).toEqual([
+          expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
+        ]),
+      );
 
       expect(await db.notes.get('bench')).toEqual(
         expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
@@ -356,7 +365,9 @@ describe('note persistence', () => {
       await vi.waitFor(() => expect(put).toHaveBeenCalledOnce());
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      await expect(useStore.getState().saveTechniqueNote('bench', 'Recovered cue')).resolves.toMatchObject({
+      await expect(
+        useStore.getState().saveTechniqueNote('bench', 'Recovered cue'),
+      ).resolves.toMatchObject({
         status: 'applied',
       });
       expect((await db.notes.get('bench'))?.technique).toBe('Recovered cue');
@@ -371,7 +382,9 @@ describe('note persistence', () => {
     try {
       useStore.getState().queueTechniqueNote('bench', '  Brace before unracking  ');
 
-      const result = await useStore.getState().saveTechniqueNote('bench', '  Brace before unracking  ');
+      const result = await useStore
+        .getState()
+        .saveTechniqueNote('bench', '  Brace before unracking  ');
 
       expect(result.status).toBe('applied');
       expect(useStore.getState().notes).toEqual([
@@ -440,9 +453,11 @@ describe('note persistence', () => {
     const write = deferred<string>();
     const remote = deferred<void>();
     const originalPut = db.notes.put.bind(db.notes);
-    const put = vi.spyOn(db.notes, 'put').mockImplementationOnce((note) => (
-      write.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>
-    ));
+    const put = vi
+      .spyOn(db.notes, 'put')
+      .mockImplementationOnce(
+        (note) => write.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>,
+      );
     pushRecord.mockReturnValueOnce(remote.promise);
     const commit = useStore.getState().saveTechniqueNote('bench', 'Account A durable cue');
     try {
@@ -452,11 +467,13 @@ describe('note persistence', () => {
       expect(useStore.getState().authState).toBe('loading');
 
       write.resolve('bench');
-      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledWith(
-        'user-1',
-        'notes',
-        expect.objectContaining({ id: 'bench', technique: 'Account A durable cue' }),
-      ));
+      await vi.waitFor(() =>
+        expect(pushRecord).toHaveBeenCalledWith(
+          'user-1',
+          'notes',
+          expect.objectContaining({ id: 'bench', technique: 'Account A durable cue' }),
+        ),
+      );
       await expect(commit).resolves.toEqual({ status: 'stale' });
       await useStore.getState().init();
 
@@ -467,7 +484,9 @@ describe('note persistence', () => {
         'notes',
         expect.objectContaining({ technique: 'Account A durable cue' }),
       );
-      await expect(useStore.getState().saveTechniqueNote('bench', 'Account B cue')).resolves.toMatchObject({
+      await expect(
+        useStore.getState().saveTechniqueNote('bench', 'Account B cue'),
+      ).resolves.toMatchObject({
         status: 'applied',
       });
       expect((await db.notes.get('bench'))?.technique).toBe('Account B cue');
@@ -490,12 +509,14 @@ describe('note persistence', () => {
     const originalPut = db.notes.put.bind(db.notes);
     const put = vi
       .spyOn(db.notes, 'put')
-      .mockImplementationOnce((note) => (
-        firstWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>
-      ))
-      .mockImplementationOnce((note) => (
-        finalWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>
-      ));
+      .mockImplementationOnce(
+        (note) =>
+          firstWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>,
+      )
+      .mockImplementationOnce(
+        (note) =>
+          finalWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>,
+      );
     const clear = vi.spyOn(db.notes, 'clear');
     const first = useStore.getState().saveTechniqueNote('bench', 'First A value');
     let final: Promise<unknown> | undefined;
@@ -511,11 +532,13 @@ describe('note persistence', () => {
       await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
       expect(clear).not.toHaveBeenCalled();
       finalWrite.resolve('bench');
-      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledWith(
-        'user-1',
-        'notes',
-        expect.objectContaining({ id: 'bench', technique: 'Final A value' }),
-      ));
+      await vi.waitFor(() =>
+        expect(pushRecord).toHaveBeenCalledWith(
+          'user-1',
+          'notes',
+          expect.objectContaining({ id: 'bench', technique: 'Final A value' }),
+        ),
+      );
       await expect(first).resolves.toEqual({ status: 'stale' });
       await expect(final).resolves.toEqual({ status: 'stale' });
       await useStore.getState().init();
@@ -550,9 +573,11 @@ describe('note persistence', () => {
       await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledTimes(1));
 
       second = useStore.getState().saveTechniqueNote('bench', 'Newest value');
-      await vi.waitFor(() => expect(useStore.getState().notes).toEqual([
-        expect.objectContaining({ id: 'bench', technique: 'Newest value' }),
-      ]));
+      await vi.waitFor(() =>
+        expect(useStore.getState().notes).toEqual([
+          expect.objectContaining({ id: 'bench', technique: 'Newest value' }),
+        ]),
+      );
       expect((await db.notes.get('bench'))?.technique).toBe('Newest value');
       expect(pushRecord).toHaveBeenCalledTimes(1);
 
@@ -586,9 +611,9 @@ describe('note persistence', () => {
     let retry: Promise<unknown> | undefined;
     try {
       await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledTimes(1));
-      await expect(useStore.getState().saveTechniqueNote('bench', 'Failed local value')).rejects.toThrow(
-        'disk full',
-      );
+      await expect(
+        useStore.getState().saveTechniqueNote('bench', 'Failed local value'),
+      ).rejects.toThrow('disk full');
 
       retry = useStore.getState().saveTechniqueNote('bench', 'Newest retry value');
       await vi.waitFor(async () => {

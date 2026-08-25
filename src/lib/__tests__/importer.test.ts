@@ -147,7 +147,13 @@ describe('parseBackup', () => {
       } satisfies ExerciseNote,
     ],
     measurements: [
-      { id: 'm1', date: '2026-06-01', metric: 'weight', value: 82.4, updatedAt: 6 } satisfies Measurement,
+      {
+        id: 'm1',
+        date: '2026-06-01',
+        metric: 'weight',
+        value: 82.4,
+        updatedAt: 6,
+      } satisfies Measurement,
     ],
     nutrition: [
       {
@@ -159,7 +165,12 @@ describe('parseBackup', () => {
       } satisfies NutritionDay,
     ],
     customExercises: [
-      { id: 'custom:1', name: 'Press personalizzato', muscleGroup: 'shoulders', updatedAt: 8 } satisfies CustomExercise,
+      {
+        id: 'custom:1',
+        name: 'Press personalizzato',
+        muscleGroup: 'shoulders',
+        updatedAt: 8,
+      } satisfies CustomExercise,
     ],
     settings: {
       ...SETTINGS,
@@ -202,14 +213,14 @@ describe('parseBackup', () => {
     ['settings', []],
     ['settings', { id: 'other', updatedAt: 1 }],
   ])('rejects a version 2 backup with invalid %s', (field, invalid) => {
-    expect(() =>
-      parseBackup(JSON.stringify({ ...v2Backup, [field]: invalid })),
-    ).toThrowError('import.invalid');
+    expect(() => parseBackup(JSON.stringify({ ...v2Backup, [field]: invalid }))).toThrowError(
+      'import.invalid',
+    );
   });
 
   it('rejects unrecognised version 2 collections instead of silently losing them', () => {
-    expect(() =>
-      parseBackup(JSON.stringify({ ...v2Backup, futureCollection: [] })),
-    ).toThrowError('import.invalid');
+    expect(() => parseBackup(JSON.stringify({ ...v2Backup, futureCollection: [] }))).toThrowError(
+      'import.invalid',
+    );
   });
 });

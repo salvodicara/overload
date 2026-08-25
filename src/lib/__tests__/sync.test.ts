@@ -75,9 +75,7 @@ describe('startSync lifecycle', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(await db.workouts.toArray()).toEqual([
-      expect.objectContaining({ id: 'local-a' }),
-    ]);
+    expect(await db.workouts.toArray()).toEqual([expect.objectContaining({ id: 'local-a' })]);
     expect(setDocMock).not.toHaveBeenCalled();
     expect(onPulled).not.toHaveBeenCalled();
     expect(onState.mock.calls.map(([state]) => state)).toEqual(['pending']);

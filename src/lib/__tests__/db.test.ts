@@ -39,9 +39,7 @@ const {
   const stopSyncMock = vi.fn(async () => {});
   return {
     pushRecordMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
-    pushRecordStrictMock: vi.fn(
-      async (_uid: string, _collection: string, _record: unknown) => {},
-    ),
+    pushRecordStrictMock: vi.fn(async (_uid: string, _collection: string, _record: unknown) => {}),
     acquireWakeLockMock: vi.fn(),
     releaseWakeLockMock: vi.fn(),
     startSyncObserverMock,
@@ -195,9 +193,7 @@ const COMPLETE_BACKUP: BackupV2 = {
     },
   ],
   measurements: [{ id: 'm1', date: '2026-06-10', metric: 'weight', value: 80.5, updatedAt: 5 }],
-  nutrition: [
-    { id: '2026-06-10', date: '2026-06-10', kcal: 2300, proteinG: 175, updatedAt: 6 },
-  ],
+  nutrition: [{ id: '2026-06-10', date: '2026-06-10', kcal: 2300, proteinG: 175, updatedAt: 6 }],
   customExercises: [
     { id: 'custom:1', name: 'Press speciale', muscleGroup: 'shoulders', updatedAt: 7 },
   ],
@@ -215,22 +211,53 @@ const COMPLETE_BACKUP: BackupV2 = {
 describe('clearAllUserData', () => {
   it('clears every user-owned table together', async () => {
     await db.workouts.put({
-      id: 'w', date: '2026-08-25', startTs: 1, sets: [], volumeKg: 0, updatedAt: 1, source: 'app',
+      id: 'w',
+      date: '2026-08-25',
+      startTs: 1,
+      sets: [],
+      volumeKg: 0,
+      updatedAt: 1,
+      source: 'app',
     });
     await db.routines.put({ id: 'r', name: 'Routine', exercises: [], updatedAt: 1 });
     await db.folders.put({ id: 'f', name: 'Program', updatedAt: 1 });
     await db.notes.put({ id: 'bench', entries: [], technique: 'Brace', updatedAt: 1 });
-    await db.measurements.put({ id: 'm', date: '2026-08-25', metric: 'weight', value: 80, updatedAt: 1 });
-    await db.nutrition.put({ id: '2026-08-25', date: '2026-08-25', kcal: 2000, proteinG: 120, updatedAt: 1 });
-    await db.customExercises.put({ id: 'custom:x', name: 'Carry', muscleGroup: 'core', updatedAt: 1 });
+    await db.measurements.put({
+      id: 'm',
+      date: '2026-08-25',
+      metric: 'weight',
+      value: 80,
+      updatedAt: 1,
+    });
+    await db.nutrition.put({
+      id: '2026-08-25',
+      date: '2026-08-25',
+      kcal: 2000,
+      proteinG: 120,
+      updatedAt: 1,
+    });
+    await db.customExercises.put({
+      id: 'custom:x',
+      name: 'Carry',
+      muscleGroup: 'core',
+      updatedAt: 1,
+    });
     await db.settings.put({ id: 'settings', locale: 'it', updatedAt: 1 });
 
     await clearAllUserData();
 
-    expect(await Promise.all([
-      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
-      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
-    ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(
+      await Promise.all([
+        db.workouts.count(),
+        db.routines.count(),
+        db.folders.count(),
+        db.notes.count(),
+        db.measurements.count(),
+        db.nutrition.count(),
+        db.customExercises.count(),
+        db.settings.count(),
+      ]),
+    ).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   });
 });
 
@@ -261,9 +288,11 @@ describe('account transitions', () => {
     stopSyncMock.mockReturnValueOnce(stop.promise);
     const clear = deferred<void>();
     const originalClear = db.workouts.clear.bind(db.workouts);
-    const clearSpy = vi.spyOn(db.workouts, 'clear').mockImplementationOnce(() =>
-      Dexie.waitFor(clear.promise).then(() => originalClear()) as PromiseExtended<void>,
-    );
+    const clearSpy = vi
+      .spyOn(db.workouts, 'clear')
+      .mockImplementationOnce(
+        () => Dexie.waitFor(clear.promise).then(() => originalClear()) as PromiseExtended<void>,
+      );
 
     useStore.getState().setUser({ uid: 'account-b', name: 'B first' });
     useStore.getState().setUser({ uid: 'account-b', name: 'B latest' });
@@ -284,10 +313,18 @@ describe('account transitions', () => {
       expect(useStore.getState().user).toEqual({ uid: 'account-b', name: 'B latest' });
       expect(storage.get('overload_uid')).toBe('account-b');
       expect(startSyncMock.mock.calls.map(([uid]) => uid)).toEqual(['account-a', 'account-b']);
-      expect(await Promise.all([
-        db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
-        db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
-      ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(
+        await Promise.all([
+          db.workouts.count(),
+          db.routines.count(),
+          db.folders.count(),
+          db.notes.count(),
+          db.measurements.count(),
+          db.nutrition.count(),
+          db.customExercises.count(),
+          db.settings.count(),
+        ]),
+      ).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
     } finally {
       stop.resolve();
       clear.resolve();
@@ -496,7 +533,8 @@ describe('account transitions', () => {
         name: 'Newest',
       });
       expect(useStore.getState().routines[0]).toMatchObject({
-        name: 'Newest', warmup: 'Failed draft',
+        name: 'Newest',
+        warmup: 'Failed draft',
       });
 
       rollbackRead.resolve([base]);
@@ -506,10 +544,12 @@ describe('account transitions', () => {
       await expect(newest).resolves.toMatchObject({ status: 'applied' });
 
       expect(useStore.getState().routines[0]).toMatchObject({
-        name: 'Newest', warmup: 'Failed draft',
+        name: 'Newest',
+        warmup: 'Failed draft',
       });
       expect(await db.routines.get('routine-a')).toMatchObject({
-        name: 'Newest', warmup: 'Failed draft',
+        name: 'Newest',
+        warmup: 'Failed draft',
       });
     } finally {
       const failedDrain = failed?.catch(() => {});
@@ -578,13 +618,22 @@ describe('account transitions', () => {
 
       const remounted = useStore.getState().routines[0];
       second = useStore.getState().saveRoutine({ ...remounted, name: 'Renamed' });
-      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Renamed',
+        warmup: 'Persist me',
+      });
 
       write.resolve('routine-a');
       await expect(first).resolves.toMatchObject({ status: 'applied' });
       await expect(second).resolves.toMatchObject({ status: 'applied' });
-      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
-      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Renamed',
+        warmup: 'Persist me',
+      });
+      expect(await db.routines.get('routine-a')).toMatchObject({
+        name: 'Renamed',
+        warmup: 'Persist me',
+      });
     } finally {
       write.resolve('routine-a');
       await first.catch(() => {});
@@ -612,8 +661,14 @@ describe('account transitions', () => {
       await rejected;
       await expect(second).resolves.toMatchObject({ status: 'applied' });
 
-      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
-      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Renamed',
+        warmup: 'Persist me',
+      });
+      expect(await db.routines.get('routine-a')).toMatchObject({
+        name: 'Renamed',
+        warmup: 'Persist me',
+      });
     } finally {
       const firstDrain = first.catch(() => {});
       const secondDrain = second?.catch(() => {});
@@ -644,7 +699,8 @@ describe('account transitions', () => {
         name: 'Also optimistic',
       });
       expect(useStore.getState().routines[0]).toMatchObject({
-        name: 'Also optimistic', warmup: 'Optimistic only',
+        name: 'Also optimistic',
+        warmup: 'Optimistic only',
       });
 
       const firstRejected = expect(first).rejects.toThrow('first write failed');
@@ -676,9 +732,9 @@ describe('account transitions', () => {
     const originalPut = db.routines.put.bind(db.routines);
     const putSpy = vi
       .spyOn(db.routines, 'put')
-      .mockImplementationOnce((routine) => (
-        firstWrite.promise.then(() => originalPut(routine)) as PromiseExtended<string>
-      ))
+      .mockImplementationOnce(
+        (routine) => firstWrite.promise.then(() => originalPut(routine)) as PromiseExtended<string>,
+      )
       .mockReturnValueOnce(secondWrite.promise as PromiseExtended<string>);
     let first: RoutineSave | undefined;
     let second: RoutineSave | undefined;
@@ -716,7 +772,10 @@ describe('account transitions', () => {
     vi.spyOn(db.routines, 'put').mockReturnValueOnce(write.promise as PromiseExtended<string>);
 
     const save = useStore.getState().saveRoutine({
-      id: 'routine-a', name: 'Account A routine', exercises: [], updatedAt: 1,
+      id: 'routine-a',
+      name: 'Account A routine',
+      exercises: [],
+      updatedAt: 1,
     });
     try {
       await vi.waitFor(() => expect(useStore.getState().routines[0]?.id).toBe('routine-a'));
@@ -778,11 +837,7 @@ describe('account transitions', () => {
 
       expect(useStore.getState().workouts).toEqual([]);
       expect(await db.workouts.toArray()).toEqual([]);
-      expect(pushRecordMock).not.toHaveBeenCalledWith(
-        'account-b',
-        'workouts',
-        expect.anything(),
-      );
+      expect(pushRecordMock).not.toHaveBeenCalledWith('account-b', 'workouts', expect.anything());
     } finally {
       write.resolve('workout-a');
       await finish.catch(() => {});
@@ -839,8 +894,13 @@ describe('neutral starter data', () => {
   it('offers a neutral two-day full-body pack whose routines copy into one folder', () => {
     const fullBody = TEMPLATES.find((pack) => pack.folder.id === 'full-body-folder');
 
-    expect(fullBody?.routines.map((routine) => routine.name)).toEqual(['Full Body A', 'Full Body B']);
-    expect(fullBody?.routines.every((routine) => routine.folderId === fullBody.folder.id)).toBe(true);
+    expect(fullBody?.routines.map((routine) => routine.name)).toEqual([
+      'Full Body A',
+      'Full Body B',
+    ]);
+    expect(fullBody?.routines.every((routine) => routine.folderId === fullBody.folder.id)).toBe(
+      true,
+    );
     expect(fullBody?.routines.flatMap((routine) => routine.exercises)).not.toContainEqual(
       expect.objectContaining({ startWeightKg: expect.any(Number) }),
     );
@@ -848,29 +908,32 @@ describe('neutral starter data', () => {
 
   it('sorts exercise search alphabetically without curated-result priority', async () => {
     const originalFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => [
-        {
-          id: 'Dumbbell_Bench_Press',
-          name: 'Zulu press',
-          equipment: 'dumbbell',
-          primaryMuscles: ['chest'],
-          secondaryMuscles: [],
-          instructions: [],
-          images: [],
-        },
-        {
-          id: 'alpha-carry',
-          name: 'Alpha carry',
-          equipment: 'other',
-          primaryMuscles: ['abdominals'],
-          secondaryMuscles: [],
-          instructions: [],
-          images: [],
-        },
-      ],
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => [
+          {
+            id: 'Dumbbell_Bench_Press',
+            name: 'Zulu press',
+            equipment: 'dumbbell',
+            primaryMuscles: ['chest'],
+            secondaryMuscles: [],
+            instructions: [],
+            images: [],
+          },
+          {
+            id: 'alpha-carry',
+            name: 'Alpha carry',
+            equipment: 'other',
+            primaryMuscles: ['abdominals'],
+            secondaryMuscles: [],
+            instructions: [],
+            images: [],
+          },
+        ],
+      })),
+    );
 
     await loadCatalog();
 
@@ -882,9 +945,7 @@ describe('neutral starter data', () => {
   });
 
   it('removes custom exercises from the in-memory catalog when the active collection is cleared', () => {
-    registerCustomExercises([
-      { id: 'custom:private', name: 'Private carry', muscleGroup: 'core' },
-    ]);
+    registerCustomExercises([{ id: 'custom:private', name: 'Private carry', muscleGroup: 'core' }]);
     expect(searchExercises('Private carry', null, 'en')).toHaveLength(1);
 
     registerCustomExercises([]);
@@ -894,7 +955,10 @@ describe('neutral starter data', () => {
 
   it('keeps both custom exercises searchable after two sequential creations', async () => {
     const originalFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, json: async () => [] })),
+    );
     await loadCatalog();
     vi.stubGlobal('fetch', originalFetch);
     await login('account-a');

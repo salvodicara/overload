@@ -47,9 +47,7 @@ const BACKUP_DATA: BackupData = {
     },
   ],
   measurements: [{ id: 'm1', date: '2026-06-01', metric: 'weight', value: 82.5, updatedAt: 5 }],
-  nutrition: [
-    { id: '2026-06-01', date: '2026-06-01', kcal: 2400, proteinG: 180, updatedAt: 6 },
-  ],
+  nutrition: [{ id: '2026-06-01', date: '2026-06-01', kcal: 2400, proteinG: 180, updatedAt: 6 }],
   customExercises: [
     { id: 'custom:1', name: 'Press personale', muscleGroup: 'shoulders', updatedAt: 7 },
   ],

@@ -8,7 +8,9 @@ const DEFAULT_INCREMENT_KG = 2.5;
 function lastWorkoutWith(history: Workout[], exerciseId: string): Workout | null {
   let best: Workout | null = null;
   for (const w of history) {
-    if (!w.sets.some((s) => s.done && kindOf(s.kind) === 'working' && s.exerciseId === exerciseId)) {
+    if (
+      !w.sets.some((s) => s.done && kindOf(s.kind) === 'working' && s.exerciseId === exerciseId)
+    ) {
       continue;
     }
     if (best === null || w.date > best.date || (w.date === best.date && w.startTs > best.startTs)) {

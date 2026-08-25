@@ -62,8 +62,5 @@ export function exerciseJournal(
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  return [
-    ...workoutEntries.map(({ id, date, text }) => ({ id, date, text })),
-    ...legacyEntries,
-  ];
+  return [...workoutEntries.map(({ id, date, text }) => ({ id, date, text })), ...legacyEntries];
 }

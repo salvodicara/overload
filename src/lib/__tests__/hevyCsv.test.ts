@@ -96,7 +96,11 @@ describe('parseHevyCsv', () => {
     expect(crlf.workouts).toHaveLength(2);
     expect(crlf.workouts[0].sets).toHaveLength(3);
     expect(parseHevyCsv('', ALIASES)).toEqual({ workouts: [], unknownExercises: [], notes: [] });
-    expect(parseHevyCsv(HEADER, ALIASES)).toEqual({ workouts: [], unknownExercises: [], notes: [] });
+    expect(parseHevyCsv(HEADER, ALIASES)).toEqual({
+      workouts: [],
+      unknownExercises: [],
+      notes: [],
+    });
   });
 
   it('reports a repeated unknown exercise only once', () => {
@@ -118,7 +122,9 @@ describe('exercise notes extraction', () => {
       '"W","8 gen 2026, 10:00","8 gen 2026, 11:00","","Squat (Bilanciere)",,"fermo con 25",0,"normal",32.5,5,,,',
       '"W","15 gen 2026, 10:00","15 gen 2026, 11:00","","Squat (Bilanciere)",,"salire a 35",0,"normal",32.5,6,,,',
     ];
-    const { notes } = parseHevyCsv([HEADER, ...rows].join('\n'), { 'Squat (Bilanciere)': 'Barbell_Squat' });
+    const { notes } = parseHevyCsv([HEADER, ...rows].join('\n'), {
+      'Squat (Bilanciere)': 'Barbell_Squat',
+    });
     expect(notes).toHaveLength(1);
     expect(notes[0].id).toBe('Barbell_Squat');
     expect(notes[0].entries).toEqual([

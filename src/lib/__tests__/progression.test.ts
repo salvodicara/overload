@@ -94,12 +94,14 @@ describe('suggest', () => {
   });
 
   it('does not use warm-up rows for progression', () => {
-    const history = [workout('w1', '2026-06-01', [
-      { ...set(20, 10), kind: 'warmup' },
-      { ...set(40, 8), kind: 'working' },
-      { ...set(40, 8), kind: 'working' },
-      { ...set(40, 8), kind: 'working' },
-    ])];
+    const history = [
+      workout('w1', '2026-06-01', [
+        { ...set(20, 10), kind: 'warmup' },
+        { ...set(40, 8), kind: 'working' },
+        { ...set(40, 8), kind: 'working' },
+        { ...set(40, 8), kind: 'working' },
+      ]),
+    ];
 
     expect(suggest(rx(), history).weights).toEqual([40, 40, 40]);
   });

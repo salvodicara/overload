@@ -1,6 +1,15 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { BackupV2 } from './importer';
-import type { CustomExercise, ExerciseNote, Folder, Measurement, NutritionDay, Routine, Settings, Workout } from './types';
+import type {
+  CustomExercise,
+  ExerciseNote,
+  Folder,
+  Measurement,
+  NutritionDay,
+  Routine,
+  Settings,
+  Workout,
+} from './types';
 
 export type OverloadDb = Dexie & {
   workouts: EntityTable<Workout, 'id'>;

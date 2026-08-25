@@ -1,19 +1,17 @@
 import type { Folder, Routine, Workout } from './types';
 
 const compareNewest = (left: Workout, right: Workout): number =>
-  right.startTs - left.startTs
-  || right.updatedAt - left.updatedAt
-  || right.id.localeCompare(left.id);
+  right.startTs - left.startTs ||
+  right.updatedAt - left.updatedAt ||
+  right.id.localeCompare(left.id);
 
 const belongsTo = (routine: Routine, workout: Workout): boolean =>
-  workout.routineId === routine.id
-  || (workout.routineId == null && workout.dayLabel === routine.name);
+  workout.routineId === routine.id ||
+  (workout.routineId == null && workout.dayLabel === routine.name);
 
 /** Return the most recent saved workout for a routine, if it has one. */
 export function lastCompletedFor(routine: Routine, workouts: Workout[]): Workout | null {
-  return workouts
-    .filter((workout) => belongsTo(routine, workout))
-    .sort(compareNewest)[0] ?? null;
+  return workouts.filter((workout) => belongsTo(routine, workout)).sort(compareNewest)[0] ?? null;
 }
 
 /**

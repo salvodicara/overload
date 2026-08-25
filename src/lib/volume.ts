@@ -21,7 +21,12 @@ export function maxWeightBefore(
   for (const w of history) {
     if (w.date >= beforeDate) continue;
     for (const s of w.sets) {
-      if (s.done && kindOf(s.kind) === 'working' && s.exerciseId === exerciseId && s.weightKg > max) {
+      if (
+        s.done &&
+        kindOf(s.kind) === 'working' &&
+        s.exerciseId === exerciseId &&
+        s.weightKg > max
+      ) {
         max = s.weightKg;
       }
     }

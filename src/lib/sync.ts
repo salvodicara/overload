@@ -1,11 +1,29 @@
-import { db, getSettings, listCustomExercises, listFolders, listMeasurements, listNotes, listNutrition, listRoutines, listWorkouts } from './db';
+import {
+  db,
+  getSettings,
+  listCustomExercises,
+  listFolders,
+  listMeasurements,
+  listNotes,
+  listNutrition,
+  listRoutines,
+  listWorkouts,
+} from './db';
 
 /** Every synced record carries an id and a last-write timestamp (epoch ms). */
 export type Synced = { id: string; updatedAt: number };
 
 export type SyncState = 'synced' | 'pending' | 'offline' | 'error';
 
-export type SyncCollection = 'workouts' | 'routines' | 'folders' | 'notes' | 'measurements' | 'nutrition' | 'customExercises' | 'settings';
+export type SyncCollection =
+  | 'workouts'
+  | 'routines'
+  | 'folders'
+  | 'notes'
+  | 'measurements'
+  | 'nutrition'
+  | 'customExercises'
+  | 'settings';
 
 /**
  * Last-write-wins diff between the local and remote copies of a collection.
@@ -41,7 +59,7 @@ export function diffForSync<T extends Synced>(local: T[], remote: T[]): { push: 
 const isBrowser = (): boolean => typeof window !== 'undefined';
 
 /** Firestore rejects `undefined` field values; strip them before writing. */
-const sanitize = <T,>(rec: T): T => JSON.parse(JSON.stringify(rec)) as T;
+const sanitize = <T>(rec: T): T => JSON.parse(JSON.stringify(rec)) as T;
 
 async function syncAll(
   uid: string,

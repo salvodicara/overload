@@ -4,15 +4,25 @@ import type { Folder, Routine, Workout } from '../types';
 
 const program: Folder = { id: 'p', name: 'Program', updatedAt: 1 };
 const makeRoutine = (id: string, folderId?: string): Routine => ({
-  id, name: id, folderId, exercises: [], updatedAt: 1,
+  id,
+  name: id,
+  folderId,
+  exercises: [],
+  updatedAt: 1,
 });
 const a = makeRoutine('a', 'p');
 const b = makeRoutine('b', 'p');
 const ungroupedA = makeRoutine('u-a');
 const ungroupedB = makeRoutine('u-b');
 const done = (routineId: string, startTs: number): Workout => ({
-  id: `w-${routineId}-${startTs}`, routineId, date: '2026-08-25', startTs,
-  sets: [], volumeKg: 0, updatedAt: startTs, source: 'app',
+  id: `w-${routineId}-${startTs}`,
+  routineId,
+  date: '2026-08-25',
+  startTs,
+  sets: [],
+  volumeKg: 0,
+  updatedAt: startTs,
+  source: 'app',
 });
 
 describe('nextRoutine', () => {

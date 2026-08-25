@@ -36,7 +36,14 @@ describe('computeVolume', () => {
     const sets: SetLog[] = [
       { exerciseId: 'squat', weightKg: 20, reps: 10, done: true, kind: 'warmup' },
       { exerciseId: 'squat', weightKg: 60, reps: 5, done: true, kind: 'working' },
-      { exerciseId: 'plank', weightKg: 0, reps: 0, durationSec: 60, tracking: 'duration', done: true },
+      {
+        exerciseId: 'plank',
+        weightKg: 0,
+        reps: 0,
+        durationSec: 60,
+        tracking: 'duration',
+        done: true,
+      },
     ];
 
     expect(computeVolume(sets)).toBe(300);
@@ -68,10 +75,12 @@ describe('maxWeightBefore', () => {
   });
 
   it('ignores warm-up rows when finding the historical maximum', () => {
-    const withWarmup = [workout('w4', '2026-06-20', [
-      { ...set('bench', 100, 1), kind: 'warmup' },
-      { ...set('bench', 60, 5), kind: 'working' },
-    ])];
+    const withWarmup = [
+      workout('w4', '2026-06-20', [
+        { ...set('bench', 100, 1), kind: 'warmup' },
+        { ...set('bench', 60, 5), kind: 'working' },
+      ]),
+    ];
 
     expect(maxWeightBefore(withWarmup, 'bench', '2026-06-21')).toBe(60);
   });
