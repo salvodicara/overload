@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CatalogExercise } from '../lib/exercises';
 
 /**
@@ -23,6 +24,21 @@ const CSS = `
   object-fit: contain;
 }
 .exmedia-b { opacity: 0; }
+.exmedia--paused .exmedia-b { animation-play-state: paused; }
+.exmedia-toggle {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 1;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
 @media (prefers-reduced-motion: no-preference) {
   .exmedia-b { animation: exmedia-xfade 2.2s ease-in-out infinite; }
   @keyframes exmedia-xfade {
@@ -30,6 +46,9 @@ const CSS = `
     50%, 84% { opacity: 1; }
     100% { opacity: 0; }
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exmedia-toggle { display: none; }
 }
 .exmedia-thumb {
   flex: none;
@@ -56,7 +75,9 @@ export function ExerciseMedia({
   exercise: CatalogExercise;
   size?: 'thumb' | 'hero';
 }) {
+  const { t } = useTranslation();
   const [failed, setFailed] = useState<Set<number>>(() => new Set());
+  const [paused, setPaused] = useState(false);
   const fail = (index: number) =>
     setFailed((prev) => {
       const next = new Set(prev);
@@ -69,10 +90,17 @@ export function ExerciseMedia({
     .map((src, index) => ({ index, src }))
     .filter(({ index }) => !failed.has(index))
     .slice(0, size === 'hero' ? 2 : 1);
+  const showMotionControl = size === 'hero' && available.length === 2;
   const initial = (exercise.nameEn || exercise.nameIt || '?').trim().charAt(0).toUpperCase();
 
   return (
-    <div className={size === 'thumb' ? 'exmedia exmedia-thumb' : 'exmedia'}>
+    <div
+      className={
+        size === 'thumb'
+          ? 'exmedia exmedia-thumb'
+          : `exmedia${showMotionControl && paused ? ' exmedia--paused' : ''}`
+      }
+    >
       <style href="overload-exercise-media" precedence="default">
         {CSS}
       </style>
@@ -92,6 +120,15 @@ export function ExerciseMedia({
         <div className="exmedia-fallback display" style={{ fontSize: size === 'thumb' ? 20 : 52 }}>
           {initial}
         </div>
+      )}
+      {showMotionControl && (
+        <button
+          className="exmedia-toggle"
+          type="button"
+          onClick={() => setPaused((value) => !value)}
+        >
+          {t(paused ? 'library.resumeMedia' : 'library.pauseMedia')}
+        </button>
       )}
     </div>
   );

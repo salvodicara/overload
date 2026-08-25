@@ -153,6 +153,8 @@
     "muscleGroup": "Gruppo muscolare",
     "results": "Risultati esercizi",
     "loading": "Caricamento esercizi",
+    "pauseMedia": "Metti in pausa la demo",
+    "resumeMedia": "Riprendi la demo",
     "muscle": {
       "chest": "Petto",
       "back": "Schiena",

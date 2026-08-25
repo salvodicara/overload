@@ -2203,6 +2203,41 @@ test('exercise detail promotes valid media, stays static when reduced, and defer
   expect(instructionsIndex).toBeGreaterThan(journalIndex);
 });
 
+test('two-frame exercise media can be paused by keyboard and disappears under reduced motion', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openExerciseDetail(page);
+
+  const media = page.locator('.exercise-detail__media .exmedia');
+  const pause = media.getByRole('button', { name: 'Pause demo' });
+  await expect(pause).toBeVisible();
+  await pause.focus();
+  await page.keyboard.press('Enter');
+  const resume = media.getByRole('button', { name: 'Resume demo' });
+  await expect(resume).toBeFocused();
+  await expect(media.locator('.exmedia-b')).toHaveCSS('animation-play-state', 'paused');
+
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const bounds = await resume.boundingBox();
+    expect(bounds).not.toBeNull();
+    expectAtLeast44PxGeometry(bounds?.height ?? 0);
+    expect((bounds?.x ?? viewport.width) + (bounds?.width ?? 0)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+  }
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(resume).toBeHidden();
+  await expect(media.locator('.exmedia-b')).toHaveCSS('animation-name', 'none');
+});
+
 test('exercise Technique reports failure and stale saves before a current retry closes it', async ({
   page,
 }) => {

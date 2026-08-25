@@ -153,6 +153,8 @@
     "muscleGroup": "Muscle group",
     "results": "Exercise results",
     "loading": "Loading exercises",
+    "pauseMedia": "Pause demo",
+    "resumeMedia": "Resume demo",
     "muscle": {
       "chest": "Chest",
       "back": "Back",
