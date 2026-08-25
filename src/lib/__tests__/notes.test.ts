@@ -14,6 +14,7 @@ import { exerciseJournal, routineTechniqueMigrations } from '../notes';
 import type { ExerciseNote, Routine, Workout } from '../types';
 import { useStore } from '../../state/useStore';
 import workoutSource from '../../screens/Workout.tsx?raw';
+import noteEditorSource from '../../components/NoteEditor.tsx?raw';
 
 const storage = new Map<string, string>();
 
@@ -450,6 +451,61 @@ describe('note persistence', () => {
       write.resolve('bench');
       remote.resolve();
       await commit.catch(() => {});
+      put.mockRestore();
+    }
+  });
+
+  it('reserves a final A save ahead of B clearing while an earlier local save is pending', async () => {
+    const firstWrite = deferred<string>();
+    const finalWrite = deferred<string>();
+    const originalPut = db.notes.put.bind(db.notes);
+    const put = vi
+      .spyOn(db.notes, 'put')
+      .mockImplementationOnce((note) => (
+        firstWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>
+      ))
+      .mockImplementationOnce((note) => (
+        finalWrite.promise.then(() => originalPut(note)) as ReturnType<typeof db.notes.put>
+      ));
+    const clear = vi.spyOn(db.notes, 'clear');
+    const first = useStore.getState().saveTechniqueNote('bench', 'First A value');
+    let final: Promise<unknown> | undefined;
+    try {
+      await vi.waitFor(() => expect(put).toHaveBeenCalledOnce());
+      final = useStore.getState().saveTechniqueNote('bench', 'Final A value');
+      storage.set('overload_uid', 'user-1');
+      useStore.getState().setUser({ uid: 'user-2', name: null });
+      await Promise.resolve();
+      await Promise.resolve();
+
+      firstWrite.resolve('bench');
+      await vi.waitFor(() => expect(put).toHaveBeenCalledTimes(2));
+      expect(clear).not.toHaveBeenCalled();
+      finalWrite.resolve('bench');
+      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledWith(
+        'user-1',
+        'notes',
+        expect.objectContaining({ id: 'bench', technique: 'Final A value' }),
+      ));
+      await expect(first).resolves.toEqual({ status: 'stale' });
+      await expect(final).resolves.toEqual({ status: 'stale' });
+      await useStore.getState().init();
+
+      expect(useStore.getState().user?.uid).toBe('user-2');
+      expect(useStore.getState().notes).toEqual([]);
+      expect(await db.notes.get('bench')).toBeUndefined();
+      expect(pushRecord).not.toHaveBeenCalledWith(
+        'user-2',
+        'notes',
+        expect.objectContaining({ technique: 'Final A value' }),
+      );
+    } finally {
+      firstWrite.resolve('bench');
+      finalWrite.resolve('bench');
+      await first.catch(() => {});
+      await final?.catch(() => {});
+      put.mockRestore();
+      clear.mockRestore();
     }
   });
 
@@ -570,5 +626,9 @@ describe('active Workout note API contract', () => {
     expect(workoutSource).toContain('updateSessionNote');
     expect(workoutSource).toContain('note?.technique');
     expect(workoutSource).toContain('e.sessionNote');
+  });
+
+  it('locks Technique text input while Done is committing', () => {
+    expect(noteEditorSource).toMatch(/<textarea[\s\S]*disabled=\{disabled\}/);
   });
 });

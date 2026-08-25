@@ -250,7 +250,6 @@ type PendingTechniqueSave = {
   timer: ReturnType<typeof setTimeout>;
 };
 type TechniqueSaveSequence = {
-  localTail: Promise<void>;
   remoteTail: Promise<void>;
 };
 const techniqueSaveTimers = new Map<string, PendingTechniqueSave>();
@@ -279,43 +278,37 @@ function queueTechniqueSave(
   const key = techniqueSequenceKey(owner, exerciseId);
   let sequence = techniqueSaveSequences.get(key);
   if (!sequence) {
-    sequence = { localTail: Promise.resolve(), remoteTail: Promise.resolve() };
+    sequence = { remoteTail: Promise.resolve() };
     techniqueSaveSequences.set(key, sequence);
   }
   const current = sequence;
-  const saving = current.localTail.then(async () => {
-    const next = await withLocalWriteBarrier(async () => {
-      if (!owns(owner)) return null;
-      const existing = getNotes().find((note) => note.id === exerciseId);
-      const note: ExerciseNote = {
-        ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
-        technique: text.trim(),
-        updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1),
-      };
-      await saveNote(note);
-      return note;
-    });
+  const admitted = owns(owner);
+  const local = withLocalWriteBarrier(async () => {
+    if (!admitted) return null;
+    const existing = getNotes().find((note) => note.id === exerciseId);
+    const next: ExerciseNote = {
+      ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
+      technique: text.trim(),
+      updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1),
+    };
+    await saveNote(next);
+    return next;
+  });
+  const saving = local.then((next) => {
     if (!next) return STALE_ACCOUNT_ACTION;
     if (owns(owner)) setNotes([...getNotes().filter((note) => note.id !== exerciseId), next]);
     const handoff = current.remoteTail.then(() => pushRecord(owner.uid, 'notes', next));
-    current.remoteTail = handoff.then(
+    const remoteTail = handoff.then(
       () => undefined,
       () => undefined,
     );
-    return accountActionForOwner(owner, undefined);
-  });
-  const localTail = saving.then(
-    () => undefined,
-    () => undefined,
-  );
-  current.localTail = localTail;
-  void localTail.then(() => {
-    if (techniqueSaveSequences.get(key) !== current || current.localTail !== localTail) return;
-    void current.remoteTail.then(() => {
-      if (techniqueSaveSequences.get(key) === current && current.localTail === localTail) {
+    current.remoteTail = remoteTail;
+    void remoteTail.then(() => {
+      if (techniqueSaveSequences.get(key) === current && current.remoteTail === remoteTail) {
         techniqueSaveSequences.delete(key);
       }
     });
+    return accountActionForOwner(owner, undefined);
   });
   return saving;
 }

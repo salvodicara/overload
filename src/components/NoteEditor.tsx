@@ -56,6 +56,7 @@ export function NoteEditor({
         defaultValue={initial}
         placeholder={placeholder}
         aria-labelledby={labelledBy}
+        disabled={disabled}
         onInput={(e) => {
           const el = e.currentTarget;
           el.style.height = 'auto';
