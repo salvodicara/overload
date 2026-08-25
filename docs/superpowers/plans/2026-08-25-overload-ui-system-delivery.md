@@ -155,6 +155,7 @@ git commit -m "feat: unify page headers and accessible sheets"
 - Modify: `src/theme/tokens.css`
 - Modify: `src/i18n/it.json`
 - Modify: `src/i18n/en.json`
+- Modify: `e2e/core.spec.ts`
 
 **Interfaces:**
 
@@ -183,7 +184,7 @@ Expected: PASS. Re-capture the same screenshots outside the repo and inspect dar
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/screens/Login.tsx src/screens/Home.tsx src/screens/History.tsx src/components/WorkoutList.tsx src/screens/Train.tsx src/components/Nav.tsx src/theme/tokens.css src/i18n/it.json src/i18n/en.json
+git add src/screens/Login.tsx src/screens/Home.tsx src/screens/History.tsx src/components/WorkoutList.tsx src/screens/Train.tsx src/components/Nav.tsx src/theme/tokens.css src/i18n/it.json src/i18n/en.json e2e/core.spec.ts
 git commit -m "style: refine entry and training surfaces"
 ```
 
@@ -194,9 +195,12 @@ git commit -m "style: refine entry and training surfaces"
 - Modify: `src/screens/Library.tsx`
 - Modify: `src/screens/ExerciseSheet.tsx`
 - Modify: `src/components/ExerciseMedia.tsx`
+- Modify: `src/state/useStore.ts`
 - Modify: `src/theme/tokens.css`
 - Modify: `src/i18n/it.json`
 - Modify: `src/i18n/en.json`
+- Modify: `src/lib/__tests__/callerConcurrency.test.ts`
+- Modify: `e2e/core.spec.ts`
 
 **Interfaces:**
 
@@ -208,7 +212,7 @@ Capture Library loading, populated Library, no results, custom exercise sheet, E
 
 - [ ] **Step 2: Recompose Library**
 
-Make search and filters one sticky search region with persistent search label available to assistive technology. Filter pills use native pressed state and 44px height. Results become compact media rows with muscle metadata, not nested cards and chips. The custom exercise action remains visible after results and its form includes name, muscle group, and tracking type.
+Make search and filters one sticky search region with persistent search label available to assistive technology. Filter pills use native pressed state and 44px height. Results become compact media rows with muscle metadata, not nested cards and chips. The custom exercise action remains visible after results. Its form always includes labelled name and muscle group fields; when opened from a routine picker, a labelled tracking selector initializes only that routine prescription through the existing owner-fenced flow. Do not add a global tracking field to `CustomExercise` or the backup schema.
 
 - [ ] **Step 3: Recompose Exercise Detail**
 
@@ -223,7 +227,7 @@ Expected: PASS, no horizontal overflow, labels ≥12px, and same dark/light hier
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/screens/Library.tsx src/screens/ExerciseSheet.tsx src/components/ExerciseMedia.tsx src/theme/tokens.css src/i18n/it.json src/i18n/en.json
+git add src/screens/Library.tsx src/screens/ExerciseSheet.tsx src/components/ExerciseMedia.tsx src/state/useStore.ts src/theme/tokens.css src/i18n/it.json src/i18n/en.json src/lib/__tests__/callerConcurrency.test.ts e2e/core.spec.ts
 git commit -m "style: refine exercise discovery and detail"
 ```
 
@@ -239,6 +243,7 @@ git commit -m "style: refine exercise discovery and detail"
 - Modify: `src/i18n/it.json`
 - Modify: `src/i18n/en.json`
 - Modify: `scripts/check-i18n.mjs`
+- Modify: `e2e/core.spec.ts`
 
 **Interfaces:**
 
@@ -288,7 +293,7 @@ Expected: PASS; capture empty/one/many states at mobile dark/light outside the r
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/screens/Progress.tsx src/screens/ProgressBody.tsx src/screens/ProgressDiet.tsx src/components/LineChart.tsx src/theme/tokens.css src/i18n/it.json src/i18n/en.json scripts/check-i18n.mjs
+git add src/screens/Progress.tsx src/screens/ProgressBody.tsx src/screens/ProgressDiet.tsx src/components/LineChart.tsx src/theme/tokens.css src/i18n/it.json src/i18n/en.json scripts/check-i18n.mjs e2e/core.spec.ts
 git commit -m "style: generalize progress and nutrition"
 ```
 
@@ -354,13 +359,14 @@ git commit -m "style: clarify settings and data ownership"
 - Modify: `src/App.tsx`
 - Modify: `src/state/useStore.ts`
 - Modify: `src/lib/exercises.ts`
+- Create: `src/lib/__tests__/catalog.test.ts`
+- Modify: `src/lib/__tests__/authConcurrency.test.ts`
 - Create: `src/hooks/useCatalog.ts`
+- Modify: `src/components/ExportRows.tsx`
 - Modify: `src/components/WorkoutList.tsx`
 - Modify: `src/components/RestBar.tsx`
 - Modify: `src/components/RestWatcher.tsx`
-- Modify: `src/screens/Login.tsx`
 - Modify: `src/screens/Home.tsx`
-- Modify: `src/screens/Train.tsx`
 - Modify: `src/screens/RoutineEditor.tsx`
 - Modify: `src/screens/Workout.tsx`
 - Modify: `src/screens/Summary.tsx`
@@ -368,8 +374,8 @@ git commit -m "style: clarify settings and data ownership"
 - Modify: `src/screens/Progress.tsx`
 - Modify: `src/screens/Library.tsx`
 - Modify: `src/screens/ExerciseSheet.tsx`
-- Modify: `src/screens/ImportExport.tsx`
-- Modify: `vite.config.ts` if chunk naming requires a stable split
+- Modify: `e2e/core.spec.ts`
+- Modify: `vite.config.ts`
 
 **Interfaces:**
 
@@ -385,22 +391,22 @@ Expected baseline: approximately 1.03MB uncompressed initial JS, a roughly 600KB
 
 - [ ] **Step 2: Implement idempotent screen-triggered loading**
 
-Remove eager `loadCatalog` from the `setUser` boot path while preserving every account-generation fence. `ensureCatalog` returns immediately when ready, otherwise shares the existing catalog promise, registers custom exercises after resolve, and sets `catalogReady`. Home requests the catalog only when it has workouts to name; Train does not need it until Routine Editor or Workout opens. Audit every listed catalog consumer and stage the hook only where exercise names or search are visible. Schedule an idle prefetch after Home's useful paint using `requestIdleCallback` with a 2s timeout fallback, canceling on unmount.
+Remove eager `loadCatalog` from the `setUser` boot path while preserving every account-generation fence. The public catalog fetch is one account-neutral, retryable in-flight promise; `ensureCatalog` captures the current owner, awaits that shared fetch, re-registers only the current account's custom exercises, rechecks ownership, then publishes readiness. Custom exercises registered before the public fetch remain name/searchable and are merged after it resolves. Home requests the catalog only when it has workouts to name; Train remains catalog-free until Routine Editor or Workout opens. Audit every listed consumer and stage the hook only where exercise names or search are visible. Schedule an idle prefetch after Home's useful paint using `requestIdleCallback` with a 2s timeout fallback, canceling on unmount.
 
 - [ ] **Step 3: Lazy-load route modules**
 
-Keep Login and Home eager. Lazy-load Train, Profile, Workout, Summary, WorkoutDetail, Progress, Library, ExerciseSheet, ImportExport, RoutineEditor, and History. Use one minimal skeleton matching page header and two content rows; preserve active-route recovery under Suspense.
+Keep Login and Home eager. Lazy-load Train, Profile, Workout, Summary, WorkoutDetail, Progress, Library, ExerciseSheet, ImportExport, RoutineEditor, and History. Use one minimal skeleton matching page header and two content rows; preserve active-route recovery under Suspense. Remove the two large catalog JSON files from the Workbox precache and cache same-origin `/data/exercises.json` and `/data/instructions.it.json` with a runtime stale-while-revalidate strategy so a warmed install remains usable offline.
 
 - [ ] **Step 4: Verify chunk and runtime behavior**
 
 Run: `pnpm test && pnpm e2e && pnpm build`
 
-Expected: all tests PASS, no application chunk exceeds 500KB, and a cold empty Home does not request `/data/exercises.json` before idle prefetch or an exercise-dependent screen.
+Expected: all tests PASS, no application chunk exceeds 500KB, a cold empty Home makes no catalog request before idle prefetch or an exercise-dependent screen, concurrent consumers issue one request, stale accounts cannot publish readiness/custom rows, and the built service worker runtime-caches rather than precaches both large JSON files. Warm each catalog once and verify an offline Library/active-workout reload; document that first-ever offline use cannot load data it has never cached.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/App.tsx src/state/useStore.ts src/lib/exercises.ts src/hooks/useCatalog.ts src/components/WorkoutList.tsx src/components/RestBar.tsx src/components/RestWatcher.tsx src/screens vite.config.ts
+git add src/App.tsx src/state/useStore.ts src/lib/exercises.ts src/lib/__tests__/catalog.test.ts src/lib/__tests__/authConcurrency.test.ts src/hooks/useCatalog.ts src/components/ExportRows.tsx src/components/WorkoutList.tsx src/components/RestBar.tsx src/components/RestWatcher.tsx src/screens/Home.tsx src/screens/RoutineEditor.tsx src/screens/Workout.tsx src/screens/Summary.tsx src/screens/WorkoutDetail.tsx src/screens/Progress.tsx src/screens/Library.tsx src/screens/ExerciseSheet.tsx e2e/core.spec.ts vite.config.ts
 git commit -m "perf: split routes and defer the exercise catalog"
 ```
 
