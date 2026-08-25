@@ -357,7 +357,10 @@ async function installCompletedWorkoutFixture(page: Page): Promise<void> {
     });
     try {
       await new Promise<void>((resolve, reject) => {
-        const transaction = database.transaction(['workouts', 'notes', 'settings'], 'readwrite');
+        const transaction = database.transaction(
+          ['workouts', 'notes', 'settings', 'customExercises'],
+          'readwrite',
+        );
         transaction.objectStore('settings').put({
           id: 'settings',
           locale: 'en',
@@ -368,6 +371,12 @@ async function installCompletedWorkoutFixture(page: Page): Promise<void> {
           id: 'Barbell_Squat',
           technique: 'Brace and drive',
           entries: [{ date: '2026-08-23', text: 'Legacy import' }],
+          updatedAt: 400,
+        });
+        transaction.objectStore('customExercises').put({
+          id: 'custom:i',
+          name: 'I',
+          muscleGroup: 'core',
           updatedAt: 400,
         });
         transaction.objectStore('workouts').put({
@@ -427,6 +436,7 @@ async function installCompletedWorkoutFixture(page: Page): Promise<void> {
           exerciseNotes: [
             { exerciseId: 'Barbell_Squat', text: 'Linked observation' },
             { exerciseId: 'Face_Pull', text: 'No-set observation' },
+            { exerciseId: 'custom:i', text: 'Short note-only observation' },
           ],
           updatedAt: 400,
           source: 'hevy',
@@ -1221,9 +1231,12 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
       .evaluate((entry) => entry.closest('button') === null),
   ).toBe(true);
 
-  for (const width of [320, 390]) {
-    await page.setViewportSize({ width, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
     expect(
       await page
         .getByRole('button', { name: /Linked observation/ })
@@ -1269,14 +1282,21 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
   await expect(noteOnly.getByText('No-set observation', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Imported workout note' })).toBeVisible();
   await expect(page.getByText('Imported coach note', { exact: true })).toBeVisible();
-  for (const width of [320, 390]) {
-    await page.setViewportSize({ width, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
-    expect(
-      await page
-        .getByRole('button', { name: 'Barbell Squat', exact: true })
-        .evaluate((button) => button.getBoundingClientRect().height),
-    ).toBeGreaterThanOrEqual(44);
+  const shortExercise = page.getByRole('button', { name: 'I', exact: true });
+  await expect(shortExercise).toBeVisible();
+  await expect(page.getByText('Short note-only observation', { exact: true })).toBeVisible();
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+    const target = await shortExercise.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return { width: bounds.width, height: bounds.height };
+    });
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
   }
 
   await openExerciseDetail(page, 'hanging leg raise', /hanging leg raise/i);
