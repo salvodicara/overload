@@ -956,6 +956,21 @@ test('app shell exposes landmarks and skip navigation', async ({ page }) => {
   await expect(main).toBeFocused();
 });
 
+test('document language starts in Italian and follows the selected locale', async ({
+  page,
+  request,
+}) => {
+  const response = await request.get('/');
+  expect(await response.text()).toContain('<html lang="it">');
+
+  await setStoredLocale(page, 'it');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'it');
+
+  await page.getByRole('button', { name: 'Profilo' }).click();
+  await page.getByRole('button', { name: 'English' }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+});
+
 test('login keeps one heading and its primary action inside narrow viewports', async ({ page }) => {
   await page.evaluate(async () => {
     const modulePath = '/src/state/useStore.ts';
@@ -1325,6 +1340,36 @@ test('active workout keeps finish and previous values in reach', async ({ page }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
+test('rest controls keep a stable 44px target on narrow workouts', async ({ page }) => {
+  await startNeutralWorkout(page);
+  const restControls = page.locator('.exercise-block__rest');
+
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const geometry = await restControls.evaluateAll((controls) =>
+      controls.map((control) => {
+        const rect = control.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      }),
+    );
+    expect(geometry.length).toBeGreaterThan(0);
+    expect(geometry.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+
+    const first = restControls.first();
+    const before = await first.boundingBox();
+    await first.click();
+    await expect(page.locator('.exercise-block__rest-editor').first()).toBeVisible();
+    expect(await first.boundingBox()).toEqual(before);
+    await first.click();
+    await expect(page.locator('.exercise-block__rest-editor')).toHaveCount(0);
+    expect(await first.boundingBox()).toEqual(before);
+  }
+});
+
 test('active workout keeps localized weighted headings visible', async ({ page }) => {
   await setStoredLocale(page, 'it');
   await startNeutralWorkout(page);
@@ -1383,6 +1428,47 @@ test('active workout keeps localized weighted headings visible', async ({ page }
       expectAtLeast48PxGeometry(geometry.minControlWidth);
       expect(geometry.scrollWidth).toBe(viewport.width);
     }
+  }
+});
+
+test('compact set labels stay at least 12px without truncating on narrow workouts', async ({
+  page,
+}) => {
+  await installAdaptiveWorkoutFixture(page);
+  await setStoredLocale(page, 'it');
+  await startNeutralWorkout(page);
+
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const geometry = await page.evaluate(() => {
+      const labels = [
+        ...document.querySelectorAll<HTMLElement>(
+          '.set-table--weight-reps .set-table__header > *, .set-table--weight-reps .set-previous',
+        ),
+      ];
+      return labels.map((label) => {
+        const range = document.createRange();
+        range.selectNodeContents(label);
+        return {
+          fontSize: Number.parseFloat(getComputedStyle(label).fontSize),
+          clientWidth: label.clientWidth,
+          contentWidth: range.getBoundingClientRect().width,
+        };
+      });
+    });
+    expect(geometry.length).toBeGreaterThan(0);
+    expect(
+      geometry.every(({ fontSize }) => fontSize >= 12),
+      JSON.stringify(geometry),
+    ).toBe(true);
+    expect(
+      geometry.every(({ clientWidth, contentWidth }) => contentWidth <= clientWidth + 0.5),
+      JSON.stringify(geometry),
+    ).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
   }
 });
 

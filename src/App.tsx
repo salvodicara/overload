@@ -169,6 +169,10 @@ export default function App() {
     if (locale && locale !== i18n.language) setLocale(locale);
   }, [locale, i18n.language]);
 
+  useEffect(() => {
+    document.documentElement.lang = i18n.language.startsWith('it') ? 'it' : 'en';
+  }, [i18n.language]);
+
   const ready = authState !== 'error' && Boolean(user);
 
   return (

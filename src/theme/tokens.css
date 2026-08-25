@@ -1448,7 +1448,8 @@ textarea:disabled {
 }
 
 .exercise-block__rest {
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--accent-text);
   font-weight: 600;
 }
@@ -1608,7 +1609,8 @@ textarea:disabled {
 .set-table__header {
   min-height: 36px;
   padding-block: 6px 2px;
-  font-size: 11px;
+  font-size: var(--text-xs);
+  letter-spacing: -0.05em;
   line-height: 1.1;
   text-transform: uppercase;
 }
@@ -1654,7 +1656,7 @@ textarea:disabled {
   min-width: 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;

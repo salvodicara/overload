@@ -1,57 +1,62 @@
 # Overload product brief
 
-## Product Lens verdict
+> Historical discovery brief. This document records the product decisions that led to the current generalized app. `PRODUCT.md` is the current source of truth.
 
-**GO.** The working core is valuable, but the current product encodes one person's comeback plan and exposes three overlapping kinds of notes. A focused redesign can turn it into a general strength logger without adding social, coaching, or subscription complexity.
+## Original product question
 
-## Who it is for
+Could an existing private workout logger become useful to independent strength trainees without adding social, coaching, subscription, or engagement machinery?
 
-Independent strength trainees who want to run their own workouts from a phone. They may start from a neutral template or build a routine from scratch, but they expect every prescription to be editable.
+## Decision
 
-Salvatore remains the first high-frequency user and the quality bar for mobile ergonomics. His routines, start weights, warm-ups, and progression phases are data, not product defaults.
+Yes. Preserve the fast local-first training loop, then replace hidden personal assumptions with editable routines, neutral starter packs, history-derived guidance, and explicit data scopes.
+
+## Audience identified
+
+Independent strength trainees who want to run their own workouts from a phone. They may adopt a neutral template or create a routine from scratch, but every prescription remains editable.
 
 ## Problem worth solving
 
-During a workout, people need to see what they did last time, record the current set, remember stable technique cues, capture what happened today, and continue after an interruption. Existing products often solve this with social layers, paid tiers, or excessive feature surface. Overload should solve only the private training loop and solve it unusually well.
+During a workout, people need to see what they did last time, record the current set, remember stable technique cues, capture what happened today, and continue after an interruption. Many products surround that loop with social or commercial surfaces. Overload focuses on the private training loop itself.
 
-## Ten-star experience
+## Experience principles carried into the product
 
-- Home immediately answers: what can I do next, how is this week going, and what did I do recently?
-- A routine can be created or adapted without knowing the app's internal model.
-- Warm-up, exercise order, targets, rest, increments, and technique cues are always editable.
-- The active workout keeps the finish action and previous set values in reach while leaving the exercise list scannable.
-- “Technique” means the durable note for an exercise. “This session” means the note saved with this workout. There is no third user-facing note concept.
-- The exercise journal combines past session observations with legacy imported entries and links each observation to its workout.
-- A complete local backup is actually complete, and a refresh or offline period never loses the active workout.
+- Home answers what can be done next, how the current week is going, and what happened recently.
+- Programs and routines can be created or adapted without knowledge of the internal data model.
+- Preparation, warm-up sets, exercise order, targets, rest, increments, and Technique cues remain editable.
+- The active workout keeps its finish action and previous values in reach while preserving a scannable exercise list.
+- Technique is the durable note for an exercise. This session is the observation saved with one completed workout. There is no third current note concept.
+- The exercise journal combines session observations with compatible imported entries and links each session observation to its workout.
+- A complete JSON backup includes every current user-data collection. CSV remains a narrower completed-set report.
+- A warmed install preserves the training loop through a connection loss; uncached resources still require an initial online load.
 
-## Scope of this redesign
+## Scope delivered
 
-1. Generalize templates, progression copy, routine editing, and warm-up ownership.
-2. Turn Home from a history list into a useful private dashboard.
-3. Rebuild the active workout around fast set entry, previous values, sticky completion, and two clear note scopes.
-4. Apply one mobile-first spacing, type, control, action, and status grammar to every screen.
-5. Preserve and migrate existing workouts, routine notes, imported Hevy notes, and personal routines.
-6. Fix the backup claim, accessibility gaps, initial payload, and critical empty/loading/error states.
+1. Generalized templates, progression language, routine editing, and warm-up ownership.
+2. Reworked Home as a private operational dashboard.
+3. Rebuilt the active workout around fast set entry, previous values, sticky completion, and two clear note scopes.
+4. Applied one mobile-first spacing, type, control, action, and status grammar across the app.
+5. Preserved compatible workouts, routine notes, imported entries, and existing routines.
+6. Made backup, accessibility, loading, offline, and error boundaries explicit and testable.
 
-## Explicit non-goals
+## Boundaries retained
 
-- Public profiles, feeds, followers, comments, likes, leaderboards, challenges, or community groups.
-- AI coaching, generated programs, medical advice, readiness scoring, or recovery claims.
-- Subscription tiers, ads, affiliate recommendations, marketplace features, or engagement notifications.
-- Copying competitor branding, assets, proprietary copy, or exact visual trade dress.
+- No public profiles, feeds, followers, comments, likes, leaderboards, challenges, or community groups.
+- No AI coaching, generated programs, medical advice, readiness scoring, or recovery claims.
+- No subscription tiers, ads, affiliate recommendations, marketplace features, or engagement notifications.
+- No copied competitor branding, assets, proprietary copy, or exact visual trade dress.
 
-## Measures of success
+## Success criteria retained
 
-- A new user can create or adopt a routine and edit its warm-up without hidden defaults.
-- A returning user can start the next workout from Home and log a set one-handed without scrolling to another control block.
-- Two sessions on the same day retain distinct exercise notes.
-- Existing note and routine data remains readable after the migration.
-- Every primary control meets touch-size, focus, contrast, and keyboard expectations.
-- Production smoke tests complete for all routes, offline recovery, import/export, and both supported languages.
+- A new user can create or adopt a routine and edit its preparation and warm-up sets without hidden defaults.
+- A returning user can start the next workout from Home and log a set one-handed without searching for another control block.
+- Two sessions on the same day retain distinct exercise observations.
+- Compatible note and routine data remains readable after migration.
+- Primary controls meet touch-size, focus, contrast, and keyboard expectations.
+- Production checks cover every route, warmed-cache offline recovery, import/export, and both supported languages.
 
-## Main risks and responses
+## Risks addressed
 
-- **Migration ambiguity:** retain legacy fields as read-only fallback until their content has a clear destination.
-- **Dashboard bloat:** show one next action, a compact week view, and recent history; do not create a second analytics screen.
-- **Workout density:** use alignment and disclosure, not smaller text or more chips.
-- **Feature creep:** prefer changes to existing types and screens over new subsystems or dependencies.
+- Migration ambiguity: compatible legacy fields remain readable until their content has a clear current destination.
+- Dashboard bloat: Home presents one next action, a compact week view, and recent history instead of duplicating analytics.
+- Workout density: alignment and disclosure carry hierarchy without shrinking text or multiplying chips.
+- Feature creep: the product prefers direct improvements to existing flows over new subsystems or dependencies.
