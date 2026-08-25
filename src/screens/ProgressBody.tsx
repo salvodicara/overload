@@ -33,6 +33,7 @@ export function ProgressBody() {
   const [deleting, setDeleting] = useState(false);
   const deletingRef = useRef(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const addMeasurementRef = useRef<HTMLButtonElement>(null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const selectedUnit = settings.unit ?? 'kg';
   const unit = metric === 'weight' ? weightLabel(selectedUnit) : 'cm';
@@ -213,6 +214,7 @@ export function ProgressBody() {
         </form>
       ) : (
         <button
+          ref={addMeasurementRef}
           className="btn btn-ghost btn-block"
           onClick={() => {
             setValueDraft('');
@@ -271,6 +273,7 @@ export function ProgressBody() {
           open
           title={t('body.deleteTitle', { metric: pendingRemoval.metric })}
           initialFocusRef={cancelDeleteRef}
+          fallbackFocusRef={addMeasurementRef}
           onClose={closeDelete}
         >
           <span className="muted small">

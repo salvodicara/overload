@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FocusEvent } from 'react';
+import { createRef, useEffect, useRef, useState, type FocusEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
@@ -62,6 +62,7 @@ export function Workout() {
   const committingNoteKeys = useRef(new Set<string>());
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
+  const addSetRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
   const setRemovalCommittedRef = useRef(false);
   const [, tick] = useState(0);
 
@@ -133,6 +134,9 @@ export function Workout() {
               : exercise.tracking === 'duration'
                 ? t('workout.durationTarget')
                 : t('workout.repsTarget');
+          const addSetRef =
+            addSetRefs.current[exerciseIndex] ??
+            (addSetRefs.current[exerciseIndex] = createRef<HTMLButtonElement>());
           let workingIndex = 0;
 
           return (
@@ -462,7 +466,7 @@ export function Workout() {
               </div>
 
               <div className="exercise-block__set-actions">
-                <button className="addset" onClick={() => addSet(exerciseIndex)}>
+                <button ref={addSetRef} className="addset" onClick={() => addSet(exerciseIndex)}>
                   {t('workout.addSet')}
                 </button>
                 {exercise.sets.length > 1 && (
@@ -502,6 +506,7 @@ export function Workout() {
             exercise: pendingSetRemoval.exercise,
           })}
           initialFocusRef={cancelSetRemovalRef}
+          fallbackFocusRef={addSetRefs.current[pendingSetRemoval.exerciseIndex]}
           onClose={() => setPendingSetRemoval(null)}
         >
           <span className="muted small">{t('workout.removeSetBody')}</span>

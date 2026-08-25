@@ -1434,6 +1434,7 @@ test('active workout preserves a typed set until one confirmed keyboard removal'
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
   }
   await cancel.click();
+  await expect(trigger).toBeFocused();
   await expect(rows).toHaveCount(initialCount);
   await expect(lastLoad).toHaveValue('77.5');
   await expect(lastReps).toHaveValue('9');
@@ -1457,6 +1458,16 @@ test('active workout preserves a typed set until one confirmed keyboard removal'
       ),
     )
     .toBe(initialCount - 1);
+
+  const addSet = exercise.getByRole('button', { name: /^\+ set$/i });
+  await trigger.click();
+  dialog = page.getByRole('dialog', {
+    name: new RegExp(`remove set ${initialCount - 1} from barbell squat`, 'i'),
+  });
+  await dialog.getByRole('button', { name: /remove last set/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(rows).toHaveCount(1);
+  await expect(addSet).toBeFocused();
 });
 
 test('rest controls keep a stable 44px target on narrow workouts', async ({ page }) => {
@@ -2044,35 +2055,25 @@ test('destructive routine sheet ignores its scrim and restores focus on Escape',
   await expect(trigger).toBeFocused();
 });
 
-test('routine exercise and warm-up removals require one confirmed action', async ({ page }) => {
+test('routine warm-up removal restores focus within the exercise', async ({ page }) => {
   await openNeutralRoutineEditor(page);
   const exerciseCards = page.locator('.screen.page > .stack > .card');
-  const initialExerciseCount = await exerciseCards.count();
   const firstExercise = exerciseCards.first();
-
-  const removeExercise = firstExercise.getByRole('button', { name: /^remove exercise$/i });
-  await removeExercise.focus();
-  await page.keyboard.press('Enter');
-  let dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
-  let cancel = dialog.getByRole('button', { name: /^cancel$/i });
-  await expect(cancel).toBeFocused();
-  await cancel.click();
-  await expect(exerciseCards).toHaveCount(initialExerciseCount);
-
-  await firstExercise.getByRole('button', { name: /add warm-up set/i }).click();
+  const addWarmup = firstExercise.getByRole('button', { name: /add warm-up set/i });
+  await addWarmup.click();
   const warmupRemovals = firstExercise.getByRole('button', { name: /remove warm-up set/i });
   const initialWarmupCount = await warmupRemovals.count();
   const removeWarmup = warmupRemovals.last();
   await removeWarmup.focus();
   await page.keyboard.press('Enter');
-  dialog = page.getByRole('dialog', { name: /remove this warm-up set/i });
-  cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  const dialog = page.getByRole('dialog', { name: /remove this warm-up set/i });
+  const cancel = dialog.getByRole('button', { name: /^cancel$/i });
   await expect(cancel).toBeFocused();
   await cancel.click();
+  await expect(removeWarmup).toBeFocused();
   await expect(warmupRemovals).toHaveCount(initialWarmupCount);
 
   await removeWarmup.click();
-  dialog = page.getByRole('dialog', { name: /remove this warm-up set/i });
   await dialog.getByRole('button', { name: /^remove$/i }).evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('remove-warm-up button missing');
     button.click();
@@ -2080,9 +2081,24 @@ test('routine exercise and warm-up removals require one confirmed action', async
   });
   await expect(dialog).toHaveCount(0);
   await expect(warmupRemovals).toHaveCount(initialWarmupCount - 1);
+  await expect(addWarmup).toBeFocused();
+});
+
+test('routine exercise removal restores focus to add exercise', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  const exerciseCards = page.locator('.screen.page > .stack > .card');
+  const initialExerciseCount = await exerciseCards.count();
+  const removeExercise = exerciseCards.first().getByRole('button', { name: /^remove exercise$/i });
+  await removeExercise.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
+  const cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(removeExercise).toBeFocused();
+  await expect(exerciseCards).toHaveCount(initialExerciseCount);
 
   await removeExercise.click();
-  dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
   await dialog.getByRole('button', { name: /^remove$/i }).evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('remove-exercise button missing');
     button.click();
@@ -2090,6 +2106,7 @@ test('routine exercise and warm-up removals require one confirmed action', async
   });
   await expect(dialog).toHaveCount(0);
   await expect(exerciseCards).toHaveCount(initialExerciseCount - 1);
+  await expect(page.getByRole('button', { name: /^\+ exercise$/i })).toBeFocused();
 
   await page
     .getByRole('button', { name: /^back$/i })
@@ -3145,6 +3162,7 @@ test('measurement deletion requires confirmation and ignores stale or double act
   let cancel = dialog.getByRole('button', { name: /^cancel$/i });
   await expect(cancel).toBeFocused();
   await cancel.click();
+  await expect(trigger).toBeFocused();
   await expect(trigger).toBeVisible();
 
   await page.evaluate(async () => {
@@ -3178,6 +3196,7 @@ test('measurement deletion requires confirmation and ignores stale or double act
   await dialog.getByRole('button', { name: /^delete$/i }).click();
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add measurement' })).toBeFocused();
   await expect(page.locator('html')).toHaveAttribute('data-measurement-delete-attempts', '2');
 });
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { createRef, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
@@ -85,6 +85,8 @@ export function RoutineEditor({ id }: { id: string }) {
   const latestSaveRef = useRef<Promise<AccountActionResult> | null>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const cancelRemovalRef = useRef<HTMLButtonElement>(null);
+  const addExerciseRef = useRef<HTMLButtonElement>(null);
+  const addWarmupRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
   const removalCommittedRef = useRef(false);
 
   if (storedRoutine && draftRef.current?.id !== id)
@@ -238,6 +240,9 @@ export function RoutineEditor({ id }: { id: string }) {
           const warmups = rx.warmupSets ?? [];
           const minLabel = tracking === 'duration' ? t('editor.timeMin') : t('editor.repMin');
           const maxLabel = tracking === 'duration' ? t('editor.timeMax') : t('editor.repMax');
+          const addWarmupRef =
+            addWarmupRefs.current[xi] ??
+            (addWarmupRefs.current[xi] = createRef<HTMLButtonElement>());
           return (
             <div
               key={`${rx.exerciseId}-${xi}-${rev}`}
@@ -448,6 +453,7 @@ export function RoutineEditor({ id }: { id: string }) {
                     </div>
                   ))}
                   <button
+                    ref={addWarmupRef}
                     className="btn btn-ghost btn-block"
                     onClick={() =>
                       commit((r) => {
@@ -495,6 +501,7 @@ export function RoutineEditor({ id }: { id: string }) {
       </div>
       {routine.exercises.length === 0 && <div className="empty">{t('editor.noExercises')}</div>}
       <button
+        ref={addExerciseRef}
         className="btn btn-ghost btn-block"
         style={{ marginTop: 14 }}
         onClick={() => nav({ view: 'library', pickFor: { routineId: id } })}
@@ -517,6 +524,11 @@ export function RoutineEditor({ id }: { id: string }) {
               : t('editor.removeWarmupTitle')
           }
           initialFocusRef={cancelRemovalRef}
+          fallbackFocusRef={
+            pendingRemoval.kind === 'exercise'
+              ? addExerciseRef
+              : addWarmupRefs.current[pendingRemoval.exerciseIndex]
+          }
           onClose={() => setPendingRemoval(null)}
         >
           <span className="muted small">

@@ -25,6 +25,7 @@ type BottomSheetProps = {
   onClose(): void;
   children: ReactNode;
   initialFocusRef?: RefObject<HTMLElement | null>;
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
   closeOnScrim?: boolean;
 };
 
@@ -79,6 +80,7 @@ export function BottomSheet({
   onClose,
   children,
   initialFocusRef,
+  fallbackFocusRef,
   closeOnScrim = false,
 }: BottomSheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -135,13 +137,14 @@ export function BottomSheet({
       if (dialog.open) dialog.close();
       restoreInlineStyles(root, savedRootStyles);
       restoreInlineStyles(body, savedBodyStyles);
-      if (!trigger?.isConnected) {
+      if (!trigger && !fallbackFocusRef) {
         scrollLockRef.current = null;
         return;
       }
       restoreFrameRef.current = requestAnimationFrame(() => {
         restoreFrameRef.current = null;
-        if (!trigger.isConnected) {
+        const target = trigger?.isConnected ? trigger : fallbackFocusRef?.current;
+        if (!target?.isConnected) {
           scrollLockRef.current = null;
           return;
         }
@@ -150,11 +153,11 @@ export function BottomSheet({
           return;
         }
         window.scrollTo(scrollX, scrollY);
-        trigger.focus({ preventScroll: true });
+        target.focus({ preventScroll: true });
         scrollLockRef.current = null;
       });
     };
-  }, [open]);
+  }, [fallbackFocusRef, open]);
 
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
