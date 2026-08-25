@@ -183,7 +183,7 @@ export function Workout() {
                       className="btn btn-ghost rest-adjust-done"
                       onClick={() => setEditingRest(null)}
                     >
-                      {t('momentum.done')}
+                      {t('common.done')}
                     </button>
                   </div>
                 )}

@@ -1246,6 +1246,8 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
 
   await page.getByRole('button', { name: /Linked observation/ }).click();
   await expect(page.getByRole('heading', { name: 'Full Body A', exact: true })).toBeVisible();
+  await expect(page.getByText('661.4', { exact: true })).toBeVisible();
+  await expect(page.getByText('lb of volume', { exact: true })).toBeVisible();
   const squat = page.locator('section.card').filter({
     has: page.getByRole('heading', { name: 'Barbell Squat', exact: true }),
   });
@@ -1322,8 +1324,9 @@ test('exercise journal links summary working metrics to chronological history', 
   await page.getByRole('button', { name: /finish workout/i }).click();
 
   await expect(page.locator('.summary-pop .mono.small.muted')).toContainText('1 working set');
-  await expect(page.getByText('+263 kg vs your last Full Body A', { exact: true })).toBeVisible();
-  await expect(page.getByText('363', { exact: true })).toBeVisible();
+  await expect(page.getByText('+579.5 lb vs your last Full Body A', { exact: true })).toBeVisible();
+  await expect(page.getByText('800', { exact: true })).toBeVisible();
+  await expect(page.getByText('lb of volume', { exact: true })).toBeVisible();
 });
 
 test('mid-workout rest tweak can update the routine', async ({ page }) => {

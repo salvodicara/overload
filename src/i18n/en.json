@@ -4,7 +4,8 @@
     "tagline": "Progressive overload. Nothing else."
   },
   "common": {
-    "back": "Back"
+    "back": "Back",
+    "done": "OK"
   },
   "nav": {
     "workout": "Train",
@@ -23,30 +24,12 @@
     "dataError": "Your data could not be opened safely. Close the app and try again.",
     "reset": "Sign-in trouble? Clean the app and retry"
   },
-  "phase": {
-    "week": "week {{n}}",
-    "reactivation": "Reactivation",
-    "rebuild": "Rebuild",
-    "progress": "Progression",
-    "deload": "Deload",
-    "done": "Mesocycle complete",
-    "hint": {
-      "reactivation": "Reduced weights, one set fewer where there are 3+, never to failure.",
-      "rebuild": "Full volume, climbing loads. Last set 1-2 reps from failure.",
-      "progress": "Full double progression: close the range, then add weight.",
-      "deload": "Half the sets, 60% loads. This is where growth banks.",
-      "done": "Program finished: time to update the plan."
-    }
-  },
   "home": {
     "upNext": "Up next",
     "start": "Start",
     "exercises": "{{n}} exercises",
     "lastDone": "Last: {{date}} · {{vol}} kg",
     "never": "Never done",
-    "setStartTitle": "When does your program start?",
-    "setStartBody": "From the start date I compute your week and phase, and suggest the right weights.",
-    "startToday": "Start today",
     "pickDate": "Pick a date",
     "resume": "Resume workout in progress",
     "suggested": "suggested",
@@ -99,9 +82,7 @@
   "suggest": {
     "start": "Start at {{weight}}",
     "increase": "Range closed last time: go up to {{weight}}",
-    "repeat": "Keep the loads and add reps",
-    "phase1": "Comeback: restart light at {{weight}}",
-    "deload": "Deload: drop to {{weight}}"
+    "repeat": "Keep the loads and add reps"
   },
   "timer": {
     "rest": "Rest",
@@ -110,13 +91,13 @@
   },
   "summary": {
     "title": "Done.",
-    "volume": "kg of volume",
+    "volume": "{{unit}} of volume",
     "sets": "{{n}} sets",
     "workingSetCount_one": "{{count}} working set",
     "workingSetCount_other": "{{count}} working sets",
     "duration": "{{min}} min",
-    "vsLastUp": "+{{diff}} kg vs your last {{day}}",
-    "vsLastDown": "−{{diff}} kg vs your last {{day}}",
+    "vsLastUp": "+{{diff}} {{unit}} vs your last {{day}}",
+    "vsLastDown": "−{{diff}} {{unit}} vs your last {{day}}",
     "pr": "Personal record: {{exercise}}",
     "home": "Back home",
     "updateRoutineTitle": "Update the routine?",
@@ -298,7 +279,6 @@
   },
   "notes": {
     "add": "Add note",
-    "placeholder": "Note for next time (seat, grip, cues)…",
     "save": "Save note",
     "title": "Notes",
     "history": "note history ({{n}})",
@@ -338,16 +318,6 @@
     "meal2Body": "Whey shake with a banana and milk. The simplest way to close the surplus.",
     "meal3Title": "Typical meal (~700 kcal, 40g protein)",
     "meal3Body": "150g pasta or rice, 150-200g chicken/fish/meat, vegetables and a spoon of olive oil."
-  },
-  "momentum": {
-    "title": "This week: {{done}}/{{goal}} workouts",
-    "streak": "{{n}}-week streak",
-    "hint": "Momentum beats perfection.",
-    "hit": "Weekly goal hit.",
-    "edit": "goal",
-    "less": "lower goal",
-    "more": "raise goal",
-    "done": "ok"
   },
   "activeBar": {
     "resume": "Resume"

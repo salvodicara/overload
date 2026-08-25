@@ -4,7 +4,8 @@
     "tagline": "Sovraccarico progressivo. Nient'altro."
   },
   "common": {
-    "back": "Indietro"
+    "back": "Indietro",
+    "done": "OK"
   },
   "nav": {
     "workout": "Allenati",
@@ -23,30 +24,12 @@
     "dataError": "Non è stato possibile aprire i dati in sicurezza. Chiudi l'app e riprova.",
     "reset": "Problemi di accesso? Ripulisci l'app e riprova"
   },
-  "phase": {
-    "week": "settimana {{n}}",
-    "reactivation": "Riattivazione",
-    "rebuild": "Ricostruzione",
-    "progress": "Progressione",
-    "deload": "Deload",
-    "done": "Mesociclo completato",
-    "hint": {
-      "reactivation": "Pesi ridotti, una serie in meno dove ce ne sono 3+, mai a cedimento.",
-      "rebuild": "Volume pieno, carichi in risalita. Ultima serie a 1-2 rep dal cedimento.",
-      "progress": "Doppia progressione piena: chiudi il range, poi sali di peso.",
-      "deload": "Metà serie, carichi al 60%. La crescita si incassa adesso.",
-      "done": "Programma finito: tempo di aggiornare la scheda."
-    }
-  },
   "home": {
     "upNext": "Tocca a lui",
     "start": "Inizia",
     "exercises": "{{n}} esercizi",
     "lastDone": "Ultimo: {{date}} · {{vol}} kg",
     "never": "Mai fatto",
-    "setStartTitle": "Quando inizi il programma?",
-    "setStartBody": "Dalla data d'inizio calcolo settimana e fase, e ti suggerisco i pesi giusti.",
-    "startToday": "Inizio oggi",
     "pickDate": "Scegli una data",
     "resume": "Riprendi l'allenamento in corso",
     "suggested": "consigliato",
@@ -99,9 +82,7 @@
   "suggest": {
     "start": "Parti da {{weight}}",
     "increase": "Range chiuso l'ultima volta: sali a {{weight}}",
-    "repeat": "Conferma i carichi e aggiungi ripetizioni",
-    "phase1": "Ripresa: riparti leggero a {{weight}}",
-    "deload": "Deload: scarica a {{weight}}"
+    "repeat": "Conferma i carichi e aggiungi ripetizioni"
   },
   "timer": {
     "rest": "Recupero",
@@ -110,13 +91,13 @@
   },
   "summary": {
     "title": "Fatto.",
-    "volume": "kg di volume",
+    "volume": "{{unit}} di volume",
     "sets": "{{n}} serie",
     "workingSetCount_one": "{{count}} serie di lavoro",
     "workingSetCount_other": "{{count}} serie di lavoro",
     "duration": "{{min}} min",
-    "vsLastUp": "+{{diff}} kg rispetto all'ultimo {{day}}",
-    "vsLastDown": "−{{diff}} kg rispetto all'ultimo {{day}}",
+    "vsLastUp": "+{{diff}} {{unit}} rispetto all'ultimo {{day}}",
+    "vsLastDown": "−{{diff}} {{unit}} rispetto all'ultimo {{day}}",
     "pr": "Record personale: {{exercise}}",
     "home": "Torna alla home",
     "updateRoutineTitle": "Aggiornare la scheda?",
@@ -298,7 +279,6 @@
   },
   "notes": {
     "add": "Aggiungi nota",
-    "placeholder": "Nota per la prossima volta (sedile, presa, sensazioni)…",
     "save": "Salva nota",
     "title": "Note",
     "history": "storico note ({{n}})",
@@ -338,16 +318,6 @@
     "meal2Body": "Shake di whey con banana e latte. Il modo più semplice di chiudere il surplus.",
     "meal3Title": "Pasto tipo (~700 kcal, 40g proteine)",
     "meal3Body": "150g di pasta o riso, 150-200g di pollo/pesce/carne, verdura e un cucchiaio d'olio."
-  },
-  "momentum": {
-    "title": "Questa settimana: {{done}}/{{goal}} allenamenti",
-    "streak": "{{n}} sett. di fila",
-    "hint": "Lo slancio batte la perfezione.",
-    "hit": "Obiettivo della settimana centrato.",
-    "edit": "obiettivo",
-    "less": "riduci obiettivo",
-    "more": "aumenta obiettivo",
-    "done": "ok"
   },
   "activeBar": {
     "resume": "Riprendi"

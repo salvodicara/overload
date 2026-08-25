@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
 import { kindOf } from '../lib/types';
+import { displayWeight, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
 
 export function Summary({ workoutId }: { workoutId: string }) {
   const { t, i18n } = useTranslation();
-  const { workouts } = useStore();
+  const { settings, workouts } = useStore();
   const nav = useStore((s) => s.nav);
   const pending = useStore((s) => s.pendingRoutineChanges);
   const applyRoutineChanges = useStore((s) => s.applyRoutineChanges);
@@ -28,7 +29,9 @@ export function Summary({ workoutId }: { workoutId: string }) {
         latest === null || candidate.startTs > latest.startTs ? candidate : latest,
       null,
     );
-  const diff = prev ? Math.round(w.volumeKg - prev.volumeKg) : null;
+  const unit = settings.unit ?? 'kg';
+  const volume = displayWeight(w.volumeKg, unit);
+  const diff = prev ? displayWeight(w.volumeKg - prev.volumeKg, unit) : null;
   const prs = [...new Set(w.sets.filter((s) => s.isPr).map((s) => s.exerciseId))];
   const workingSetCount = w.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
   const mins = w.endTs ? Math.max(1, Math.round((w.endTs - w.startTs) / 60000)) : 0;
@@ -43,9 +46,9 @@ export function Summary({ workoutId }: { workoutId: string }) {
           className="display"
           style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}
         >
-          {Math.round(w.volumeKg).toLocaleString(i18n.language)}
+          {volume.toLocaleString(i18n.language)}
         </div>
-        <div className="muted">{t('summary.volume')}</div>
+        <div className="muted">{t('summary.volume', { unit: weightLabel(unit) })}</div>
         <div className="mono small muted" style={{ marginTop: 8 }}>
           {t('summary.workingSetCount', { count: workingSetCount })} ·{' '}
           {t('summary.duration', { min: mins })}
@@ -59,6 +62,7 @@ export function Summary({ workoutId }: { workoutId: string }) {
         >
           {t(diff >= 0 ? 'summary.vsLastUp' : 'summary.vsLastDown', {
             diff: Math.abs(diff).toLocaleString(i18n.language),
+            unit: weightLabel(unit),
             day: w.dayLabel ?? '',
           })}
         </div>
