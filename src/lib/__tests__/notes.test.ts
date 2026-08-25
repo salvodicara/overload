@@ -573,6 +573,46 @@ describe('note persistence', () => {
     }
   });
 
+  it('keeps a retry behind an earlier remote handoff when the intervening local save fails', async () => {
+    const firstRemote = deferred<void>();
+    const originalPut = db.notes.put.bind(db.notes);
+    const put = vi
+      .spyOn(db.notes, 'put')
+      .mockImplementationOnce((note) => originalPut(note))
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementationOnce((note) => originalPut(note));
+    pushRecord.mockReturnValueOnce(firstRemote.promise);
+    const first = useStore.getState().saveTechniqueNote('bench', 'First remote value');
+    let retry: Promise<unknown> | undefined;
+    try {
+      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledTimes(1));
+      await expect(useStore.getState().saveTechniqueNote('bench', 'Failed local value')).rejects.toThrow(
+        'disk full',
+      );
+
+      retry = useStore.getState().saveTechniqueNote('bench', 'Newest retry value');
+      await vi.waitFor(async () => {
+        expect((await db.notes.get('bench'))?.technique).toBe('Newest retry value');
+      });
+      expect(pushRecord).toHaveBeenCalledTimes(1);
+
+      firstRemote.resolve();
+      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledTimes(2));
+      expect(pushRecord.mock.calls.at(-1)).toEqual([
+        'user-1',
+        'notes',
+        expect.objectContaining({ technique: 'Newest retry value' }),
+      ]);
+      await expect(first).resolves.toMatchObject({ status: 'applied' });
+      await expect(retry).resolves.toMatchObject({ status: 'applied' });
+    } finally {
+      firstRemote.resolve();
+      await first.catch(() => {});
+      await retry?.catch(() => {});
+      put.mockRestore();
+    }
+  });
+
   it('pushes a saved technique when authenticated', async () => {
     await useStore.getState().saveTechniqueNote('bench', 'Brace hard');
 

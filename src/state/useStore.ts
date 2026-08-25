@@ -318,9 +318,16 @@ function queueTechniqueSave(
     return accountActionForOwner(owner, undefined);
   });
   void saving.catch(() => {
-    if (techniqueSaveSequences.get(key) === current && current.reservations === reservation) {
-      techniqueSaveSequences.delete(key);
-    }
+    const remoteTail = current.remoteTail;
+    void remoteTail.then(() => {
+      if (
+        techniqueSaveSequences.get(key) === current &&
+        current.reservations === reservation &&
+        current.remoteTail === remoteTail
+      ) {
+        techniqueSaveSequences.delete(key);
+      }
+    });
   });
   return saving;
 }
