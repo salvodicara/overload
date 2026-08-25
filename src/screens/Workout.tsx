@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { lastTimeLine } from '../lib/format';
 import { useStore } from '../state/useStore';
-import { IconCheck, IconMinus, IconNote, IconPlay, IconX } from '../components/Icons';
+import { IconCheck, IconDown, IconMinus, IconNote, IconPlay } from '../components/Icons';
+import { NoteEditor } from '../components/NoteEditor';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
@@ -26,6 +27,8 @@ export function Workout() {
   const notes = useStore((s) => s.notes);
   const addNoteEntry = useStore((s) => s.addNoteEntry);
   const [notesOpen, setNotesOpen] = useState<string | null>(null);
+  const setRestOverride = useStore((st) => st.setRestOverride);
+  const [editingRest, setEditingRest] = useState<number | null>(null);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const noteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const queueNote = (exerciseId: string, text: string): void => {
@@ -65,16 +68,8 @@ export function Workout() {
           padding: '14px 0 8px',
         }}
       >
-        <button
-          className="iconbtn"
-          aria-label={t('workout.abandonTitle')}
-          onClick={() => {
-            const anyDone = active.ex.some((e) => e.sets.some((s) => s.done));
-            if (anyDone) setConfirming(true);
-            else abandon();
-          }}
-        >
-          <IconX />
+        <button className="iconbtn" aria-label={t('workout.minimize')} onClick={() => nav({ view: 'train' })}>
+          <IconDown />
         </button>
         <div className="display" style={{ fontSize: 24, flex: 1 }}>
           {routine.name}
@@ -124,11 +119,44 @@ export function Workout() {
                         {rx.sets}×{rx.repMin}
                         {rx.repMax ? `-${rx.repMax}` : '+'}
                       </span>
-                      <span className="chip">{t('workout.rest', { time: fmtRest(rx.restSec) })}</span>
+                      <button
+                        className="chip"
+                        aria-expanded={editingRest === ei}
+                        onClick={() => setEditingRest(editingRest === ei ? null : ei)}
+                      >
+                        {t('workout.rest', { time: fmtRest(e.restOverride ?? rx.restSec) })} ▾
+                      </button>
                     </>
                   )}
                   <span className="chip chip-accent">{t(e.hintKey, { kg: firstW })}</span>
                 </div>
+                {editingRest === ei && rx && (
+                  <div className="row" style={{ marginTop: 8, gap: 8 }}>
+                    <button
+                      className="iconbtn"
+                      style={{ width: 40, height: 40 }}
+                      aria-label={t('workout.restLess')}
+                      disabled={(e.restOverride ?? rx.restSec) <= 15}
+                      onClick={() => setRestOverride(ei, Math.max(15, (e.restOverride ?? rx.restSec) - 15))}
+                    >
+                      <IconMinus width={14} height={14} />
+                    </button>
+                    <span className="mono" style={{ fontWeight: 700, minWidth: 56, textAlign: 'center' }}>
+                      {fmtRest(e.restOverride ?? rx.restSec)}
+                    </span>
+                    <button
+                      className="iconbtn"
+                      style={{ width: 40, height: 40, fontWeight: 700 }}
+                      aria-label={t('workout.restMore')}
+                      onClick={() => setRestOverride(ei, (e.restOverride ?? rx.restSec) + 15)}
+                    >
+                      +
+                    </button>
+                    <button className="small" style={{ color: 'var(--accent-text)', fontWeight: 600, padding: 6 }} onClick={() => setEditingRest(null)}>
+                      {t('momentum.done')}
+                    </button>
+                  </div>
+                )}
                 {rx?.note && <div className="small muted" style={{ marginTop: 6 }}>{rx.note}</div>}
                 {last && (
                   <div className="mono small muted" style={{ marginTop: 6 }}>
@@ -145,38 +173,13 @@ export function Workout() {
                   return (
                     <div style={{ marginTop: 8 }}>
                       {editing ? (
-                        <textarea
-                          rows={2}
-                          autoFocus
+                        <NoteEditor
+                          key={e.exerciseId}
+                          initial={latest?.text ?? ''}
                           placeholder={t('notes.placeholder')}
-                          aria-label={t('notes.add')}
-                          defaultValue={latest?.text ?? ''}
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = 'auto';
-                              el.style.height = `${el.scrollHeight}px`;
-                              el.setSelectionRange(el.value.length, el.value.length);
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            fontFamily: 'inherit',
-                            fontSize: 14,
-                            background: 'var(--surface2)',
-                            border: '1px solid var(--accent-text)',
-                            borderRadius: 'var(--r-control)',
-                            padding: 10,
-                            color: 'var(--ink)',
-                            resize: 'none',
-                            overflow: 'hidden',
-                          }}
-                          onInput={(ev) => {
-                            const el = ev.currentTarget;
-                            el.style.height = 'auto';
-                            el.style.height = `${el.scrollHeight}px`;
-                            queueNote(e.exerciseId, el.value);
-                          }}
-                          onBlur={() => setEditingNote(null)}
+                          ariaLabel={t('notes.add')}
+                          onChangeText={(text) => queueNote(e.exerciseId, text)}
+                          onDone={() => setEditingNote(null)}
                         />
                       ) : (
                         <button
@@ -284,6 +287,17 @@ export function Workout() {
 
       <button className="btn btn-accent btn-block btn-big" style={{ marginTop: 18 }} onClick={() => void finish()}>
         {t('workout.finish')}
+      </button>
+      <button
+        className="btn btn-ghost btn-block"
+        style={{ marginTop: 10, color: 'var(--danger)' }}
+        onClick={() => {
+          const anyDone = active.ex.some((x) => x.sets.some((st) => st.done));
+          if (anyDone) setConfirming(true);
+          else abandon();
+        }}
+      >
+        {t('workout.abandonConfirm')}
       </button>
 
       {confirming && (

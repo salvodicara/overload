@@ -4,6 +4,8 @@ import { initI18n, setLocale } from './i18n';
 import { onUser } from './lib/firebase';
 import { onToast, registerTranslator, useStore } from './state/useStore';
 import { Nav } from './components/Nav';
+import { ActiveWorkoutBar } from './components/ActiveWorkoutBar';
+import { RestWatcher } from './components/RestWatcher';
 import { RestBar } from './components/RestBar';
 import { Login } from './screens/Login';
 import { History } from './screens/History';
@@ -115,6 +117,8 @@ export default function App() {
   return (
     <>
       <Screen />
+      <ActiveWorkoutBar />
+      <RestWatcher />
       <RestBar />
       <Nav />
       <Toast />

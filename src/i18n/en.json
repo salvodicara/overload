@@ -72,7 +72,10 @@
     "firstTime": "First time doing this exercise",
     "video": "Technique",
     "rest": "rest {{time}}",
-    "discarded": "Session discarded: nothing to log"
+    "discarded": "Session discarded: nothing to log",
+    "restLess": "lower rest",
+    "restMore": "raise rest",
+    "minimize": "Minimize"
   },
   "suggest": {
     "start": "Start at {{kg}} kg",
@@ -94,7 +97,11 @@
     "vsLastUp": "+{{diff}} kg vs your last {{day}}",
     "vsLastDown": "−{{diff}} kg vs your last {{day}}",
     "pr": "Personal record: {{exercise}}",
-    "home": "Back home"
+    "home": "Back home",
+    "updateRoutineTitle": "Update the routine?",
+    "updateRoutineBody": "You changed {{n}} exercises this session (rest or set count). Save them to the routine for next time?",
+    "updateRoutineYes": "Update routine",
+    "updateRoutineNo": "Keep as is"
   },
   "history": {
     "title": "History",
@@ -173,7 +180,8 @@
     "pick": "Choose a file",
     "pickHint": "Hevy CSV or Overload JSON backup",
     "routines": "{{n}} routines in the backup",
-    "export": "Export"
+    "export": "Export",
+    "notes": "{{n}} exercise notes"
   },
   "routines": {
     "title": "Routines",
@@ -275,5 +283,8 @@
     "less": "lower goal",
     "more": "raise goal",
     "done": "ok"
+  },
+  "activeBar": {
+    "resume": "Resume"
   }
 }

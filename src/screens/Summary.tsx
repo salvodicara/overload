@@ -6,6 +6,9 @@ export function Summary({ workoutId }: { workoutId: string }) {
   const { t, i18n } = useTranslation();
   const { workouts } = useStore();
   const nav = useStore((s) => s.nav);
+  const pending = useStore((s) => s.pendingRoutineChanges);
+  const applyRoutineChanges = useStore((s) => s.applyRoutineChanges);
+  const dismissRoutineChanges = useStore((s) => s.dismissRoutineChanges);
   const w = workouts.find((x) => x.id === workoutId);
   if (!w) {
     nav({ view: 'home' });
@@ -49,6 +52,23 @@ export function Summary({ workoutId }: { workoutId: string }) {
           </div>
         ))}
       </div>
+
+      {pending && (
+        <div className="card card-pad stack" style={{ marginTop: 14 }}>
+          <strong>{t('summary.updateRoutineTitle')}</strong>
+          <span className="muted small">
+            {t('summary.updateRoutineBody', { n: pending.items.length })}
+          </span>
+          <div className="row">
+            <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => void applyRoutineChanges()}>
+              {t('summary.updateRoutineYes')}
+            </button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={dismissRoutineChanges}>
+              {t('summary.updateRoutineNo')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <button className="btn btn-solid btn-block btn-big" style={{ marginTop: 24 }} onClick={() => nav({ view: 'home' })}>
         {t('summary.home')}

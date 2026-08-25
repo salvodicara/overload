@@ -1,4 +1,5 @@
 import { CURATED } from '../data/curated';
+import NAMES_IT from '../data/names.it.json';
 import type { Exercise } from './types';
 
 type FedbExercise = {
@@ -52,7 +53,7 @@ export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
         map.set(row.id, {
           id: row.id,
           nameEn: row.name,
-          nameIt: cur?.nameIt ?? row.name,
+          nameIt: cur?.nameIt ?? (NAMES_IT as Record<string, string>)[row.id] ?? row.name,
           muscles: row.primaryMuscles,
           equipment: row.equipment ?? undefined,
           media: (row.images ?? []).map((p) => `/exercise-media/${p}`),

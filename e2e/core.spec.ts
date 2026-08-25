@@ -95,6 +95,23 @@ test('exercise notes accumulate across workouts', async ({ page }) => {
   await expect(page.getByText(/seat at 4/i).first()).toBeVisible();
 });
 
+test('mid-workout rest tweak can update the routine', async ({ page }) => {
+  await routineStart(page, /upper heavy/i).click();
+  // Open the rest editor on the first exercise and add 15s.
+  await page.getByRole('button', { name: /rest |rec /i }).first().click();
+  await page.getByRole('button', { name: /raise rest|aumenta recupero/i }).click();
+  await page.getByRole('button', { name: /^ok$/i }).click();
+  await page.locator('.setcheck').first().click();
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await expect(page.getByText(/update the routine|aggiornare la scheda/i)).toBeVisible();
+  await page.getByRole('button', { name: /update routine|aggiorna scheda/i }).click();
+  await page.getByRole('button', { name: /back home|torna alla home/i }).click();
+  // The routine now carries the new rest: start again and check the chip.
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
+  await routineStart(page, /upper heavy/i).click();
+  await expect(page.getByRole('button', { name: /1[’′]15|75/ }).first()).toBeVisible();
+});
+
 test('no horizontal overflow on any tab', async ({ page }) => {
   for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(exercises|esercizi)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
     await page.getByRole('button', { name: tab }).click();
@@ -104,6 +121,18 @@ test('no horizontal overflow on any tab', async ({ page }) => {
     );
     expect(overflow, `overflow on ${tab}`).toBeLessThanOrEqual(0);
   }
+});
+
+test('active workout is reachable from any tab via the banner', async ({ page }) => {
+  await routineStart(page, /upper heavy/i).click();
+  await page.locator('.setcheck').first().click();
+  // Minimize the workout, wander to another tab: nothing is lost.
+  await page.getByRole('button', { name: /minimize|riduci/i }).click();
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await expect(page.locator('.active-bar')).toBeVisible();
+  await page.locator('.active-bar').click();
+  await expect(page.getByText(/upper heavy/i).first()).toBeVisible();
+  await expect(page.locator('.setrow.done')).toHaveCount(1);
 });
 
 test('workout in progress survives reload', async ({ page }) => {

@@ -95,8 +95,8 @@ describe('parseHevyCsv', () => {
     const crlf = parseHevyCsv(FIXTURE.split('\n').join('\r\n'), ALIASES);
     expect(crlf.workouts).toHaveLength(2);
     expect(crlf.workouts[0].sets).toHaveLength(3);
-    expect(parseHevyCsv('', ALIASES)).toEqual({ workouts: [], unknownExercises: [] });
-    expect(parseHevyCsv(HEADER, ALIASES)).toEqual({ workouts: [], unknownExercises: [] });
+    expect(parseHevyCsv('', ALIASES)).toEqual({ workouts: [], unknownExercises: [], notes: [] });
+    expect(parseHevyCsv(HEADER, ALIASES)).toEqual({ workouts: [], unknownExercises: [], notes: [] });
   });
 
   it('reports a repeated unknown exercise only once', () => {
@@ -107,5 +107,23 @@ describe('parseHevyCsv', () => {
       '"D","2 gen 2026, 08:00","","","Sconosciuto","","","0","normal","10","10","","",""',
     ].join('\n');
     expect(parseHevyCsv(repeated, ALIASES).unknownExercises).toEqual(['Sconosciuto']);
+  });
+});
+
+describe('exercise notes extraction', () => {
+  it('collects dated notes per exercise and skips repeated text', () => {
+    const rows = [
+      '"W","1 gen 2026, 10:00","1 gen 2026, 11:00","","Squat (Bilanciere)",,"fermo con 25",0,"normal",30,5,,,',
+      '"W","1 gen 2026, 10:00","1 gen 2026, 11:00","","Squat (Bilanciere)",,"fermo con 25",1,"normal",30,5,,,',
+      '"W","8 gen 2026, 10:00","8 gen 2026, 11:00","","Squat (Bilanciere)",,"fermo con 25",0,"normal",32.5,5,,,',
+      '"W","15 gen 2026, 10:00","15 gen 2026, 11:00","","Squat (Bilanciere)",,"salire a 35",0,"normal",32.5,6,,,',
+    ];
+    const { notes } = parseHevyCsv([HEADER, ...rows].join('\n'), { 'Squat (Bilanciere)': 'Barbell_Squat' });
+    expect(notes).toHaveLength(1);
+    expect(notes[0].id).toBe('Barbell_Squat');
+    expect(notes[0].entries).toEqual([
+      { date: '2026-01-01', text: 'fermo con 25' },
+      { date: '2026-01-15', text: 'salire a 35' },
+    ]);
   });
 });

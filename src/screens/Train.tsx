@@ -50,7 +50,7 @@ type SheetState =
 
 export function Train() {
   const { t } = useTranslation();
-  const { settings, routines, folders, workouts, active } = useStore();
+  const { settings, routines, folders, workouts } = useStore();
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const saveFolder = useStore((s) => s.saveFolder);
@@ -137,12 +137,6 @@ export function Train() {
         </div>
       ) : (
         <MomentumCard />
-      )}
-
-      {active && (
-        <button className="btn btn-solid btn-block" style={{ marginBottom: 14 }} onClick={() => nav({ view: 'workout' })}>
-          {t('home.resume')}
-        </button>
       )}
 
       {routines.length === 0 && folders.length === 0 && (

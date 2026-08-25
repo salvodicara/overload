@@ -72,7 +72,10 @@
     "firstTime": "Prima volta con questo esercizio",
     "video": "Tecnica",
     "rest": "rec {{time}}",
-    "discarded": "Sessione scartata: niente da registrare"
+    "discarded": "Sessione scartata: niente da registrare",
+    "restLess": "riduci recupero",
+    "restMore": "aumenta recupero",
+    "minimize": "Riduci a icona"
   },
   "suggest": {
     "start": "Parti da {{kg}} kg",
@@ -94,7 +97,11 @@
     "vsLastUp": "+{{diff}} kg rispetto all'ultimo {{day}}",
     "vsLastDown": "−{{diff}} kg rispetto all'ultimo {{day}}",
     "pr": "Record personale: {{exercise}}",
-    "home": "Torna alla home"
+    "home": "Torna alla home",
+    "updateRoutineTitle": "Aggiornare la scheda?",
+    "updateRoutineBody": "Hai modificato {{n}} esercizi in questa sessione (recuperi o numero di serie). Vuoi salvarli nella scheda per le prossime volte?",
+    "updateRoutineYes": "Aggiorna scheda",
+    "updateRoutineNo": "Lascia com'è"
   },
   "history": {
     "title": "Storico",
@@ -173,7 +180,8 @@
     "pick": "Scegli un file",
     "pickHint": "CSV di Hevy o backup JSON di Overload",
     "routines": "{{n}} schede nel backup",
-    "export": "Esporta"
+    "export": "Esporta",
+    "notes": "{{n}} note esercizi"
   },
   "routines": {
     "title": "Schede",
@@ -275,5 +283,8 @@
     "less": "riduci obiettivo",
     "more": "aumenta obiettivo",
     "done": "ok"
+  },
+  "activeBar": {
+    "resume": "Riprendi"
   }
 }

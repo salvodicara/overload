@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { beep, notifyRestOver } from '../lib/audio';
 import { exerciseName } from '../lib/exercises';
 import { useStore } from '../state/useStore';
 
@@ -11,8 +10,8 @@ export function RestBar() {
   const restExerciseId = useStore((s) => s.restExerciseId);
   const stopRest = useStore((s) => s.stopRest);
   const startRest = useStore((s) => s.startRest);
+  const route = useStore((s) => s.route);
   const [, tick] = useState(0);
-  const firedFor = useRef<number | null>(null);
 
   useEffect(() => {
     if (!restUntil) return;
@@ -20,31 +19,7 @@ export function RestBar() {
     return () => clearInterval(id);
   }, [restUntil]);
 
-  useEffect(() => {
-    if (!restUntil) return;
-    const check = () => {
-      if (Date.now() >= restUntil && firedFor.current !== restUntil) {
-        firedFor.current = restUntil;
-        beep();
-        if (document.visibilityState === 'hidden') {
-          void notifyRestOver(
-            t('timer.rest'),
-            restExerciseId ? exerciseName(restExerciseId, i18n.language) : t('app.name'),
-          );
-        }
-        stopRest();
-      }
-    };
-    check();
-    document.addEventListener('visibilitychange', check);
-    const id = setInterval(check, 250);
-    return () => {
-      document.removeEventListener('visibilitychange', check);
-      clearInterval(id);
-    };
-  }, [restUntil, restExerciseId, stopRest, t, i18n.language]);
-
-  if (!restUntil) return null;
+  if (!restUntil || route.view !== 'workout') return null;
   const left = Math.max(0, Math.ceil((restUntil - Date.now()) / 1000));
   const label = restExerciseId ? exerciseName(restExerciseId, i18n.language) : '';
 

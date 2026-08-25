@@ -553,6 +553,34 @@ input[type='number']::-webkit-inner-spin-button {
   padding-bottom: calc(18px + env(safe-area-inset-bottom));
 }
 
+/* ---------- active workout banner ---------- */
+
+.active-bar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 616px;
+  margin: 0 auto;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 12px;
+  padding: 11px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.35);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .active-bar {
+    animation: rise 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+}
+
 /* ---------- rest timer bar ---------- */
 
 .restbar {

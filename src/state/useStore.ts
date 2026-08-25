@@ -51,7 +51,7 @@ export type ActiveSet = { weightKg: number | null; reps: number | null; done: bo
 export type ActiveSession = {
   routineId: string;
   startTs: number;
-  ex: { exerciseId: string; sets: ActiveSet[]; hintKey: string }[];
+  ex: { exerciseId: string; sets: ActiveSet[]; hintKey: string; restOverride?: number }[];
   /** Persisted so a running rest timer survives reloads and PWA eviction. */
   restUntil?: number | null;
   restExerciseId?: string | null;
@@ -103,6 +103,11 @@ function i18nToast(key: string): string {
 
 let stopSync: (() => void) | null = null;
 
+// Tab-like views restore their scroll position when you come back (e.g. from
+// an exercise's technique page straight back to where you were in the workout).
+const scrollMemory = new Map<string, number>();
+const RESTORE_SCROLL = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile', 'workout']);
+
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
 const routinePushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -132,6 +137,7 @@ export type Store = {
   restUntil: number | null;
   restExerciseId: string | null;
   restTotalSec: number | null;
+  pendingRoutineChanges: { routineId: string; items: { exerciseId: string; restSec?: number; sets?: number }[] } | null;
   catalogReady: boolean;
 
   nav(route: Route): void;
@@ -144,10 +150,13 @@ export type Store = {
   startWorkout(routineId: string): void;
   updateSet(ei: number, si: number, patch: Partial<ActiveSet>): void;
   toggleDone(ei: number, si: number): void;
+  setRestOverride(ei: number, sec: number): void;
   addSet(ei: number): void;
   removeSet(ei: number): void;
   abandonWorkout(): void;
   finishWorkout(): Promise<Workout | null>;
+  applyRoutineChanges(): Promise<void>;
+  dismissRoutineChanges(): void;
 
   startRest(sec: number, exerciseId: string): void;
   stopRest(): void;
@@ -158,6 +167,7 @@ export type Store = {
   deleteFolder(id: string): Promise<void>;
   addExerciseToRoutine(routineId: string, exerciseId: string): Promise<void>;
   addNoteEntry(exerciseId: string, text: string): Promise<void>;
+  importNotes(incoming: ExerciseNote[]): Promise<number>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<void>;
   deleteMeasurement(id: string): Promise<void>;
   saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<void>;
@@ -182,11 +192,14 @@ export const useStore = create<Store>((set, get) => ({
   restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
   restExerciseId: initialActive?.restExerciseId ?? null,
   restTotalSec: initialActive?.restTotalSec ?? null,
+  pendingRoutineChanges: null,
   catalogReady: false,
 
   nav(route) {
+    scrollMemory.set(get().route.view, window.scrollY);
     set({ route });
-    window.scrollTo(0, 0);
+    const y = RESTORE_SCROLL.has(route.view) ? (scrollMemory.get(route.view) ?? 0) : 0;
+    requestAnimationFrame(() => window.scrollTo(0, y));
   },
 
   setUser(user) {
@@ -303,7 +316,16 @@ export const useStore = create<Store>((set, get) => ({
     if (s.done && s.reps == null) s.reps = rx?.repMin ?? null;
     persistActive(next);
     set({ active: next });
-    if (s.done) get().startRest(rx?.restSec ?? 90, exerciseId);
+    if (s.done) get().startRest(next.ex[ei].restOverride ?? rx?.restSec ?? 90, exerciseId);
+  },
+
+  setRestOverride(ei, sec) {
+    const active = get().active;
+    if (!active) return;
+    const next = structuredClone(active);
+    next.ex[ei].restOverride = sec;
+    persistActive(next);
+    set({ active: next });
   },
 
   addSet(ei) {
@@ -370,6 +392,20 @@ export const useStore = create<Store>((set, get) => ({
       updatedAt: Date.now(),
       source: 'app',
     };
+    // Hevy behavior: session-local tweaks (rest, extra sets) can be persisted
+    // to the routine afterwards; collect the diff before discarding the session.
+    const items: { exerciseId: string; restSec?: number; sets?: number }[] = [];
+    if (routine) {
+      for (const e of active.ex) {
+        const rx = routine.exercises.find((x) => x.exerciseId === e.exerciseId);
+        if (!rx) continue;
+        const change: { exerciseId: string; restSec?: number; sets?: number } = { exerciseId: e.exerciseId };
+        if (e.restOverride !== undefined && e.restOverride !== rx.restSec) change.restSec = e.restOverride;
+        const doneCount = e.sets.filter((x) => x.done).length;
+        if (doneCount > 0 && doneCount !== rx.sets) change.sets = doneCount;
+        if (change.restSec !== undefined || change.sets !== undefined) items.push(change);
+      }
+    }
     await saveWorkout(workout);
     persistActive(null);
     releaseWakeLock();
@@ -379,6 +415,7 @@ export const useStore = create<Store>((set, get) => ({
       restExerciseId: null,
       workouts: [workout, ...get().workouts],
       route: { view: 'summary', workoutId: workout.id },
+      pendingRoutineChanges: routine && items.length > 0 ? { routineId: routine.id, items } : null,
     });
     const uid = get().user?.uid;
     if (uid) void pushRecord(uid, 'workouts', workout);
@@ -461,6 +498,34 @@ export const useStore = create<Store>((set, get) => ({
     if (uid) void pushRecord(uid, 'notes', next);
   },
 
+  async importNotes(incoming) {
+    let merged = 0;
+    const uid = get().user?.uid;
+    for (const inc of incoming) {
+      const existing = get().notes.find((n) => n.id === inc.id);
+      const next: ExerciseNote = existing
+        ? structuredClone(existing)
+        : { id: inc.id, entries: [], updatedAt: 0 };
+      const have = new Set(next.entries.map((x) => x.date));
+      let changed = false;
+      for (const entry of inc.entries) {
+        // Existing entries win: imports never overwrite what the user wrote.
+        if (!have.has(entry.date)) {
+          next.entries.push(entry);
+          changed = true;
+        }
+      }
+      if (!changed) continue;
+      next.entries.sort((a, b) => a.date.localeCompare(b.date));
+      next.updatedAt = Date.now();
+      await saveNote(next);
+      set({ notes: [...get().notes.filter((n) => n.id !== inc.id), next] });
+      if (uid) void pushRecord(uid, 'notes', next);
+      merged += 1;
+    }
+    return merged;
+  },
+
   async addMeasurement(metric, value, date) {
     const m: Measurement = { id: crypto.randomUUID(), date, metric, value, updatedAt: Date.now() };
     await saveMeasurement(m);
@@ -490,6 +555,29 @@ export const useStore = create<Store>((set, get) => ({
     set({ nutrition: [...get().nutrition.filter((n) => n.id !== date), next] });
     const uid = get().user?.uid;
     if (uid) void pushRecord(uid, 'nutrition', next);
+  },
+
+  async applyRoutineChanges() {
+    const pending = get().pendingRoutineChanges;
+    if (!pending) return;
+    const routine = get().routines.find((r) => r.id === pending.routineId);
+    if (!routine) {
+      set({ pendingRoutineChanges: null });
+      return;
+    }
+    const next = structuredClone(routine);
+    for (const item of pending.items) {
+      const rx = next.exercises.find((x) => x.exerciseId === item.exerciseId);
+      if (!rx) continue;
+      if (item.restSec !== undefined) rx.restSec = item.restSec;
+      if (item.sets !== undefined) rx.sets = item.sets;
+    }
+    await get().saveRoutine(next);
+    set({ pendingRoutineChanges: null });
+  },
+
+  dismissRoutineChanges() {
+    set({ pendingRoutineChanges: null });
   },
 
   async addExerciseToRoutine(routineId, exerciseId) {

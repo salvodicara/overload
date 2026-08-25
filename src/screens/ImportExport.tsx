@@ -6,7 +6,7 @@ import { toBackupJson, toCsv } from '../lib/exporter';
 import { parseBackup, planImport } from '../lib/importer';
 import { parseHevyCsv } from '../lib/hevyCsv';
 import { toast, useStore } from '../state/useStore';
-import type { Routine, Workout } from '../lib/types';
+import type { ExerciseNote, Routine, Workout } from '../lib/types';
 
 function download(filename: string, mime: string, data: string): void {
   const url = URL.createObjectURL(new Blob([data], { type: mime }));
@@ -65,6 +65,7 @@ type Preview = {
   duplicates: number;
   unknown: string[];
   routines: Routine[];
+  notes: ExerciseNote[];
 };
 
 export function ImportExport() {
@@ -72,6 +73,7 @@ export function ImportExport() {
   const workouts = useStore((s) => s.workouts);
   const nav = useStore((s) => s.nav);
   const importWorkouts = useStore((s) => s.importWorkouts);
+  const importNotes = useStore((s) => s.importNotes);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,6 +84,7 @@ export function ImportExport() {
       let incoming: Workout[];
       let unknown: string[] = [];
       let routines: Routine[] = [];
+      let notes: ExerciseNote[] = [];
       if (text.trimStart().startsWith('{')) {
         const backup = parseBackup(text);
         incoming = backup.workouts;
@@ -90,10 +93,11 @@ export function ImportExport() {
         const parsed = parseHevyCsv(text, hevyAliasMap());
         incoming = parsed.workouts;
         unknown = parsed.unknownExercises;
+        notes = parsed.notes;
       }
       if (incoming.length === 0 && routines.length === 0) throw new Error('import.invalid');
       const plan = planImport(new Set(workouts.map((w) => w.id)), incoming);
-      setPreview({ name: file.name, ...plan, unknown, routines });
+      setPreview({ name: file.name, ...plan, unknown, routines, notes });
     } catch {
       setPreview(null);
       toast(t('import.invalid'));
@@ -105,6 +109,7 @@ export function ImportExport() {
     setBusy(true);
     for (const routine of preview.routines) await saveRoutine(routine);
     await importWorkouts(preview.fresh);
+    if (preview.notes.length > 0) await importNotes(preview.notes);
     setBusy(false);
     setPreview(null);
     toast(t('import.done', { n: preview.fresh.length }));
@@ -154,7 +159,7 @@ export function ImportExport() {
         <div className="card card-pad stack" style={{ marginTop: 16 }}>
           <div className="mono small muted">{preview.name}</div>
           <strong>
-            {t('import.preview', { fresh: preview.fresh.length, dup: preview.duplicates })}
+            {t('import.preview', { fresh: preview.fresh.length, dup: preview.duplicates })}{preview.notes.length > 0 ? ` · ${t('import.notes', { n: preview.notes.length })}` : ''}
           </strong>
           {preview.unknown.length > 0 && (
             <span className="muted small">
