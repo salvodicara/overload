@@ -12,7 +12,6 @@ import {
   type Store,
 } from '../state/useStore';
 import type { Folder, Routine } from '../lib/types';
-import { MomentumCard } from '../components/MomentumCard';
 
 export async function installTemplatePack(
   pack: (typeof TEMPLATES)[number],
@@ -72,17 +71,17 @@ type SheetState =
 
 export function Train() {
   const { t } = useTranslation();
-  const { settings, routines, folders, workouts } = useStore();
+  const { routines, folders, workouts } = useStore();
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const saveFolder = useStore((s) => s.saveFolder);
   const deleteFolder = useStore((s) => s.deleteFolder);
-  const updateSettings = useStore((s) => s.updateSettings);
-  const [pickDate, setPickDate] = useState(false);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [nameDraft, setNameDraft] = useState('');
 
-  const ungrouped = routines.filter((r) => !r.folderId || !folders.some((f) => f.id === r.folderId));
+  const ungrouped = routines.filter(
+    (r) => !r.folderId || !folders.some((f) => f.id === r.folderId),
+  );
   const missingPacks = TEMPLATES.filter(
     (p) => !p.routines.every((r) => routines.some((x) => x.id === r.id)),
   );
@@ -104,7 +103,11 @@ export function Train() {
   }
 
   async function createProgram(name: string): Promise<void> {
-    const folder: Folder = { id: crypto.randomUUID(), name: name.trim() || t('train.newProgram'), updatedAt: 0 };
+    const folder: Folder = {
+      id: crypto.randomUUID(),
+      name: name.trim() || t('train.newProgram'),
+      updatedAt: 0,
+    };
     const result = await saveFolder(folder);
     if (!isAccountActionCurrent(result)) return;
     setSheet(null);
@@ -116,36 +119,17 @@ export function Train() {
         <div className="display" style={{ fontSize: 30 }}>
           {t('nav.workout')}
         </div>
-        <button className="btn btn-accent" style={{ padding: '10px 16px' }} onClick={() => { setNameDraft(''); setSheet({ kind: 'create' }); }}>
+        <button
+          className="btn btn-accent"
+          style={{ padding: '10px 16px' }}
+          onClick={() => {
+            setNameDraft('');
+            setSheet({ kind: 'create' });
+          }}
+        >
           {t('train.create')}
         </button>
       </div>
-
-      {!settings.programStartDate ? (
-        <div className="card card-pad stack" style={{ margin: '8px 0 14px' }}>
-          <strong>{t('home.setStartTitle')}</strong>
-          <span className="muted small">{t('home.setStartBody')}</span>
-          <button
-            className="btn btn-accent btn-block"
-            onClick={() => void updateSettings({ programStartDate: new Date().toLocaleDateString('sv') })}
-          >
-            {t('home.startToday')}
-          </button>
-          {pickDate ? (
-            <input
-              type="date"
-              aria-label={t('home.pickDate')}
-              onChange={(e) => e.target.value && void updateSettings({ programStartDate: e.target.value })}
-            />
-          ) : (
-            <button className="btn btn-ghost btn-block" onClick={() => setPickDate(true)}>
-              {t('home.pickDate')}
-            </button>
-          )}
-        </div>
-      ) : (
-        <MomentumCard />
-      )}
 
       {routines.length === 0 && folders.length === 0 && (
         <div className="card card-pad stack">
@@ -156,7 +140,10 @@ export function Train() {
 
       <div className="stack">
         {ungrouped.length > 0 && (
-          <div className="mono small muted" style={{ letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
+          <div
+            className="mono small muted"
+            style={{ letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}
+          >
             {t('routines.title')}
           </div>
         )}
@@ -172,18 +159,33 @@ export function Train() {
                 className="spread"
                 style={{ margin: '10px 0 0', width: '100%', minHeight: 44 }}
                 aria-label={`${f.name} · ${t('train.programOptions')}`}
-                onClick={() => { setNameDraft(f.name); setSheet({ kind: 'program', folder: f }); }}
+                onClick={() => {
+                  setNameDraft(f.name);
+                  setSheet({ kind: 'program', folder: f });
+                }}
               >
-                <span className="mono small muted" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                <span
+                  className="mono small muted"
+                  style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                >
                   {f.name} · {t('routines.days', { n: inFolder.length })}
                 </span>
-                <span className="muted"><IconForward width={15} height={15} aria-hidden /></span>
+                <span className="muted">
+                  <IconForward width={15} height={15} aria-hidden />
+                </span>
               </button>
               {inFolder.map((r) => (
                 <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedId} />
               ))}
               {inFolder.length === 0 && (
-                <button className="card card-pad small muted" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setNameDraft(''); setSheet({ kind: 'newRoutine', folderId: f.id }); }}>
+                <button
+                  className="card card-pad small muted"
+                  style={{ width: '100%', textAlign: 'left' }}
+                  onClick={() => {
+                    setNameDraft('');
+                    setSheet({ kind: 'newRoutine', folderId: f.id });
+                  }}
+                >
                   {t('train.emptyProgram')}
                 </button>
               )}
@@ -194,7 +196,10 @@ export function Train() {
 
       {missingPacks.length > 0 && (
         <>
-          <div className="mono small muted" style={{ margin: '24px 0 8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          <div
+            className="mono small muted"
+            style={{ margin: '24px 0 8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}
+          >
             {t('routines.templates')}
           </div>
           <div className="stack">
@@ -202,7 +207,9 @@ export function Train() {
               <div key={pack.folder.id} className="card card-pad spread">
                 <span style={{ minWidth: 0 }}>
                   <span style={{ fontWeight: 700, display: 'block' }}>{pack.folder.name}</span>
-                  <span className="mono small muted">{t('routines.days', { n: pack.routines.length })}</span>
+                  <span className="mono small muted">
+                    {t('routines.days', { n: pack.routines.length })}
+                  </span>
                 </span>
                 <button
                   className="btn btn-ghost"
@@ -219,21 +226,34 @@ export function Train() {
       )}
 
       {sheet && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setSheet(null)}>
+        <div
+          className="sheet-scrim"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && setSheet(null)}
+        >
           <div className="sheet card card-pad stack">
             {sheet.kind === 'create' && (
               <>
                 <strong>{t('train.create')}</strong>
-                <button className="btn btn-ghost btn-block" onClick={() => setSheet({ kind: 'newRoutine' })}>
+                <button
+                  className="btn btn-ghost btn-block"
+                  onClick={() => setSheet({ kind: 'newRoutine' })}
+                >
                   {t('train.newRoutine')}
                 </button>
-                <button className="btn btn-ghost btn-block" onClick={() => setSheet({ kind: 'newProgram' })}>
+                <button
+                  className="btn btn-ghost btn-block"
+                  onClick={() => setSheet({ kind: 'newProgram' })}
+                >
                   {t('train.newProgram')}
                 </button>
                 <span className="muted small">{t('train.programHint')}</span>
               </>
             )}
-            {(sheet.kind === 'newRoutine' || sheet.kind === 'newProgram' || sheet.kind === 'renameProgram') && (
+            {(sheet.kind === 'newRoutine' ||
+              sheet.kind === 'newProgram' ||
+              sheet.kind === 'renameProgram') && (
               <>
                 <strong>
                   {sheet.kind === 'newRoutine'
@@ -245,7 +265,11 @@ export function Train() {
                 <input
                   autoFocus
                   value={nameDraft}
-                  placeholder={sheet.kind === 'newRoutine' ? t('train.routineNamePh') : t('train.programNamePh')}
+                  placeholder={
+                    sheet.kind === 'newRoutine'
+                      ? t('train.routineNamePh')
+                      : t('train.programNamePh')
+                  }
                   aria-label={t('editor.name')}
                   style={{ fontFamily: 'inherit' }}
                   onChange={(e) => setNameDraft(e.target.value)}
@@ -276,13 +300,28 @@ export function Train() {
             {sheet.kind === 'program' && (
               <>
                 <strong>{sheet.folder.name}</strong>
-                <button className="btn btn-ghost btn-block" onClick={() => { setNameDraft(''); setSheet({ kind: 'newRoutine', folderId: sheet.folder.id }); }}>
+                <button
+                  className="btn btn-ghost btn-block"
+                  onClick={() => {
+                    setNameDraft('');
+                    setSheet({ kind: 'newRoutine', folderId: sheet.folder.id });
+                  }}
+                >
                   {t('train.addToProgram')}
                 </button>
-                <button className="btn btn-ghost btn-block" onClick={() => { setNameDraft(sheet.folder.name); setSheet({ kind: 'renameProgram', folder: sheet.folder }); }}>
+                <button
+                  className="btn btn-ghost btn-block"
+                  onClick={() => {
+                    setNameDraft(sheet.folder.name);
+                    setSheet({ kind: 'renameProgram', folder: sheet.folder });
+                  }}
+                >
                   {t('train.renameProgram')}
                 </button>
-                <button className="btn btn-danger btn-block" onClick={() => setSheet({ kind: 'deleteProgram', folder: sheet.folder })}>
+                <button
+                  className="btn btn-danger btn-block"
+                  onClick={() => setSheet({ kind: 'deleteProgram', folder: sheet.folder })}
+                >
                   {t('train.deleteFolder')}
                 </button>
                 <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>

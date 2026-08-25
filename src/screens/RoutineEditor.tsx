@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconBack, IconDown, IconNote, IconUp, IconX } from '../components/Icons';
-import { NoteEditor } from '../components/NoteEditor';
+import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
 import { exerciseName } from '../lib/exercises';
+import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
+import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
 import { continueAccountAction, useStore } from '../state/useStore';
-import type { Routine } from '../lib/types';
 
 const ICON = { width: 44, height: 44 } as const;
 
@@ -23,16 +23,7 @@ function NumField({
 }) {
   return (
     <label className="stack" style={{ gap: 3 }}>
-      <span
-        className="mono muted"
-        style={{
-          fontSize: 10,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          whiteSpace: 'nowrap',
-          textAlign: 'center',
-        }}
-      >
+      <span className="mono muted" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
         {label}
       </span>
       <input
@@ -44,11 +35,21 @@ function NumField({
         min={0}
         aria-label={label}
         defaultValue={value ?? ''}
-        style={{ padding: '8px 4px', textAlign: 'center' }}
+        style={{ minHeight: 44, padding: '8px', textAlign: 'center' }}
         onChange={(e) => onCommit(e.target.value === '' ? null : Number(e.target.value))}
       />
     </label>
   );
+}
+
+function display(value: number | undefined, unit: 'kg' | 'lb'): number | undefined {
+  return value === undefined ? undefined : displayWeight(value, unit);
+}
+
+function defaultWarmup(rx: RoutineExercise): NonNullable<RoutineExercise['warmupSets']>[number] {
+  if (trackingOf(rx.tracking) === 'duration') return { durationSec: rx.repMin };
+  if (trackingOf(rx.tracking) === 'reps') return { reps: rx.repMin };
+  return { weightKg: rx.startWeightKg, reps: rx.repMin };
 }
 
 export function RoutineEditor({ id }: { id: string }) {
@@ -56,16 +57,16 @@ export function RoutineEditor({ id }: { id: string }) {
   const routine = useStore((s) => s.routines.find((r) => r.id === id));
   const folders = useStore((s) => s.folders);
   const catalogReady = useStore((s) => s.catalogReady);
+  const notes = useStore((s) => s.notes);
+  const unit = useStore((s) => s.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
+  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
   const deleteRoutine = useStore((s) => s.deleteRoutine);
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
   const [confirming, setConfirming] = useState(false);
-  const [editingNote, setEditingNote] = useState<number | null>(null);
-  const notes = useStore((s) => s.notes);
 
-  /** Mutates the freshest copy, then persists (store stamps updatedAt + syncs). */
   function commit(mutate: (draft: Routine) => void, structural = false): void {
     const current = useStore.getState().routines.find((r) => r.id === id);
     if (!current) return;
@@ -76,7 +77,19 @@ export function RoutineEditor({ id }: { id: string }) {
     });
   }
 
-  if (!routine) {
+  function updateWarmup(
+    exerciseIndex: number,
+    warmupIndex: number,
+    patch: NonNullable<RoutineExercise['warmupSets']>[number],
+  ): void {
+    commit((draft) => {
+      const warmups = [...(draft.exercises[exerciseIndex].warmupSets ?? [])];
+      warmups[warmupIndex] = { ...warmups[warmupIndex], ...patch };
+      draft.exercises[exerciseIndex].warmupSets = warmups;
+    });
+  }
+
+  if (!routine)
     return (
       <div className="screen">
         <div className="row" style={{ padding: '18px 0 6px' }}>
@@ -87,17 +100,21 @@ export function RoutineEditor({ id }: { id: string }) {
         <div className="empty">{t('editor.notFound')}</div>
       </div>
     );
-  }
 
+  const grid = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: 8,
+  } as const;
   return (
-    <div className="screen">
-      <div className="row" style={{ padding: '18px 0 10px' }}>
+    <main className="screen">
+      <header className="row" style={{ padding: '18px 0 10px' }}>
         <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
-        <div className="display" style={{ fontSize: 24, flex: 1 }}>
+        <h1 className="display" style={{ fontSize: 24, flex: 1, margin: 0 }}>
           {t('editor.title')}
-        </div>
+        </h1>
         <button
           className="btn btn-accent"
           disabled={routine.exercises.length === 0}
@@ -105,10 +122,13 @@ export function RoutineEditor({ id }: { id: string }) {
         >
           {t('home.start')}
         </button>
-      </div>
+      </header>
 
       <label className="stack" style={{ gap: 4, marginBottom: 10 }}>
-        <span className="mono small muted" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        <span
+          className="mono small muted"
+          style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+        >
           {t('editor.name')}
         </span>
         <input
@@ -118,130 +138,304 @@ export function RoutineEditor({ id }: { id: string }) {
           onChange={(e) => commit((r) => void (r.name = e.target.value))}
         />
       </label>
-
       {folders.length > 0 && (
-        <label className="stack" style={{ gap: 4, marginBottom: 14 }}>
-          <span className="mono small muted" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        <label className="stack" style={{ gap: 4, marginBottom: 10 }}>
+          <span
+            className="mono small muted"
+            style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+          >
             {t('editor.folder')}
           </span>
           <select
             key={`folder-${rev}`}
             defaultValue={routine.folderId ?? ''}
-            onChange={(e) =>
-              commit((r) => void (r.folderId = e.target.value === '' ? undefined : e.target.value))
-            }
+            onChange={(e) => commit((r) => void (r.folderId = e.target.value || undefined))}
           >
             <option value="">{t('editor.noFolder')}</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
               </option>
             ))}
           </select>
         </label>
       )}
+      <label className="stack" style={{ gap: 4, marginBottom: 14 }}>
+        <span
+          className="mono small muted"
+          style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+        >
+          {t('editor.preparation')}
+        </span>
+        <textarea
+          key={`warmup-${rev}`}
+          defaultValue={routine.warmup ?? ''}
+          aria-label={t('editor.preparation')}
+          placeholder={t('editor.preparationPlaceholder')}
+          rows={2}
+          style={{ minHeight: 64, resize: 'vertical' }}
+          onChange={(e) => commit((r) => void (r.warmup = e.target.value.trim() || undefined))}
+        />
+      </label>
 
       <div className="stack">
-        {routine.exercises.map((rx, xi) => (
-          <div key={`${rx.exerciseId}-${xi}-${rev}`} className="card card-pad stack" style={{ gap: 10 }}>
-            <div className="row">
-              <span
-                style={{ flex: 1, minWidth: 0, fontWeight: 600 }}
-                className={catalogReady ? undefined : 'muted'}
-              >
-                {exerciseName(rx.exerciseId, i18n.language)}
-              </span>
-              <button
-                className="iconbtn"
-                style={ICON}
-                aria-label={t('editor.moveUp')}
-                disabled={xi === 0}
-                onClick={() =>
-                  commit((r) => {
-                    [r.exercises[xi - 1], r.exercises[xi]] = [r.exercises[xi], r.exercises[xi - 1]];
-                  }, true)
-                }
-              >
-                <IconUp width={16} height={16} />
-              </button>
-              <button
-                className="iconbtn"
-                style={ICON}
-                aria-label={t('editor.moveDown')}
-                disabled={xi === routine.exercises.length - 1}
-                onClick={() =>
-                  commit((r) => {
-                    [r.exercises[xi], r.exercises[xi + 1]] = [r.exercises[xi + 1], r.exercises[xi]];
-                  }, true)
-                }
-              >
-                <IconDown width={16} height={16} />
-              </button>
-              <button
-                className="iconbtn"
-                style={ICON}
-                aria-label={t('editor.removeExercise')}
-                onClick={() => commit((r) => void r.exercises.splice(xi, 1), true)}
-              >
-                <IconX width={16} height={16} />
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-              <NumField label={t('editor.sets')} value={rx.sets} step={1} fieldKey={`s-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].sets = n ?? 1))} />
-              <NumField label={t('editor.repMin')} value={rx.repMin} step={1} fieldKey={`rmin-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].repMin = n ?? 1))} />
-              <NumField label={t('editor.repMax')} value={rx.repMax} step={1} fieldKey={`rmax-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].repMax = n))} />
-              <NumField label={t('editor.rest')} value={rx.restSec} step={5} fieldKey={`rest-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))} />
-              <NumField label={t('editor.startWeight')} value={rx.startWeightKg} step={0.5} fieldKey={`sw-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].startWeightKg = n ?? undefined))} />
-            </div>
-            {editingNote === xi ? (
-              <NoteEditor
-                key={`note-${xi}-${rev}`}
-                initial={rx.note ?? ''}
-                placeholder={t('editor.notePlaceholder')}
-                ariaLabel={t('editor.noteLabel')}
-                onChangeText={(text) => commit((r) => void (r.exercises[xi].note = text.trim() || undefined))}
-                onDone={() => setEditingNote(null)}
-              />
-            ) : (
-              <button
-                className="row small"
-                style={{
-                  gap: 6,
-                  alignItems: 'flex-start',
-                  color: rx.note ? 'var(--warn)' : 'var(--muted)',
-                  fontWeight: 600,
-                  minHeight: 30,
-                  textAlign: 'left',
-                  width: '100%',
-                }}
-                onClick={() => setEditingNote(xi)}
-              >
-                <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
-                <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}>
-                  {rx.note ?? t('editor.notePlaceholder')}
+        {routine.exercises.map((rx, xi) => {
+          const tracking = trackingOf(rx.tracking);
+          const note = notes.find((item) => item.id === rx.exerciseId);
+          const warmups = rx.warmupSets ?? [];
+          const minLabel = tracking === 'duration' ? t('editor.timeMin') : t('editor.repMin');
+          const maxLabel = tracking === 'duration' ? t('editor.timeMax') : t('editor.repMax');
+          return (
+            <div
+              key={`${rx.exerciseId}-${xi}-${rev}`}
+              className="card card-pad stack"
+              style={{ gap: 10 }}
+            >
+              <div className="row">
+                <span
+                  style={{ flex: 1, minWidth: 0, fontWeight: 600 }}
+                  className={catalogReady ? undefined : 'muted'}
+                >
+                  {exerciseName(rx.exerciseId, i18n.language)}
                 </span>
-              </button>
-            )}
-            {(() => {
-              const journal = notes.find((n) => n.id === rx.exerciseId);
-              const latest = journal?.entries[journal.entries.length - 1];
-              if (!latest) return null;
-              return (
+                <button
+                  className="iconbtn"
+                  style={ICON}
+                  aria-label={t('editor.moveUp')}
+                  disabled={xi === 0}
+                  onClick={() =>
+                    commit((r) => {
+                      [r.exercises[xi - 1], r.exercises[xi]] = [
+                        r.exercises[xi],
+                        r.exercises[xi - 1],
+                      ];
+                    }, true)
+                  }
+                >
+                  <IconUp width={16} height={16} />
+                </button>
+                <button
+                  className="iconbtn"
+                  style={ICON}
+                  aria-label={t('editor.moveDown')}
+                  disabled={xi === routine.exercises.length - 1}
+                  onClick={() =>
+                    commit((r) => {
+                      [r.exercises[xi], r.exercises[xi + 1]] = [
+                        r.exercises[xi + 1],
+                        r.exercises[xi],
+                      ];
+                    }, true)
+                  }
+                >
+                  <IconDown width={16} height={16} />
+                </button>
+                <button
+                  className="iconbtn"
+                  style={ICON}
+                  aria-label={t('editor.removeExercise')}
+                  onClick={() => commit((r) => void r.exercises.splice(xi, 1), true)}
+                >
+                  <IconX width={16} height={16} />
+                </button>
+              </div>
+              <details open className="stack" style={{ gap: 10 }}>
+                <summary
+                  style={{
+                    minHeight: 44,
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  {t('editor.settings')}
+                </summary>
+                <label className="stack" style={{ gap: 3 }}>
+                  <span className="mono muted" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
+                    {t('editor.tracking')}
+                  </span>
+                  <select
+                    aria-label={t('editor.tracking')}
+                    value={tracking}
+                    onChange={(e) =>
+                      commit(
+                        (r) => void (r.exercises[xi].tracking = e.target.value as TrackingType),
+                        true,
+                      )
+                    }
+                  >
+                    <option value="weight_reps">{t('editor.trackingWeightReps')}</option>
+                    <option value="reps">{t('editor.trackingReps')}</option>
+                    <option value="duration">{t('editor.trackingDuration')}</option>
+                  </select>
+                </label>
+                <div style={grid}>
+                  <NumField
+                    label={t('editor.workingSets')}
+                    value={rx.sets}
+                    step={1}
+                    fieldKey={`sets-${xi}-${rev}`}
+                    onCommit={(n) => commit((r) => void (r.exercises[xi].sets = n ?? 1))}
+                  />
+                  <NumField
+                    label={t('editor.rest')}
+                    value={rx.restSec}
+                    step={5}
+                    fieldKey={`rest-${xi}-${rev}`}
+                    onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))}
+                  />
+                  <NumField
+                    label={minLabel}
+                    value={rx.repMin}
+                    step={1}
+                    fieldKey={`min-${xi}-${rev}`}
+                    onCommit={(n) => commit((r) => void (r.exercises[xi].repMin = n ?? 1))}
+                  />
+                  <NumField
+                    label={maxLabel}
+                    value={rx.repMax}
+                    step={1}
+                    fieldKey={`max-${xi}-${rev}`}
+                    onCommit={(n) => commit((r) => void (r.exercises[xi].repMax = n))}
+                  />
+                  {tracking === 'weight_reps' && (
+                    <>
+                      <NumField
+                        label={t('editor.startWeight', { unit: weightLabel(unit) })}
+                        value={display(rx.startWeightKg, unit)}
+                        step={0.5}
+                        fieldKey={`start-${xi}-${rev}`}
+                        onCommit={(n) =>
+                          commit(
+                            (r) =>
+                              void (r.exercises[xi].startWeightKg =
+                                n === null ? undefined : canonicalWeight(n, unit)),
+                          )
+                        }
+                      />
+                      <NumField
+                        label={t('editor.increment', { unit: weightLabel(unit) })}
+                        value={display(rx.incrementKg, unit)}
+                        step={0.5}
+                        fieldKey={`increment-${xi}-${rev}`}
+                        onCommit={(n) =>
+                          commit(
+                            (r) =>
+                              void (r.exercises[xi].incrementKg =
+                                n === null ? undefined : canonicalWeight(n, unit)),
+                          )
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+                <div className="stack" style={{ gap: 8 }}>
+                  <span
+                    className="mono small muted"
+                    style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                  >
+                    {t('editor.warmupSets')}
+                  </span>
+                  {warmups.map((target, wi) => (
+                    <div key={`${wi}-${rev}`} className="row" style={{ alignItems: 'end', gap: 8 }}>
+                      <div style={{ ...grid, flex: 1 }}>
+                        {tracking === 'weight_reps' && (
+                          <NumField
+                            label={t('editor.load', { unit: weightLabel(unit) })}
+                            value={display(target.weightKg, unit)}
+                            step={0.5}
+                            fieldKey={`warmup-weight-${xi}-${wi}-${rev}`}
+                            onCommit={(n) =>
+                              updateWarmup(xi, wi, {
+                                weightKg: n === null ? undefined : canonicalWeight(n, unit),
+                              })
+                            }
+                          />
+                        )}
+                        {tracking !== 'duration' && (
+                          <NumField
+                            label={t('editor.reps')}
+                            value={target.reps}
+                            step={1}
+                            fieldKey={`warmup-reps-${xi}-${wi}-${rev}`}
+                            onCommit={(n) => updateWarmup(xi, wi, { reps: n ?? undefined })}
+                          />
+                        )}
+                        {tracking === 'duration' && (
+                          <NumField
+                            label={t('editor.seconds')}
+                            value={target.durationSec}
+                            step={1}
+                            fieldKey={`warmup-seconds-${xi}-${wi}-${rev}`}
+                            onCommit={(n) => updateWarmup(xi, wi, { durationSec: n ?? undefined })}
+                          />
+                        )}
+                      </div>
+                      <button
+                        className="iconbtn"
+                        style={ICON}
+                        aria-label={t('editor.removeWarmupSet')}
+                        onClick={() =>
+                          commit((r) => void r.exercises[xi].warmupSets?.splice(wi, 1), true)
+                        }
+                      >
+                        <IconX width={16} height={16} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="btn btn-ghost btn-block"
+                    onClick={() =>
+                      commit((r) => {
+                        r.exercises[xi].warmupSets = [
+                          ...(r.exercises[xi].warmupSets ?? []),
+                          defaultWarmup(r.exercises[xi]),
+                        ];
+                      }, true)
+                    }
+                  >
+                    {t('editor.addWarmupSet')}
+                  </button>
+                </div>
+              </details>
+              <label className="stack" style={{ gap: 4 }}>
+                <span
+                  className="mono small muted"
+                  style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                >
+                  {t('notes.technique')}
+                </span>
+                <textarea
+                  key={`technique-${rx.exerciseId}-${rev}`}
+                  defaultValue={note?.technique ?? ''}
+                  aria-label={t('notes.technique')}
+                  placeholder={t('notes.techniquePlaceholder')}
+                  rows={2}
+                  style={{ minHeight: 64, resize: 'vertical' }}
+                  onChange={(e) =>
+                    void continueAccountAction(
+                      saveTechniqueNote(rx.exerciseId, e.target.value),
+                      () => {},
+                    )
+                  }
+                />
+              </label>
+              {note?.entries.at(-1) && (
                 <button
                   className="mono small muted"
-                  style={{ textAlign: 'left', padding: '2px 0', width: '100%' }}
+                  style={{ textAlign: 'left', padding: '2px 0', width: '100%', minHeight: 44 }}
                   onClick={() => nav({ view: 'exercise', id: rx.exerciseId })}
                 >
-                  {t('editor.journalLatest')} {latest.date} · {latest.text}
+                  {t('editor.journalLatest')} {note.entries.at(-1)?.date} ·{' '}
+                  {note.entries.at(-1)?.text}
                 </button>
-              );
-            })()}
-          </div>
-        ))}
+              )}
+            </div>
+          );
+        })}
       </div>
-
       {routine.exercises.length === 0 && <div className="empty">{t('editor.noExercises')}</div>}
-
       <button
         className="btn btn-ghost btn-block"
         style={{ marginTop: 14 }}
@@ -249,11 +443,13 @@ export function RoutineEditor({ id }: { id: string }) {
       >
         {t('editor.addExercise')}
       </button>
-
-      <button className="btn btn-danger btn-block" style={{ marginTop: 22 }} onClick={() => setConfirming(true)}>
+      <button
+        className="btn btn-danger btn-block"
+        style={{ marginTop: 22 }}
+        onClick={() => setConfirming(true)}
+      >
         {t('editor.deleteRoutine')}
       </button>
-
       {confirming && (
         <div className="sheet-scrim" role="dialog" aria-modal="true">
           <div className="sheet card card-pad stack">
@@ -261,9 +457,9 @@ export function RoutineEditor({ id }: { id: string }) {
             <span className="muted small">{t('editor.deleteRoutineBody')}</span>
             <button
               className="btn btn-danger btn-block"
-              onClick={() => {
-                void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }));
-              }}
+              onClick={() =>
+                void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }))
+              }
             >
               {t('history.deleteConfirm')}
             </button>
@@ -273,6 +469,6 @@ export function RoutineEditor({ id }: { id: string }) {
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }

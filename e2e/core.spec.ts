@@ -4,7 +4,10 @@ const NEUTRAL_ROUTINE = /full body a/i;
 
 export async function installNeutralTemplate(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
-  await page.getByRole('button', { name: /^(use|usa)$/i }).first().click();
+  await page
+    .getByRole('button', { name: /^(use|usa)$/i })
+    .first()
+    .click();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
 }
 
@@ -21,7 +24,10 @@ export async function openNeutralRoutineEditor(page: Page): Promise<void> {
 }
 
 export async function completeAndFinishOneSet(page: Page): Promise<void> {
-  await page.getByRole('button', { name: /set 1|serie 1/i }).first().click();
+  await page
+    .getByRole('button', { name: /set 1|serie 1/i })
+    .first()
+    .click();
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
 }
@@ -38,7 +44,9 @@ test.beforeEach(async ({ page }) => {
 
 test('home prioritizes the next routine and keeps history secondary', async ({ page }) => {
   await page.getByRole('button', { name: /home/i }).click();
-  await expect(page.getByRole('heading', { name: /next workout|prossimo allenamento/i })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /next workout|prossimo allenamento/i }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: /start|inizia/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /all history|tutto lo storico/i })).toBeVisible();
   await expect(page.getByRole('main')).toBeVisible();
@@ -47,6 +55,28 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
     await page.setViewportSize({ width, height: 700 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
   }
+});
+
+test('routine preparation and exercise settings remain editable', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  await page.getByRole('textbox', { name: /warm-up|riscaldamento/i }).fill('5 min easy bike');
+  await page
+    .getByLabel(/tracking|tracciamento/i)
+    .first()
+    .selectOption('duration');
+  await page
+    .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
+    .first()
+    .click();
+  await page
+    .getByLabel(/technique|tecnica/i)
+    .first()
+    .fill('Brace before the timer starts');
+  await page.getByRole('button', { name: /back|indietro/i }).click();
+  await openNeutralRoutineEditor(page);
+  await expect(page.getByRole('textbox', { name: /warm-up|riscaldamento/i })).toHaveValue(
+    '5 min easy bike',
+  );
 });
 
 test('log a workout end to end', async ({ page }) => {
@@ -79,7 +109,10 @@ test('routines are fully editable and deletable', async ({ page }) => {
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await page.getByRole('button', { name: /^\+ (exercise|esercizio)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('squat');
-  await page.locator('.card', { hasText: /barbell squat/i }).first().click();
+  await page
+    .locator('.card', { hasText: /barbell squat/i })
+    .first()
+    .click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await expect(page.getByText(/barbell squat/i).first()).toBeVisible();
   await page.getByRole('button', { name: /delete routine|elimina routine/i }).click();
@@ -97,11 +130,16 @@ test('programs group routines and are manageable', async ({ page }) => {
   await page.getByLabel(/routine name|nome/i).fill('Day X');
   await page.getByRole('button', { name: /^(create|crea)$/i }).click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
-  await page.getByRole('button', { name: /back|indietro/i }).first().click();
+  await page
+    .getByRole('button', { name: /back|indietro/i })
+    .first()
+    .click();
   await expect(page.getByText(/test program/i)).toBeVisible();
   await expect(page.getByText(/day x/i)).toBeVisible();
   // Delete the program: routine survives as standalone.
-  await page.getByRole('button', { name: /test program.*(program options|opzioni programma)/i }).click();
+  await page
+    .getByRole('button', { name: /test program.*(program options|opzioni programma)/i })
+    .click();
   await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
   await expect(page.getByText(/test program/i)).toHaveCount(0);
@@ -110,16 +148,25 @@ test('programs group routines and are manageable', async ({ page }) => {
 
 test('technique and session notes persist across distinct workouts', async ({ page }) => {
   await startNeutralWorkout(page);
-  await page.getByRole('button', { name: /cues to keep|indicazioni da mantenere/i }).first().click();
+  await page
+    .getByRole('button', { name: /cues to keep|indicazioni da mantenere/i })
+    .first()
+    .click();
   await page.getByLabel(/^technique|^tecnica/i).fill('Seat at 4');
   await page.locator('.setrow input').first().click();
-  await page.getByRole('button', { name: /how this exercise felt|com'è andato/i }).first().click();
+  await page
+    .getByRole('button', { name: /how this exercise felt|com'è andato/i })
+    .first()
+    .click();
   await page.getByLabel(/^this session|^questa sessione/i).fill('First session');
   await completeAndFinishOneSet(page);
 
   await startNeutralWorkout(page);
   await expect(page.getByText(/seat at 4/i).first()).toBeVisible();
-  await page.getByRole('button', { name: /how this exercise felt|com'è andato/i }).first().click();
+  await page
+    .getByRole('button', { name: /how this exercise felt|com'è andato/i })
+    .first()
+    .click();
   await page.getByLabel(/^this session|^questa sessione/i).fill('Second session');
   await completeAndFinishOneSet(page);
 
@@ -129,11 +176,16 @@ test('technique and session notes persist across distinct workouts', async ({ pa
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });
-    const records = await new Promise<Array<{ exerciseNotes?: { text: string }[] }>>((resolve, reject) => {
-      const request = database.transaction('workouts', 'readonly').objectStore('workouts').getAll();
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
+    const records = await new Promise<Array<{ exerciseNotes?: { text: string }[] }>>(
+      (resolve, reject) => {
+        const request = database
+          .transaction('workouts', 'readonly')
+          .objectStore('workouts')
+          .getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      },
+    );
     database.close();
     return records.flatMap((record) => record.exerciseNotes?.map((note) => note.text) ?? []);
   });
@@ -143,7 +195,10 @@ test('technique and session notes persist across distinct workouts', async ({ pa
 test('mid-workout rest tweak can update the routine', async ({ page }) => {
   await startNeutralWorkout(page);
   // Open the rest editor on the first exercise and add 15s.
-  await page.getByRole('button', { name: /rest |rec /i }).first().click();
+  await page
+    .getByRole('button', { name: /rest |rec /i })
+    .first()
+    .click();
   await page.getByRole('button', { name: /raise rest|aumenta recupero/i }).click();
   await page.getByRole('button', { name: /^ok$/i }).click();
   await page.locator('.setcheck').first().click();
@@ -157,7 +212,13 @@ test('mid-workout rest tweak can update the routine', async ({ page }) => {
 });
 
 test('no horizontal overflow on any tab', async ({ page }) => {
-  for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(exercises|esercizi)$/i, /^(progress|progressi)$/i, /^(profile|profilo)$/i]) {
+  for (const tab of [
+    /^home$/i,
+    /^(train|allenati)$/i,
+    /^(exercises|esercizi)$/i,
+    /^(progress|progressi)$/i,
+    /^(profile|profilo)$/i,
+  ]) {
     await page.getByRole('button', { name: tab }).click();
     await page.waitForTimeout(250);
     const overflow = await page.evaluate(
@@ -182,23 +243,36 @@ test('active workout is reachable from any tab via the banner', async ({ page })
 test('home protects an active workout until it is resumed', async ({ page }) => {
   await startNeutralWorkout(page);
   await page.locator('.setcheck').first().click();
-  const activeBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null'));
+  const activeBefore = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('overload_active') ?? 'null'),
+  );
   await page.getByRole('button', { name: /minimize|riduci/i }).click();
   await page.getByRole('button', { name: /^home$/i }).click();
 
-  await expect(page.getByRole('heading', { name: /resume workout in progress|riprendi l'allenamento in corso/i })).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: /resume workout in progress|riprendi l'allenamento in corso/i,
+    }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: /^(start|inizia)$/i })).toHaveCount(0);
 
-  await page.locator('section[aria-labelledby="resume-workout"]').getByRole('button', { name: /resume|riprendi/i }).click();
+  await page
+    .locator('section[aria-labelledby="resume-workout"]')
+    .getByRole('button', { name: /resume|riprendi/i })
+    .click();
   await expect(page.locator('.setrow.done')).toHaveCount(1);
   await expect(page.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null'))).toEqual(activeBefore);
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null')))
+    .toEqual(activeBefore);
 });
 
 test('hardware back navigates the app', async ({ page }) => {
   await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('barbell squat');
-  await page.getByRole('button', { name: /^(barbell squat legs|squat con bilanciere gambe)$/i }).click();
+  await page
+    .getByRole('button', { name: /^(barbell squat legs|squat con bilanciere gambe)$/i })
+    .click();
   await expect(page.getByText(/how to|esecuzione/i)).toBeVisible();
   await page.goBack();
   await expect(page.getByPlaceholder(/search|cerca/i)).toBeVisible();
