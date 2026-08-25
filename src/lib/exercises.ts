@@ -114,3 +114,24 @@ export function hevyAliasMap(): Record<string, string> {
   }
   return out;
 }
+
+// Italian instruction steps live in a separate lazily-fetched asset so the
+// main bundle stays lean; English (in the catalog) is the fallback.
+let instructionsIt: Record<string, string[]> | null = null;
+let instructionsItLoading: Promise<void> | null = null;
+
+export function loadItalianInstructions(): Promise<void> {
+  instructionsItLoading ??= fetch('/data/instructions.it.json')
+    .then((r) => (r.ok ? (r.json() as Promise<Record<string, string[]>>) : {}))
+    .then((data) => {
+      instructionsIt = data;
+    })
+    .catch(() => {
+      instructionsIt = {};
+    });
+  return instructionsItLoading;
+}
+
+export function italianInstructions(id: string): string[] | null {
+  return instructionsIt?.[id] ?? null;
+}

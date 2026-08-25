@@ -200,10 +200,10 @@
     "dayName": "Day name",
     "dayDefault": "Day {{label}}",
     "sets": "sets",
-    "repMin": "rep min",
-    "repMax": "rep max",
-    "rest": "rest s",
-    "startWeight": "start kg",
+    "repMin": "min",
+    "repMax": "max",
+    "rest": "rest ″",
+    "startWeight": "kg",
     "addExercise": "+ Exercise",
     "removeExercise": "Remove exercise",
     "moveUp": "Move up",
@@ -218,7 +218,10 @@
     "folder": "Program",
     "noFolder": "No program",
     "deleteRoutine": "Delete routine",
-    "deleteRoutineBody": "The routine disappears from all your devices. Workout history stays."
+    "deleteRoutineBody": "The routine disappears from all your devices. Workout history stays.",
+    "noteLabel": "Routine note",
+    "notePlaceholder": "Fixed note for this exercise (setup, variants)…",
+    "journalLatest": "Journal"
   },
   "train": {
     "manage": "Manage",

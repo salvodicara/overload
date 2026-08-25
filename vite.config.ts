@@ -11,7 +11,7 @@ export default defineConfig({
         // Never intercept Firebase Auth's reserved /__/* endpoints: serving the
         // SPA there breaks the sign-in popup/redirect handler.
         navigateFallbackDenylist: [/^\/__\//],
-        globPatterns: ['**/*.{js,css,html,woff2,png}', 'data/exercises.json'],
+        globPatterns: ['**/*.{js,css,html,woff2,png}', 'data/exercises.json', 'data/instructions.it.json'],
         globIgnores: ['exercise-media/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [

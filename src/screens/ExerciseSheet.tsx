@@ -1,8 +1,8 @@
 import { IconBack, IconPlay } from '../components/Icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
-import { exerciseName, getCatalog, muscleGroup } from '../lib/exercises';
+import { exerciseName, getCatalog, italianInstructions, loadItalianInstructions, muscleGroup } from '../lib/exercises';
 import { useStore } from '../state/useStore';
 import type { Workout } from '../lib/types';
 
@@ -17,11 +17,18 @@ function lastTimeLine(workouts: Workout[], exerciseId: string): { date: string; 
 }
 
 export function ExerciseSheet({ id, from }: { id: string; from?: 'workout' }) {
+  const [, setItReady] = useState(false);
   const { t, i18n } = useTranslation();
   const catalogReady = useStore((s) => s.catalogReady);
   const workouts = useStore((s) => s.workouts);
   const notes = useStore((s) => s.notes);
   const nav = useStore((s) => s.nav);
+
+  useEffect(() => {
+    if (i18n.language.startsWith('it')) {
+      void loadItalianInstructions().then(() => setItReady(true));
+    }
+  }, [i18n.language]);
   const [showVideo, setShowVideo] = useState(false);
 
   const ex = catalogReady ? getCatalog().get(id) : undefined;
@@ -88,20 +95,23 @@ export function ExerciseSheet({ id, from }: { id: string; from?: 'workout' }) {
         </div>
       )}
 
-      {ex && ex.instructions.length > 0 && (
+      {ex && ex.instructions.length > 0 && (() => {
+        const steps = i18n.language.startsWith('it') ? (italianInstructions(ex.id) ?? ex.instructions) : ex.instructions;
+        return (
         <div style={{ marginTop: 20, maxWidth: '65ch' }}>
           <div className="display" style={{ fontSize: 18, marginBottom: 8 }}>
             {t('library.howTo')}
           </div>
           <ol style={{ paddingLeft: 22 }}>
-            {ex.instructions.map((step, i) => (
+            {steps.map((step, i) => (
               <li key={i} style={{ lineHeight: 1.55, marginBottom: 10 }}>
                 {step}
               </li>
             ))}
           </ol>
         </div>
-      )}
+        );
+      })()}
       {(() => {
         const note = notes.find((n) => n.id === id);
         if (!note || note.entries.length === 0) return null;

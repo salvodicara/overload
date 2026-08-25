@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
+import { IconBack, IconDown, IconNote, IconUp, IconX } from '../components/Icons';
+import { NoteEditor } from '../components/NoteEditor';
 import { exerciseName } from '../lib/exercises';
 import { useStore } from '../state/useStore';
 import type { Routine } from '../lib/types';
@@ -24,7 +25,13 @@ function NumField({
     <label className="stack" style={{ gap: 3 }}>
       <span
         className="mono muted"
-        style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+        style={{
+          fontSize: 10,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          whiteSpace: 'nowrap',
+          textAlign: 'center',
+        }}
       >
         {label}
       </span>
@@ -55,6 +62,8 @@ export function RoutineEditor({ id }: { id: string }) {
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const [editingNote, setEditingNote] = useState<number | null>(null);
+  const notes = useStore((s) => s.notes);
 
   /** Mutates the freshest copy, then persists (store stamps updatedAt + syncs). */
   function commit(mutate: (draft: Routine) => void, structural = false): void {
@@ -184,6 +193,49 @@ export function RoutineEditor({ id }: { id: string }) {
               <NumField label={t('editor.rest')} value={rx.restSec} step={5} fieldKey={`rest-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))} />
               <NumField label={t('editor.startWeight')} value={rx.startWeightKg} step={0.5} fieldKey={`sw-${xi}-${rev}`} onCommit={(n) => commit((r) => void (r.exercises[xi].startWeightKg = n ?? undefined))} />
             </div>
+            {editingNote === xi ? (
+              <NoteEditor
+                key={`note-${xi}-${rev}`}
+                initial={rx.note ?? ''}
+                placeholder={t('editor.notePlaceholder')}
+                ariaLabel={t('editor.noteLabel')}
+                onChangeText={(text) => commit((r) => void (r.exercises[xi].note = text.trim() || undefined))}
+                onDone={() => setEditingNote(null)}
+              />
+            ) : (
+              <button
+                className="row small"
+                style={{
+                  gap: 6,
+                  alignItems: 'flex-start',
+                  color: rx.note ? 'var(--warn)' : 'var(--muted)',
+                  fontWeight: 600,
+                  minHeight: 30,
+                  textAlign: 'left',
+                  width: '100%',
+                }}
+                onClick={() => setEditingNote(xi)}
+              >
+                <IconNote width={14} height={14} aria-hidden style={{ flex: 'none', marginTop: 2 }} />
+                <span style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', flex: 1, minWidth: 0 }}>
+                  {rx.note ?? t('editor.notePlaceholder')}
+                </span>
+              </button>
+            )}
+            {(() => {
+              const journal = notes.find((n) => n.id === rx.exerciseId);
+              const latest = journal?.entries[journal.entries.length - 1];
+              if (!latest) return null;
+              return (
+                <button
+                  className="mono small muted"
+                  style={{ textAlign: 'left', padding: '2px 0', width: '100%' }}
+                  onClick={() => nav({ view: 'exercise', id: rx.exerciseId })}
+                >
+                  {t('editor.journalLatest')} {latest.date} · {latest.text}
+                </button>
+              );
+            })()}
           </div>
         ))}
       </div>
