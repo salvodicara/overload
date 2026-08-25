@@ -495,6 +495,184 @@ async function installCompletedWorkoutFixture(page: Page): Promise<void> {
   await page.reload();
 }
 
+async function installCoreSurfaceFixture(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        try {
+          const routine = await new Promise<unknown>((resolve, reject) => {
+            const request = database
+              .transaction('routines', 'readonly')
+              .objectStore('routines')
+              .get('full-body-b');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+          return Boolean(routine);
+        } finally {
+          database.close();
+        }
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    try {
+      const fullBodyB = await new Promise<{
+        id: string;
+        name: string;
+        folderId?: string;
+        exercises: Array<Record<string, unknown>>;
+        updatedAt: number;
+      }>((resolve, reject) => {
+        const request = database
+          .transaction('routines', 'readonly')
+          .objectStore('routines')
+          .get('full-body-b');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      const workingExerciseIds = [
+        'Barbell_Squat',
+        'Dumbbell_Bench_Press',
+        'Seated_Cable_Rows',
+        'Romanian_Deadlift',
+        'Plank',
+        'Face_Pull',
+      ];
+      const workingSets = (count: number) =>
+        workingExerciseIds.slice(0, count).map((exerciseId) => ({
+          exerciseId,
+          weightKg: 20,
+          reps: 5,
+          done: true,
+          kind: 'working',
+        }));
+      const records = [
+        {
+          id: 'truthful-august',
+          routineId: 'full-body-a',
+          dayLabel: 'Truthful August',
+          date: '2026-08-24',
+          startTs: Date.parse('2026-08-24T12:00:00Z'),
+          endTs: Date.parse('2026-08-24T12:45:00Z'),
+          sets: [
+            {
+              exerciseId: 'Barbell_Squat',
+              weightKg: 20,
+              reps: 5,
+              done: true,
+              kind: 'warmup',
+            },
+            {
+              exerciseId: 'Barbell_Squat',
+              weightKg: 50,
+              reps: 5,
+              done: true,
+              kind: 'working',
+            },
+            {
+              exerciseId: 'Dumbbell_Bench_Press',
+              weightKg: 30,
+              reps: 8,
+              done: true,
+              kind: 'working',
+            },
+            {
+              exerciseId: 'Face_Pull',
+              weightKg: 15,
+              reps: 12,
+              done: false,
+              kind: 'working',
+            },
+          ],
+          volumeKg: 127.5,
+          updatedAt: Date.parse('2026-08-24T12:45:00Z'),
+          source: 'app',
+        },
+        {
+          id: 'five-july',
+          routineId: 'full-body-a',
+          dayLabel: 'Five exercises',
+          date: '2026-07-14',
+          startTs: Date.parse('2026-07-14T12:00:00Z'),
+          endTs: Date.parse('2026-07-14T12:40:00Z'),
+          sets: workingSets(5),
+          volumeKg: 500,
+          updatedAt: Date.parse('2026-07-14T12:40:00Z'),
+          source: 'app',
+        },
+        {
+          id: 'six-june',
+          routineId: 'full-body-a',
+          dayLabel: 'Six exercises',
+          date: '2026-06-08',
+          startTs: Date.parse('2026-06-08T12:00:00Z'),
+          endTs: Date.parse('2026-06-08T12:35:00Z'),
+          sets: workingSets(6),
+          volumeKg: 600,
+          updatedAt: Date.parse('2026-06-08T12:35:00Z'),
+          source: 'app',
+        },
+      ];
+
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(
+          ['folders', 'routines', 'settings', 'workouts'],
+          'readwrite',
+        );
+        transaction.objectStore('settings').put({
+          id: 'settings',
+          locale: 'en',
+          unit: 'kg',
+          updatedAt: Date.now(),
+        });
+        transaction.objectStore('folders').put({
+          id: 'solo-folder',
+          name: 'Solo program',
+          updatedAt: Date.now(),
+        });
+        transaction.objectStore('routines').put({
+          ...fullBodyB,
+          exercises: fullBodyB.exercises.slice(0, 1),
+          updatedAt: Date.now(),
+        });
+        transaction.objectStore('routines').put({
+          id: 'solo-routine',
+          name: 'Solo routine',
+          folderId: 'solo-folder',
+          exercises: [
+            {
+              exerciseId: 'Barbell_Squat',
+              sets: 3,
+              repMin: 5,
+              repMax: 8,
+              restSec: 120,
+            },
+          ],
+          updatedAt: Date.now(),
+        });
+        for (const record of records) transaction.objectStore('workouts').put(record);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => resolve();
+      });
+    } finally {
+      database.close();
+    }
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -522,6 +700,40 @@ test('app shell exposes landmarks and skip navigation', async ({ page }) => {
   await expect(main).toBeFocused();
 });
 
+test('login keeps one heading and its primary action inside narrow viewports', async ({ page }) => {
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const storeModule = (await import(modulePath)) as {
+      useStore: { getState(): { setUser(user: null): void } };
+    };
+    storeModule.useStore.getState().setUser(null);
+  });
+
+  const main = page.getByRole('main');
+  const signIn = main.getByRole('button', {
+    name: /continue with google|continua con google/i,
+  });
+  await expect(signIn).toBeVisible();
+  await expect(main.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(main.getByText(/tell me|dimmelo|cache|service worker/i)).toHaveCount(0);
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    const fit = await signIn.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        right: box.right,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        rootWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(fit.right).toBeLessThanOrEqual(width);
+    expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
+    expect(fit.rootWidth).toBe(width);
+  }
+});
+
 test('home prioritizes the next routine and keeps history secondary', async ({ page }) => {
   await page.getByRole('button', { name: /home/i }).click();
   await expect(
@@ -534,6 +746,104 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 700 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
+});
+
+test('history groups truthful completed working activity by month', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page.getByRole('button', { name: /all history/i }).click();
+
+  const august = page.getByRole('region', { name: /august 2026/i });
+  const july = page.getByRole('region', { name: /july 2026/i });
+  const june = page.getByRole('region', { name: /june 2026/i });
+  await expect(august.getByRole('heading', { name: /august 2026/i })).toBeVisible();
+  await expect(july.getByRole('heading', { name: /july 2026/i })).toBeVisible();
+  await expect(june.getByRole('heading', { name: /june 2026/i })).toBeVisible();
+
+  const augustWorkout = august.getByRole('button', { name: /truthful august/i });
+  await expect(augustWorkout).toContainText('2 working sets');
+  await expect(augustWorkout).toContainText('128 kg');
+  await expect(augustWorkout).toContainText('1 × Barbell Squat');
+  await expect(augustWorkout).toContainText('1 × Dumbbell Bench Press');
+  await expect(augustWorkout).not.toContainText('Face Pull');
+  expect((await augustWorkout.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+
+  await expect(july.getByRole('button', { name: /five exercises/i })).toContainText(
+    '+ 1 more exercise',
+  );
+  await expect(june.getByRole('button', { name: /six exercises/i })).toContainText(
+    '+ 2 more exercises',
+  );
+  await expect(page.getByRole('heading', { level: 3 }).allTextContents()).resolves.toEqual([
+    'August 2026',
+    'July 2026',
+    'June 2026',
+  ]);
+
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        try {
+          const workout = await new Promise<{ volumeKg: number }>((resolve, reject) => {
+            const request = database
+              .transaction('workouts', 'readonly')
+              .objectStore('workouts')
+              .get('truthful-august');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+          return workout.volumeKg;
+        } finally {
+          database.close();
+        }
+      }),
+    )
+    .toBe(127.5);
+});
+
+test('home and Train keep active priority, exact counts and narrow CTA fit', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^train$/i }).click();
+  await expect(page.getByText(/^1 routine$/i)).toBeVisible();
+  await expect(page.getByText(/^2 routines$/i)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /edit solo routine/i }).getByText(/^1 exercise$/i),
+  ).toBeVisible();
+
+  await page.getByRole('button', { name: /start full body a/i }).click();
+  await page.getByRole('button', { name: /minimize/i }).click();
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  const main = page.getByRole('main');
+  const upNext = main.getByRole('region', { name: /next workout/i });
+  await expect(main.getByRole('button', { name: /^resume$/i })).toHaveCount(1);
+  await expect(main.getByRole('button', { name: /^start$/i })).toHaveCount(0);
+  await expect(upNext).toContainText('Full Body B');
+  await expect(upNext).toContainText('1 exercise');
+  await expect(upNext.getByRole('button')).toHaveCount(0);
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    await expect(main.getByRole('heading', { level: 1 })).toHaveCount(1);
+    const resume = main.getByRole('button', { name: /^resume$/i });
+    const fit = await resume.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        right: box.right,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        rootWidth: document.documentElement.scrollWidth,
+      };
+    });
+    expect(fit.right).toBeLessThanOrEqual(width);
+    expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
+    expect(fit.rootWidth).toBe(width);
   }
 });
 
@@ -1053,7 +1363,7 @@ test('create sheet contains focus and restores its trigger and scroll position',
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 400 });
-  const trigger = page.getByRole('button', { name: /^\+ (create|crea)$/i });
+  const trigger = page.getByRole('button', { name: /^(create|crea)$/i });
   await trigger.evaluate((button) => button.focus({ preventScroll: true }));
   await page.evaluate(() => window.scrollTo(0, 24));
   const scrollBefore = await page.evaluate(() => window.scrollY);
@@ -1069,7 +1379,7 @@ test('create sheet contains focus and restores its trigger and scroll position',
   expect(scrollBefore).toBeGreaterThan(0);
 
   await trigger.evaluate((button: HTMLButtonElement) => button.click());
-  const dialog = page.getByRole('dialog', { name: /^\+ (create|crea)$/i });
+  const dialog = page.getByRole('dialog', { name: /^(create|crea)$/i });
   const newRoutine = dialog.getByRole('button', {
     name: /^(new routine|nuova scheda)$/i,
   });
@@ -1147,19 +1457,24 @@ test('routine creation preserves Train scroll memory while the editor starts at 
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 400 });
-  const create = page.getByRole('button', { name: /^\+ (create|crea)$/i });
+  const create = page.getByRole('button', { name: /^(create|crea)$/i });
   await create.evaluate((button) => button.focus({ preventScroll: true }));
   await page.evaluate(() => window.scrollTo(0, 130));
   const trainScroll = await page.evaluate(() => window.scrollY);
-  expect(trainScroll).toBe(130);
+  expect(trainScroll).toBeGreaterThan(0);
 
   await create.evaluate((button: HTMLButtonElement) => button.click());
   await page
-    .getByRole('dialog', { name: /^\+ (create|crea)$/i })
+    .getByRole('dialog', { name: /^(create|crea)$/i })
     .getByRole('button', { name: /^(new routine|nuova scheda)$/i })
     .click();
-  await page.getByRole('textbox', { name: /routine name|nome scheda/i }).fill('Scroll memory');
-  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  const newRoutineDialog = page.getByRole('dialog', {
+    name: /^(new routine|nuova scheda)$/i,
+  });
+  await newRoutineDialog
+    .getByRole('textbox', { name: /routine name|nome scheda/i })
+    .fill('Scroll memory');
+  await newRoutineDialog.getByRole('button', { name: /^(create|crea)$/i }).click();
 
   await expect(page.getByRole('heading', { name: /edit routine|modifica scheda/i })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
@@ -1174,8 +1489,8 @@ test('routine creation preserves Train scroll memory while the editor starts at 
 test('sheet focus wrap skips negative, disabled, hidden, and inert descendants', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: /^\+ (create|crea)$/i }).click();
-  const dialog = page.getByRole('dialog', { name: /^\+ (create|crea)$/i });
+  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  const dialog = page.getByRole('dialog', { name: /^(create|crea)$/i });
   const first = dialog.getByRole('button', { name: /^(new routine|nuova scheda)$/i });
   const last = dialog.getByRole('button', { name: /^(new program|nuovo programma)$/i });
 
@@ -1296,9 +1611,12 @@ test('program delete confirmation focuses Cancel and keeps focus wrapped in the 
 });
 
 test('routines are fully editable and deletable', async ({ page }) => {
-  await page.getByRole('button', { name: /\+ (create|crea)/i }).click();
-  await page.getByRole('button', { name: /^(new routine|nuova scheda)$/i }).click();
   await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  await page.getByRole('button', { name: /^(new routine|nuova scheda)$/i }).click();
+  await page
+    .getByRole('dialog', { name: /^(new routine|nuova scheda)$/i })
+    .getByRole('button', { name: /^(create|crea)$/i })
+    .click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await page.getByRole('button', { name: /^\+ (exercise|esercizio)$/i }).click();
   await page.getByPlaceholder(/search|cerca/i).fill('squat');
@@ -1310,18 +1628,24 @@ test('routines are fully editable and deletable', async ({ page }) => {
   await expect(page.getByText(/barbell squat/i).first()).toBeVisible();
   await page.getByRole('button', { name: /delete routine|elimina routine/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
-  await expect(page.getByRole('button', { name: /\+ (create|crea)/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(create|crea)$/i })).toBeVisible();
 });
 
 test('programs group routines and are manageable', async ({ page }) => {
-  await page.getByRole('button', { name: /\+ (create|crea)/i }).click();
-  await page.getByRole('button', { name: /^(new program|nuovo programma)$/i }).click();
-  await page.getByLabel(/routine name|nome/i).fill('Test Program');
   await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  await page.getByRole('button', { name: /^(new program|nuovo programma)$/i }).click();
+  const newProgramDialog = page.getByRole('dialog', {
+    name: /^(new program|nuovo programma)$/i,
+  });
+  await newProgramDialog.getByLabel(/routine name|nome/i).fill('Test Program');
+  await newProgramDialog.getByRole('button', { name: /^(create|crea)$/i }).click();
   // Empty program invites adding its first routine.
   await page.getByRole('button', { name: /empty program|programma vuoto/i }).click();
-  await page.getByLabel(/routine name|nome/i).fill('Day X');
-  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+  const newRoutineDialog = page.getByRole('dialog', {
+    name: /^(new routine|nuova scheda)$/i,
+  });
+  await newRoutineDialog.getByLabel(/routine name|nome/i).fill('Day X');
+  await newRoutineDialog.getByRole('button', { name: /^(create|crea)$/i }).click();
   await expect(page.getByText(/edit routine|modifica scheda/i)).toBeVisible();
   await page
     .getByRole('button', { name: /back|indietro/i })
@@ -1720,7 +2044,10 @@ test('summary and workout detail preserve canonical kg volume rounding', async (
 
   await page.getByRole('button', { name: /back home/i }).click();
   await page.getByRole('button', { name: /all history/i }).click();
-  await page.locator('main button.card').nth(1).click();
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /Full Body A.*128 kg/i })
+    .click();
   await expect(page.getByText('128', { exact: true })).toBeVisible();
   await expect(page.getByText('kg of volume', { exact: true })).toBeVisible();
 });

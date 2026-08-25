@@ -44,7 +44,7 @@ export function Nav() {
                 aria-hidden
               />
             </span>
-            {t(tab.key)}
+            <span className="nav-label">{t(tab.key)}</span>
           </button>
         ))}
       </div>

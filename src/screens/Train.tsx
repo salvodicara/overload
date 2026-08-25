@@ -35,30 +35,28 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
   const workouts = useStore((s) => s.workouts);
   const last = lastCompletedFor(routine, workouts);
   return (
-    <div className="card card-pad row">
+    <li className={`train-routine${suggested ? ' train-routine--suggested' : ''}`}>
       <button
-        style={{ flex: 1, minWidth: 0, textAlign: 'left' }}
+        className="train-routine__edit"
         aria-label={t('routines.edit', { routine: routine.name })}
         onClick={() => nav({ view: 'routineEditor', id: routine.id })}
       >
-        <span style={{ fontWeight: 700, fontSize: 16, display: 'block' }}>{routine.name}</span>
-        <span className="mono small muted row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ whiteSpace: 'nowrap' }}>
-            {t('home.exercises', { n: routine.exercises.length })}
-            {last ? ` · ${fmtDate(last.date, i18n.language)}` : ''}
-          </span>
-          {suggested && <span className="chip chip-accent">{t('home.suggested')}</span>}
+        <strong>{routine.name}</strong>
+        <span className="train-routine__meta">
+          <span>{t('home.exercises', { count: routine.exercises.length })}</span>
+          {last && <span>{fmtDate(last.date, i18n.language)}</span>}
+          {suggested && <span className="train-routine__suggestion">{t('home.suggested')}</span>}
         </span>
       </button>
       <button
-        className={`btn ${suggested ? 'btn-accent' : 'btn-ghost'}`}
+        className={`btn train-routine__start ${suggested ? 'btn-accent' : 'btn-ghost'}`}
         aria-label={t('routines.start', { routine: routine.name })}
         disabled={routine.exercises.length === 0}
         onClick={() => startWorkout(routine.id)}
       >
         {t('home.start')}
       </button>
-    </div>
+    </li>
   );
 }
 
@@ -136,8 +134,7 @@ export function Train() {
         title={t('nav.workout')}
         action={
           <button
-            className="btn btn-accent"
-            style={{ padding: '10px 16px' }}
+            className="btn btn-ghost train-create"
             onClick={() => {
               setNameDraft('');
               setSheet({ kind: 'create' });
@@ -149,98 +146,107 @@ export function Train() {
       />
 
       {routines.length === 0 && folders.length === 0 && (
-        <div className="card card-pad stack">
+        <div className="train-empty">
           <strong>{t('home.welcomeTitle')}</strong>
           <span className="muted small">{t('home.welcomeBody')}</span>
         </div>
       )}
 
-      <div className="stack">
+      <div className="train-groups">
         {ungrouped.length > 0 && (
-          <div
-            className="mono small muted"
-            style={{ letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}
-          >
-            {t('routines.title')}
-          </div>
-        )}
-        {ungrouped.map((r) => (
-          <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedId} />
-        ))}
-
-        {folders.map((f) => {
-          const inFolder = routines.filter((r) => r.folderId === f.id);
-          return (
-            <div key={f.id} style={{ display: 'contents' }}>
-              <button
-                className="spread"
-                style={{ margin: '10px 0 0', width: '100%', minHeight: 44 }}
-                aria-label={`${f.name} · ${t('train.programOptions')}`}
-                onClick={() => {
-                  setNameDraft(f.name);
-                  setSheet({ kind: 'program', folder: f });
-                }}
-              >
-                <span
-                  className="mono small muted"
-                  style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                >
-                  {f.name} · {t('routines.days', { n: inFolder.length })}
-                </span>
-                <span className="muted">
-                  <IconForward width={15} height={15} aria-hidden />
-                </span>
-              </button>
-              {inFolder.map((r) => (
-                <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedId} />
+          <section className="train-group" aria-labelledby="standalone-routines">
+            <h2 id="standalone-routines" className="train-group__title">
+              {t('routines.title')}
+            </h2>
+            <ul className="train-routine-list">
+              {ungrouped.map((routine) => (
+                <RoutineCard
+                  key={routine.id}
+                  routine={routine}
+                  suggested={routine.id === suggestedId}
+                />
               ))}
-              {inFolder.length === 0 && (
-                <button
-                  className="card card-pad small muted"
-                  style={{ width: '100%', textAlign: 'left' }}
-                  onClick={() => {
-                    setNameDraft('');
-                    setSheet({ kind: 'newRoutine', folderId: f.id });
-                  }}
-                >
-                  {t('train.emptyProgram')}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            </ul>
+          </section>
+        )}
 
-      {missingPacks.length > 0 && (
-        <>
-          <div
-            className="mono small muted"
-            style={{ margin: '24px 0 8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}
-          >
-            {t('routines.templates')}
-          </div>
-          <div className="stack">
-            {missingPacks.map((pack) => (
-              <div key={pack.folder.id} className="card card-pad spread">
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 700, display: 'block' }}>{pack.folder.name}</span>
-                  <span className="mono small muted">
-                    {t('routines.days', { n: pack.routines.length })}
+        {folders.map((folder) => {
+          const inFolder = routines.filter((routine) => routine.folderId === folder.id);
+          const headingId = `program-${folder.id}`;
+          return (
+            <section key={folder.id} className="train-group" aria-labelledby={headingId}>
+              <div className="train-group__heading">
+                <div>
+                  <h2 id={headingId} className="train-group__title">
+                    {folder.name}
+                  </h2>
+                  <span className="train-group__count">
+                    {t('routines.days', { count: inFolder.length })}
                   </span>
-                </span>
+                </div>
                 <button
-                  className="btn btn-ghost"
+                  className="iconbtn train-group__options"
+                  aria-label={`${folder.name}, ${t('train.programOptions')}`}
                   onClick={() => {
-                    void installTemplatePack(pack, { saveFolder, saveRoutine });
+                    setNameDraft(folder.name);
+                    setSheet({ kind: 'program', folder });
                   }}
                 >
-                  {t('routines.useTemplate')}
+                  <IconForward width={15} height={15} aria-hidden />
                 </button>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+              <ul className="train-routine-list">
+                {inFolder.map((routine) => (
+                  <RoutineCard
+                    key={routine.id}
+                    routine={routine}
+                    suggested={routine.id === suggestedId}
+                  />
+                ))}
+                {inFolder.length === 0 && (
+                  <li>
+                    <button
+                      className="train-empty-program"
+                      onClick={() => {
+                        setNameDraft('');
+                        setSheet({ kind: 'newRoutine', folderId: folder.id });
+                      }}
+                    >
+                      {t('train.emptyProgram')}
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </section>
+          );
+        })}
+
+        {missingPacks.length > 0 && (
+          <section className="train-group train-templates" aria-labelledby="routine-templates">
+            <h2 id="routine-templates" className="train-group__title">
+              {t('routines.templates')}
+            </h2>
+            <ul className="train-routine-list">
+              {missingPacks.map((pack) => (
+                <li key={pack.folder.id} className="train-template">
+                  <span className="train-template__copy">
+                    <strong>{pack.folder.name}</strong>
+                    <span>{t('routines.days', { count: pack.routines.length })}</span>
+                  </span>
+                  <button
+                    className="btn btn-ghost train-template__action"
+                    onClick={() => {
+                      void installTemplatePack(pack, { saveFolder, saveRoutine });
+                    }}
+                  >
+                    {t('routines.useTemplate')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
 
       {sheet && (
         <BottomSheet
