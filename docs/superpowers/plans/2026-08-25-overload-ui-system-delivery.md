@@ -34,6 +34,8 @@
 - Modify: `src/screens/Home.tsx`
 - Modify: `src/screens/History.tsx`
 - Modify: `src/screens/RoutineEditor.tsx`
+- Modify: `src/i18n/it.json`
+- Modify: `src/i18n/en.json`
 - Modify: `src/components/Nav.tsx`
 - Modify: `src/components/ActiveWorkoutBar.tsx`
 - Modify: `src/components/RestBar.tsx`
@@ -75,7 +77,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/theme/tokens.css src/App.tsx src/screens/Login.tsx src/screens/Home.tsx src/screens/History.tsx src/screens/RoutineEditor.tsx src/components/Nav.tsx src/components/ActiveWorkoutBar.tsx src/components/RestBar.tsx src/components/RestWatcher.tsx e2e/core.spec.ts
+git add src/theme/tokens.css src/App.tsx src/screens/Login.tsx src/screens/Home.tsx src/screens/History.tsx src/screens/RoutineEditor.tsx src/i18n/it.json src/i18n/en.json src/components/Nav.tsx src/components/ActiveWorkoutBar.tsx src/components/RestBar.tsx src/components/RestWatcher.tsx e2e/core.spec.ts
 git commit -m "feat: establish the accessible app shell"
 ```
 
