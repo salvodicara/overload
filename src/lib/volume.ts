@@ -1,8 +1,14 @@
-import type { SetLog, Workout } from './types';
+import { kindOf, trackingOf, type SetLog, type Workout } from './types';
 
 /** Sum of weight x reps over completed sets. */
 export function computeVolume(sets: SetLog[]): number {
-  return sets.reduce((total, s) => (s.done ? total + s.weightKg * s.reps : total), 0);
+  return sets.reduce(
+    (total, s) =>
+      s.done && kindOf(s.kind) === 'working' && trackingOf(s.tracking) === 'weight_reps'
+        ? total + s.weightKg * s.reps
+        : total,
+    0,
+  );
 }
 
 /** Heaviest completed set for an exercise across workouts strictly before `beforeDate`. */
@@ -15,7 +21,9 @@ export function maxWeightBefore(
   for (const w of history) {
     if (w.date >= beforeDate) continue;
     for (const s of w.sets) {
-      if (s.done && s.exerciseId === exerciseId && s.weightKg > max) max = s.weightKg;
+      if (s.done && kindOf(s.kind) === 'working' && s.exerciseId === exerciseId && s.weightKg > max) {
+        max = s.weightKg;
+      }
     }
   }
   return max;
@@ -25,7 +33,7 @@ export function maxWeightBefore(
 export function flagPrs(sets: SetLog[], history: Workout[], date: string): SetLog[] {
   const maxByExercise = new Map<string, number>();
   return sets.map((s) => {
-    if (!s.done) return { ...s };
+    if (!s.done || kindOf(s.kind) !== 'working') return { ...s };
     let previousMax = maxByExercise.get(s.exerciseId);
     if (previousMax === undefined) {
       previousMax = maxWeightBefore(history, s.exerciseId, date);

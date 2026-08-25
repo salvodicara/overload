@@ -31,6 +31,16 @@ describe('computeVolume', () => {
   it('is 0 when nothing is done', () => {
     expect(computeVolume([set('bench', 50, 5, false)])).toBe(0);
   });
+
+  it('excludes warm-up and duration sets from weight volume', () => {
+    const sets: SetLog[] = [
+      { exerciseId: 'squat', weightKg: 20, reps: 10, done: true, kind: 'warmup' },
+      { exerciseId: 'squat', weightKg: 60, reps: 5, done: true, kind: 'working' },
+      { exerciseId: 'plank', weightKg: 0, reps: 0, durationSec: 60, tracking: 'duration', done: true },
+    ];
+
+    expect(computeVolume(sets)).toBe(300);
+  });
 });
 
 describe('maxWeightBefore', () => {
@@ -55,6 +65,15 @@ describe('maxWeightBefore', () => {
 
   it('ignores sets that were not done', () => {
     expect(maxWeightBefore(history, 'bench', '2026-06-09')).toBe(50);
+  });
+
+  it('ignores warm-up rows when finding the historical maximum', () => {
+    const withWarmup = [workout('w4', '2026-06-20', [
+      { ...set('bench', 100, 1), kind: 'warmup' },
+      { ...set('bench', 60, 5), kind: 'working' },
+    ])];
+
+    expect(maxWeightBefore(withWarmup, 'bench', '2026-06-21')).toBe(60);
   });
 });
 
@@ -90,5 +109,11 @@ describe('flagPrs', () => {
   it('ignores workouts on or after the given date', () => {
     const withFuture = [...history, workout('w2', '2026-06-08', [set('bench', 200, 1)])];
     expect(flagPrs([set('bench', 60, 3)], withFuture, '2026-06-08')[0].isPr).toBe(true);
+  });
+
+  it('does not treat warm-up rows as personal records', () => {
+    const warmup = [{ ...set('bench', 60, 3), kind: 'warmup' }];
+
+    expect(flagPrs(warmup, history, '2026-06-08')[0].isPr).toBeUndefined();
   });
 });

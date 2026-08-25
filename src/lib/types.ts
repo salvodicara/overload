@@ -1,10 +1,21 @@
 import type { WeightUnit } from './units';
 
+export type TrackingType = 'weight_reps' | 'reps' | 'duration';
+
+export type SetKind = 'warmup' | 'working';
+
+export const trackingOf = (value?: TrackingType): TrackingType => value ?? 'weight_reps';
+
+export const kindOf = (value?: SetKind): SetKind => value ?? 'working';
+
 export type SetLog = {
   exerciseId: string;
   weightKg: number;
   reps: number;
   done: boolean;
+  tracking?: TrackingType;
+  kind?: SetKind;
+  durationSec?: number;
   isPr?: boolean;
 };
 
@@ -33,6 +44,8 @@ export type RoutineExercise = {
   note?: string;
   startWeightKg?: number;
   incrementKg?: number;
+  tracking?: TrackingType;
+  warmupSets?: { weightKg?: number; reps?: number; durationSec?: number }[];
 };
 
 /** Hevy model: a routine IS one workout template; folders group them. */
