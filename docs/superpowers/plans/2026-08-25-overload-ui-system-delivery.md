@@ -403,6 +403,8 @@ git commit -m "docs: describe the generalized Overload product"
 
 **Files:**
 - Review: complete built app and Firebase configuration
+- Modify: `firebase.json`
+- Modify: `playwright.config.ts` if needed to guarantee worktree-local E2E
 - Modify only if review finds a defect: relevant source/test files
 
 **Interfaces:**
@@ -414,7 +416,7 @@ Fetch `https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/ma
 
 - [ ] **Step 2: Run two bounded browser-QA rounds**
 
-Round 1 covers all routes/states at 390×844 dark/light and representative 1440×1024 desktop. Round 2 rechecks only remediated screens plus 320px active workout, mobile landscape, keyboard-only navigation, reduced motion, offline reload, and active-session recovery. Store every capture outside the repository and confirm clean git status.
+Before either round, prove the Playwright server belongs to this worktree. Do not accept `reuseExistingServer` when port 5199 is served from another checkout; stop only the verified stale process or use a worktree-specific port/fail-fast configuration. Round 1 covers all routes/states at 390×844 dark/light and representative 1440×1024 desktop. Round 2 rechecks only remediated screens plus 320px active workout, mobile landscape, keyboard-only navigation, reduced motion, offline reload, and active-session recovery. Store every capture outside the repository and confirm clean git status.
 
 - [ ] **Step 3: Run final verification from a clean tree**
 
@@ -424,7 +426,7 @@ Expected: all commands exit 0 and status contains only intentional committed sta
 
 - [ ] **Step 4: Integrate and deploy**
 
-Use the finishing-development-branch skill. Fast-forward or merge `codex/mobile-ui-notes` into `main` without rewriting unrelated history, push `origin/main`, run `node scripts/fetch-media.mjs --all`, rebuild, then run `firebase deploy`. Do not delete user branches or worktrees without separate evidence and authorization.
+Use the finishing-development-branch skill. Add Firebase Hosting cache headers so `index.html`, `sw.js`, and `registerSW.js` revalidate, hashed assets are long-lived immutable, and baseline `X-Content-Type-Options`/`Referrer-Policy` headers are present without breaking Firebase Auth, Google sign-in, or embedded exercise video. Fast-forward or merge `codex/mobile-ui-notes` into `main` without rewriting unrelated history, push `origin/main`, rebuild from the integrated revision, assert `dist/index.html`, `dist/sw.js`, and `dist/data/exercises.json` exist, then deploy only `hosting,firestore:rules` to `overload-sdc`. Do not run the unpinned `fetch-media.mjs --all` during release: the complete media set is already tracked and a fresh upstream clone would introduce unreviewed artifacts. Do not delete user branches or worktrees without separate evidence and authorization.
 
 - [ ] **Step 5: Smoke-test production and record evidence**
 

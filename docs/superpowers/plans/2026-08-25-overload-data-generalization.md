@@ -468,7 +468,7 @@ git commit -m "fix: remove personal defaults and isolate accounts"
 
 - [ ] **Step 1: Inspect the cumulative diff**
 
-Run: `git diff HEAD~6 -- src/lib src/state src/data`
+Run: `git diff 3bc0eaa -- src/lib src/state src/data`
 
 Expected: no deletion of legacy fields, no direct pounds stored, no personal seed reference, no phase call.
 
