@@ -1,6 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const NEUTRAL_ROUTINE = /full body a/i;
+const DOM_RECT_SUBPIXEL_EPSILON_PX = 0.01;
+
+function expectAtLeast48PxGeometry(actualPx: number): void {
+  expect(actualPx).toBeGreaterThanOrEqual(48 - DOM_RECT_SUBPIXEL_EPSILON_PX);
+}
 
 export async function installNeutralTemplate(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
@@ -544,8 +549,8 @@ test('active workout keeps localized weighted headings visible', async ({ page }
       expect(
         geometry.headings.every((heading) => heading.contentWidth <= heading.clientWidth + 0.5),
       ).toBe(true);
-      expect(geometry.minControlHeight).toBeGreaterThanOrEqual(48);
-      expect(geometry.minControlWidth).toBeGreaterThanOrEqual(48);
+      expectAtLeast48PxGeometry(geometry.minControlHeight);
+      expectAtLeast48PxGeometry(geometry.minControlWidth);
       expect(geometry.scrollWidth).toBe(viewport.width);
     }
   }
@@ -634,8 +639,8 @@ test('active workout adapts rows without shifting working previous values', asyn
         };
       });
       expect(topMetrics.scrollWidth).toBe(viewport.width);
-      expect(topMetrics.finishHeight).toBeGreaterThanOrEqual(48);
-      expect(topMetrics.minSetControlHeight).toBeGreaterThanOrEqual(48);
+      expectAtLeast48PxGeometry(topMetrics.finishHeight);
+      expectAtLeast48PxGeometry(topMetrics.minSetControlHeight);
       expect(topMetrics.maxRowRight).toBeLessThanOrEqual(viewport.width);
       expect(topMetrics.previousClipped).toBe(false);
 
@@ -656,8 +661,8 @@ test('active workout adapts rows without shifting working previous values', asyn
       });
       await page.mouse.move(0, viewport.height - 1);
       await page.mouse.up();
-      expect(pressedFinish.width).toBeGreaterThanOrEqual(48);
-      expect(pressedFinish.height).toBeGreaterThanOrEqual(48);
+      expectAtLeast48PxGeometry(pressedFinish.width);
+      expectAtLeast48PxGeometry(pressedFinish.height);
 
       const restButtons = await page.locator('.restbar-btn').evaluateAll((buttons) =>
         buttons.map((button) => {
@@ -667,8 +672,8 @@ test('active workout adapts rows without shifting working previous values', asyn
       );
       expect(restButtons).toHaveLength(2);
       for (const restButton of restButtons) {
-        expect(restButton.width).toBeGreaterThanOrEqual(48);
-        expect(restButton.height).toBeGreaterThanOrEqual(48);
+        expectAtLeast48PxGeometry(restButton.width);
+        expectAtLeast48PxGeometry(restButton.height);
       }
 
       await page
