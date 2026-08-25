@@ -32,6 +32,37 @@ export async function completeAndFinishOneSet(page: Page): Promise<void> {
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
 }
 
+async function applyRapidRoutineEdits(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const setValue = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
+      const prototype =
+        element instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(element, value);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const preparation = document.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Warm-up"]',
+    );
+    const tracking = document.querySelector<HTMLSelectElement>('select[aria-label="Tracking"]');
+    if (!preparation || !tracking) throw new Error('routine editor controls missing');
+    setValue(preparation, '5 min easy bike');
+    tracking.value = 'duration';
+    tracking.dispatchEvent(new Event('change', { bubbles: true }));
+    const workingSets = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Working sets"]',
+    );
+    const addWarmup = [...document.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+      button.textContent?.includes('Add warm-up set'),
+    );
+    if (!workingSets || !addWarmup) throw new Error('duration controls missing');
+    setValue(workingSets, '4');
+    addWarmup.click();
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -77,6 +108,178 @@ test('routine preparation and exercise settings remain editable', async ({ page 
   await expect(page.getByRole('textbox', { name: /warm-up|riscaldamento/i })).toHaveValue(
     '5 min easy bike',
   );
+  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveValue('duration');
+  await expect(page.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
+  await expect(page.getByLabel(/technique|tecnica/i).first()).toHaveValue(
+    'Brace before the timer starts',
+  );
+  const firstExercise = page
+    .locator('.card')
+    .filter({ hasText: /barbell squat|squat con bilanciere/i })
+    .first();
+  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('reps');
+  await expect(firstExercise.getByLabel(/load|carico/i)).toHaveCount(0);
+  await expect(firstExercise.getByLabel(/seconds|secondi/i)).toHaveCount(0);
+  await firstExercise
+    .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
+    .click();
+  await firstExercise
+    .getByLabel(/^reps$|^ripetizioni$/i)
+    .last()
+    .fill('9');
+  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('duration');
+  await expect(firstExercise.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
+  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('reps');
+  await expect(firstExercise.getByLabel(/^reps$|^ripetizioni$/i).last()).toHaveValue('9');
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(page.getByLabel(/working sets|serie di lavoro/i).first()).toHaveJSProperty(
+    'offsetHeight',
+    48,
+  );
+  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveJSProperty(
+    'offsetHeight',
+    48,
+  );
+});
+
+test('routine editor serializes rapid prescription edits before starting', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  await applyRapidRoutineEdits(page);
+  await page.getByRole('button', { name: /start|inizia/i }).click();
+  await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => JSON.parse(localStorage.getItem('overload_active') ?? 'null')?.ex[0]),
+    )
+    .toMatchObject({ tracking: 'duration' });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('overload_active') ?? 'null')?.ex[0]?.sets,
+      ),
+    )
+    .toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'warmup', durationSec: 6, reps: null, weightKg: null }),
+      ]),
+    );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem('overload_active') ?? 'null')?.ex[0]?.sets.filter(
+            (set: { kind: string }) => set.kind === 'working',
+          ).length,
+      ),
+    )
+    .toBe(4);
+});
+
+test('routine editor persists rapid prescription edits after leaving', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  await applyRapidRoutineEdits(page);
+  await page.getByRole('button', { name: /back|indietro/i }).click();
+  await openNeutralRoutineEditor(page);
+  await expect(page.getByRole('textbox', { name: /warm-up|riscaldamento/i })).toHaveValue(
+    '5 min easy bike',
+  );
+  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveValue('duration');
+  await expect(page.getByLabel(/working sets|serie di lavoro/i).first()).toHaveValue('4');
+  await expect(page.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
+});
+
+test('routine editor preserves optional and canonical prescriptions', async ({ page }) => {
+  await expect(
+    page.getByRole('button', { name: /edit full body a|modifica full body a/i }),
+  ).toBeVisible();
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction('settings', 'readwrite');
+      transaction
+        .objectStore('settings')
+        .put({ id: 'settings', unit: 'lb', updatedAt: Date.now() });
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+    });
+    database.close();
+  });
+  await page.reload();
+  await openNeutralRoutineEditor(page);
+  const firstExercise = page
+    .locator('.card')
+    .filter({ hasText: /barbell squat|squat con bilanciere/i })
+    .first();
+  await expect(firstExercise.getByLabel(/tracking|tracciamento/i)).toHaveValue('weight_reps');
+  await firstExercise.getByLabel(/start weight|peso iniziale/i).fill('220.5');
+  await firstExercise.getByLabel(/increment|incremento/i).fill('');
+  await firstExercise.getByLabel(/^max$/i).fill('');
+  await firstExercise
+    .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
+    .first()
+    .click();
+  await firstExercise.getByLabel(/load|carico/i).fill('110.2');
+  await firstExercise.getByLabel(/^reps$|^ripetizioni$/i).fill('8');
+  await firstExercise
+    .getByRole('button', { name: /remove warm-up set|rimuovi serie di riscaldamento/i })
+    .click();
+  await expect(firstExercise.getByLabel(/load|carico/i)).toHaveCount(0);
+  await firstExercise
+    .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
+    .first()
+    .click();
+  await firstExercise.getByLabel(/load|carico/i).fill('110.2');
+  await firstExercise.getByLabel(/^reps$|^ripetizioni$/i).fill('8');
+  await page.getByRole('button', { name: /back|indietro/i }).click();
+  await openNeutralRoutineEditor(page);
+  const reopenedFirstExercise = page
+    .locator('.card')
+    .filter({ hasText: /barbell squat|squat con bilanciere/i })
+    .first();
+  await expect(reopenedFirstExercise.getByLabel(/start weight|peso iniziale/i)).toHaveValue(
+    '220.5',
+  );
+  await expect(reopenedFirstExercise.getByLabel(/increment|incremento/i)).toHaveValue('');
+  await expect(reopenedFirstExercise.getByLabel(/^max$/i)).toHaveValue('');
+  await expect(reopenedFirstExercise.getByLabel(/load|carico/i)).toHaveValue('110.2');
+  await expect(reopenedFirstExercise.getByLabel(/^reps$|^ripetizioni$/i)).toHaveValue('8');
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        const routine = await new Promise<{
+          exercises: Array<{
+            incrementKg?: number;
+            repMax: number | null;
+            startWeightKg?: number;
+            warmupSets?: Array<{ weightKg?: number }>;
+          }>;
+        }>((resolve, reject) => {
+          const request = database
+            .transaction('routines', 'readonly')
+            .objectStore('routines')
+            .get('full-body-a');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        database.close();
+        return routine.exercises[0];
+      }),
+    )
+    .toMatchObject({
+      incrementKg: undefined,
+      startWeightKg: 100.01711758721281,
+      repMax: null,
+      warmupSets: [{ weightKg: 49.98587917510591 }],
+    });
 });
 
 test('log a workout end to end', async ({ page }) => {

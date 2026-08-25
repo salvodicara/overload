@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
 import { exerciseName } from '../lib/exercises';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
-import { continueAccountAction, useStore } from '../state/useStore';
+import {
+  continueAccountAction,
+  isAccountActionCurrent,
+  type AccountActionResult,
+  useStore,
+} from '../state/useStore';
 
 const ICON = { width: 44, height: 44 } as const;
 
@@ -35,7 +40,7 @@ function NumField({
         min={0}
         aria-label={label}
         defaultValue={value ?? ''}
-        style={{ minHeight: 44, padding: '8px', textAlign: 'center' }}
+        style={{ minHeight: 48, padding: '8px', textAlign: 'center' }}
         onChange={(e) => onCommit(e.target.value === '' ? null : Number(e.target.value))}
       />
     </label>
@@ -54,7 +59,7 @@ function defaultWarmup(rx: RoutineExercise): NonNullable<RoutineExercise['warmup
 
 export function RoutineEditor({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
-  const routine = useStore((s) => s.routines.find((r) => r.id === id));
+  const storedRoutine = useStore((s) => s.routines.find((r) => r.id === id));
   const folders = useStore((s) => s.folders);
   const catalogReady = useStore((s) => s.catalogReady);
   const notes = useStore((s) => s.notes);
@@ -66,15 +71,32 @@ export function RoutineEditor({ id }: { id: string }) {
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const draftRef = useRef<Routine | null>(null);
+  const latestSaveRef = useRef<Promise<AccountActionResult> | null>(null);
+
+  if (storedRoutine && draftRef.current?.id !== id)
+    draftRef.current = structuredClone(storedRoutine);
+  const routine = draftRef.current ?? storedRoutine;
 
   function commit(mutate: (draft: Routine) => void, structural = false): void {
-    const current = useStore.getState().routines.find((r) => r.id === id);
-    if (!current) return;
-    const draft = structuredClone(current);
+    if (!draftRef.current) return;
+    const draft = structuredClone(draftRef.current);
     mutate(draft);
-    void continueAccountAction(saveRoutine(draft), () => {
-      if (structural) setRev((v) => v + 1);
-    });
+    draftRef.current = draft;
+    if (structural) setRev((v) => v + 1);
+    const save = saveRoutine(draft);
+    latestSaveRef.current = save;
+  }
+
+  async function startEditedWorkout(): Promise<void> {
+    let save = latestSaveRef.current;
+    while (save) {
+      const result = await save;
+      if (!isAccountActionCurrent(result)) return;
+      if (save === latestSaveRef.current) break;
+      save = latestSaveRef.current;
+    }
+    startWorkout(id);
   }
 
   function updateWarmup(
@@ -89,7 +111,7 @@ export function RoutineEditor({ id }: { id: string }) {
     });
   }
 
-  if (!routine)
+  if (!storedRoutine || !routine)
     return (
       <div className="screen">
         <div className="row" style={{ padding: '18px 0 6px' }}>
@@ -118,7 +140,7 @@ export function RoutineEditor({ id }: { id: string }) {
         <button
           className="btn btn-accent"
           disabled={routine.exercises.length === 0}
-          onClick={() => startWorkout(routine.id)}
+          onClick={() => void startEditedWorkout()}
         >
           {t('home.start')}
         </button>
@@ -258,6 +280,7 @@ export function RoutineEditor({ id }: { id: string }) {
                   <select
                     aria-label={t('editor.tracking')}
                     value={tracking}
+                    style={{ minHeight: 48 }}
                     onChange={(e) =>
                       commit(
                         (r) => void (r.exercises[xi].tracking = e.target.value as TrackingType),
@@ -413,12 +436,7 @@ export function RoutineEditor({ id }: { id: string }) {
                   placeholder={t('notes.techniquePlaceholder')}
                   rows={2}
                   style={{ minHeight: 64, resize: 'vertical' }}
-                  onChange={(e) =>
-                    void continueAccountAction(
-                      saveTechniqueNote(rx.exerciseId, e.target.value),
-                      () => {},
-                    )
-                  }
+                  onChange={(e) => void saveTechniqueNote(rx.exerciseId, e.target.value)}
                 />
               </label>
               {note?.entries.at(-1) && (
