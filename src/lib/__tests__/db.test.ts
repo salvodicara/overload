@@ -267,27 +267,32 @@ describe('account transitions', () => {
 
     useStore.getState().setUser({ uid: 'account-b', name: 'B first' });
     useStore.getState().setUser({ uid: 'account-b', name: 'B latest' });
+    try {
+      expect(useStore.getState()).toMatchObject({ user: undefined, authState: 'loading' });
+      expect(storage.get('overload_uid')).toBe('account-a');
+      expect(clearSpy).not.toHaveBeenCalled();
+      expect(startSyncMock).toHaveBeenCalledTimes(1);
 
-    expect(useStore.getState()).toMatchObject({ user: undefined, authState: 'loading' });
-    expect(storage.get('overload_uid')).toBe('account-a');
-    expect(clearSpy).not.toHaveBeenCalled();
-    expect(startSyncMock).toHaveBeenCalledTimes(1);
+      stop.resolve();
+      await vi.waitFor(() => expect(clearSpy).toHaveBeenCalledOnce());
+      expect(storage.get('overload_uid')).toBe('account-a');
+      expect(startSyncMock).toHaveBeenCalledTimes(1);
 
-    stop.resolve();
-    await vi.waitFor(() => expect(clearSpy).toHaveBeenCalledOnce());
-    expect(storage.get('overload_uid')).toBe('account-a');
-    expect(startSyncMock).toHaveBeenCalledTimes(1);
+      clear.resolve();
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
-    clear.resolve();
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-
-    expect(useStore.getState().user).toEqual({ uid: 'account-b', name: 'B latest' });
-    expect(storage.get('overload_uid')).toBe('account-b');
-    expect(startSyncMock.mock.calls.map(([uid]) => uid)).toEqual(['account-a', 'account-b']);
-    expect(await Promise.all([
-      db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
-      db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
-    ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+      expect(useStore.getState().user).toEqual({ uid: 'account-b', name: 'B latest' });
+      expect(storage.get('overload_uid')).toBe('account-b');
+      expect(startSyncMock.mock.calls.map(([uid]) => uid)).toEqual(['account-a', 'account-b']);
+      expect(await Promise.all([
+        db.workouts.count(), db.routines.count(), db.folders.count(), db.notes.count(),
+        db.measurements.count(), db.nutrition.count(), db.customExercises.count(), db.settings.count(),
+      ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+    } finally {
+      stop.resolve();
+      clear.resolve();
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    }
   });
 
   it('keeps the previous UID marker and blocks readiness when account clearing rejects', async () => {
@@ -382,15 +387,111 @@ describe('account transitions', () => {
       .mockReturnValueOnce(read.promise as PromiseExtended<Workout[]>);
 
     const reload = useStore.getState().reload();
-    await vi.waitFor(() => expect(readSpy).toHaveBeenCalledOnce());
-    useStore.getState().setUser({ uid: 'account-b', name: null });
-    read.resolve([stale]);
-    await reload;
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    try {
+      await vi.waitFor(() => expect(readSpy).toHaveBeenCalledOnce());
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      read.resolve([stale]);
+      await reload;
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
-    expect(useStore.getState().user?.uid).toBe('account-b');
-    expect(useStore.getState().workouts).toEqual([]);
-    expect(await db.workouts.toArray()).toEqual([]);
+      expect(useStore.getState().user?.uid).toBe('account-b');
+      expect(useStore.getState().workouts).toEqual([]);
+      expect(await db.workouts.toArray()).toEqual([]);
+    } finally {
+      read.resolve([stale]);
+      await reload.catch(() => {});
+    }
+  });
+
+  it('keeps a newer routine save when a same-owner reload snapshot resolves', async () => {
+    await login('account-a');
+    const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
+    await saveRoutine(base);
+    useStore.setState({ routines: [base] });
+    const read = deferred<Routine[]>();
+    const readSpy = vi
+      .spyOn(db.routines, 'toArray')
+      .mockReturnValueOnce(Promise.resolve([base]) as PromiseExtended<Routine[]>)
+      .mockReturnValueOnce(read.promise as PromiseExtended<Routine[]>);
+    const reload = useStore.getState().reload();
+    let newest: RoutineSave | undefined;
+    try {
+      await vi.waitFor(() => expect(readSpy).toHaveBeenCalledTimes(2));
+      newest = useStore.getState().saveRoutine({ ...base, name: 'Newest' });
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Newest' });
+
+      read.resolve([base]);
+      await reload;
+      await expect(newest).resolves.toMatchObject({ status: 'applied' });
+
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Newest' });
+      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Newest' });
+    } finally {
+      read.resolve([base]);
+      await reload.catch(() => {});
+      await newest?.catch(() => {});
+    }
+  });
+
+  it('keeps a newer routine save across failed-draft rollback and reload snapshots', async () => {
+    await login('account-a');
+    const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
+    await saveRoutine(base);
+    useStore.setState({ routines: [base] });
+    const failedWrite = deferred<string>();
+    const rollbackRead = deferred<Routine[]>();
+    const reloadRead = deferred<Routine[]>();
+    const putSpy = vi
+      .spyOn(db.routines, 'put')
+      .mockReturnValueOnce(failedWrite.promise as PromiseExtended<string>);
+    const readSpy = vi
+      .spyOn(db.routines, 'toArray')
+      .mockReturnValueOnce(rollbackRead.promise as PromiseExtended<Routine[]>)
+      .mockReturnValueOnce(Promise.resolve([base]) as PromiseExtended<Routine[]>)
+      .mockReturnValueOnce(reloadRead.promise as PromiseExtended<Routine[]>);
+    let failed: RoutineSave | undefined;
+    let reload: Promise<void> | undefined;
+    let newest: RoutineSave | undefined;
+    try {
+      failed = useStore.getState().saveRoutine({ ...base, warmup: 'Failed draft' });
+      await vi.waitFor(() => expect(putSpy).toHaveBeenCalledOnce());
+      const failedRejected = expect(failed).rejects.toThrow('first write failed');
+      failedWrite.reject(new Error('first write failed'));
+      await vi.waitFor(() => expect(readSpy).toHaveBeenCalledOnce());
+
+      reload = useStore.getState().reload();
+      await vi.waitFor(() => expect(readSpy).toHaveBeenCalledTimes(3));
+      newest = useStore.getState().saveRoutine({
+        ...useStore.getState().routines[0],
+        name: 'Newest',
+      });
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Newest', warmup: 'Failed draft',
+      });
+
+      rollbackRead.resolve([base]);
+      await failedRejected;
+      reloadRead.resolve([base]);
+      await reload;
+      await expect(newest).resolves.toMatchObject({ status: 'applied' });
+
+      expect(useStore.getState().routines[0]).toMatchObject({
+        name: 'Newest', warmup: 'Failed draft',
+      });
+      expect(await db.routines.get('routine-a')).toMatchObject({
+        name: 'Newest', warmup: 'Failed draft',
+      });
+    } finally {
+      const failedDrain = failed?.catch(() => {});
+      const reloadDrain = reload?.catch(() => {});
+      const newestDrain = newest?.catch(() => {});
+      failedWrite.reject(new Error('first write failed'));
+      rollbackRead.resolve([base]);
+      reloadRead.resolve([base]);
+      await failedDrain;
+      await reloadDrain;
+      await newestDrain;
+    }
   });
 
   it('fences a deferred routine write before a different account can clear and become ready', async () => {
@@ -413,19 +514,21 @@ describe('account transitions', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(useStore.getState().authState).toBe('loading');
       expect(clearSpy).not.toHaveBeenCalled();
+      write.resolve('routine-a');
+      await expect(save).resolves.toEqual({ status: 'stale' });
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+      expect(useStore.getState().routines).toEqual([]);
+      expect(await db.routines.toArray()).toEqual([]);
+      expect(pushRecordMock).not.toHaveBeenCalledWith(
+        'account-b',
+        'routines',
+        expect.objectContaining({ id: 'routine-a' }),
+      );
     } finally {
       write.resolve('routine-a');
+      await save.catch(() => {});
     }
-    await expect(save).resolves.toEqual({ status: 'stale' });
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-
-    expect(useStore.getState().routines).toEqual([]);
-    expect(await db.routines.toArray()).toEqual([]);
-    expect(pushRecordMock).not.toHaveBeenCalledWith(
-      'account-b',
-      'routines',
-      expect.objectContaining({ id: 'routine-a' }),
-    );
   });
 
   it('publishes a pending routine draft so a remounted editor can preserve it', async () => {
@@ -482,9 +585,11 @@ describe('account transitions', () => {
       expect(useStore.getState().routines[0]).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
       expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Renamed', warmup: 'Persist me' });
     } finally {
+      const firstDrain = first.catch(() => {});
+      const secondDrain = second?.catch(() => {});
       write.reject(new Error('disk full'));
-      await first.catch(() => {});
-      await second?.catch(() => {});
+      await firstDrain;
+      await secondDrain;
     }
   });
 
@@ -523,10 +628,12 @@ describe('account transitions', () => {
       expect(useStore.getState().routines).toEqual([base]);
       expect(await listRoutines()).toEqual([base]);
     } finally {
+      const firstDrain = first?.catch(() => {});
+      const secondDrain = second?.catch(() => {});
       firstWrite.reject(new Error('first write failed'));
       secondWrite.reject(new Error('second write failed'));
-      if (first) await first.catch(() => {});
-      if (second) await second.catch(() => {});
+      await firstDrain;
+      await secondDrain;
     }
   });
 
@@ -564,10 +671,12 @@ describe('account transitions', () => {
       expect(useStore.getState().routines).toEqual([durable]);
       expect(await listRoutines()).toEqual([durable]);
     } finally {
+      const firstDrain = first?.catch(() => {});
+      const secondDrain = second?.catch(() => {});
       firstWrite.resolve('routine-a');
       secondWrite.reject(new Error('second write failed'));
-      if (first) await first.catch(() => {});
-      if (second) await second.catch(() => {});
+      await firstDrain;
+      await secondDrain;
     }
   });
 
@@ -582,16 +691,18 @@ describe('account transitions', () => {
     try {
       await vi.waitFor(() => expect(useStore.getState().routines[0]?.id).toBe('routine-a'));
       useStore.getState().setUser({ uid: 'account-b', name: null });
+      const rejected = expect(save).rejects.toThrow('old account write failed');
       write.reject(new Error('old account write failed'));
-      await expect(save).rejects.toThrow('old account write failed');
+      await rejected;
       await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
       expect(useStore.getState().user?.uid).toBe('account-b');
       expect(useStore.getState().routines).toEqual([]);
       expect(await db.routines.toArray()).toEqual([]);
     } finally {
+      const saveDrain = save.catch(() => {});
       write.reject(new Error('old account write failed'));
-      await save.catch(() => {});
+      await saveDrain;
     }
   });
 
@@ -631,19 +742,21 @@ describe('account transitions', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(useStore.getState().authState).toBe('loading');
       expect(clearSpy).not.toHaveBeenCalled();
+      write.resolve('workout-a');
+      await expect(finish).resolves.toEqual({ status: 'stale' });
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+
+      expect(useStore.getState().workouts).toEqual([]);
+      expect(await db.workouts.toArray()).toEqual([]);
+      expect(pushRecordMock).not.toHaveBeenCalledWith(
+        'account-b',
+        'workouts',
+        expect.anything(),
+      );
     } finally {
       write.resolve('workout-a');
+      await finish.catch(() => {});
     }
-    await expect(finish).resolves.toEqual({ status: 'stale' });
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-
-    expect(useStore.getState().workouts).toEqual([]);
-    expect(await db.workouts.toArray()).toEqual([]);
-    expect(pushRecordMock).not.toHaveBeenCalledWith(
-      'account-b',
-      'workouts',
-      expect.anything(),
-    );
   });
 
   it('stops an authenticated restore loop when its owner changes', async () => {
@@ -652,15 +765,20 @@ describe('account transitions', () => {
     pushRecordStrictMock.mockReturnValueOnce(firstPush.promise);
 
     const restore = useStore.getState().restoreBackup(COMPLETE_BACKUP);
-    await vi.waitFor(() => expect(pushRecordStrictMock).toHaveBeenCalledOnce());
-    useStore.getState().setUser({ uid: 'account-b', name: null });
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-    firstPush.resolve();
-    await expect(restore).resolves.toEqual({ status: 'stale' });
+    try {
+      await vi.waitFor(() => expect(pushRecordStrictMock).toHaveBeenCalledOnce());
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+      firstPush.resolve();
+      await expect(restore).resolves.toEqual({ status: 'stale' });
 
-    expect(pushRecordStrictMock).toHaveBeenCalledTimes(1);
-    expect(useStore.getState().workouts).toEqual([]);
-    expect(await db.workouts.toArray()).toEqual([]);
+      expect(pushRecordStrictMock).toHaveBeenCalledTimes(1);
+      expect(useStore.getState().workouts).toEqual([]);
+      expect(await db.workouts.toArray()).toEqual([]);
+    } finally {
+      firstPush.resolve();
+      await restore.catch(() => {});
+    }
   });
 
   it('stops template installation when its folder write settles after the next account is ready', async () => {
@@ -669,17 +787,21 @@ describe('account transitions', () => {
     pushRecordMock.mockReturnValueOnce(remote.promise);
 
     const install = installTemplatePack(TEMPLATES[0], useStore.getState());
-    await vi.waitFor(() => expect(pushRecordMock).toHaveBeenCalledOnce());
-    useStore.getState().setUser({ uid: 'account-b', name: null });
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    try {
+      await vi.waitFor(() => expect(pushRecordMock).toHaveBeenCalledOnce());
+      useStore.getState().setUser({ uid: 'account-b', name: null });
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
-    remote.resolve();
-
-    await expect(install).resolves.toEqual({ status: 'stale' });
-    expect(useStore.getState().folders).toEqual([]);
-    expect(useStore.getState().routines).toEqual([]);
-    expect(await db.folders.toArray()).toEqual([]);
-    expect(await db.routines.toArray()).toEqual([]);
+      remote.resolve();
+      await expect(install).resolves.toEqual({ status: 'stale' });
+      expect(useStore.getState().folders).toEqual([]);
+      expect(useStore.getState().routines).toEqual([]);
+      expect(await db.folders.toArray()).toEqual([]);
+      expect(await db.routines.toArray()).toEqual([]);
+    } finally {
+      remote.resolve();
+      await install.catch(() => {});
+    }
   });
 });
 

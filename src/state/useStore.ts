@@ -370,16 +370,22 @@ async function reloadForOwner(
   owner: Owner,
   set: (state: Partial<Store>) => void,
 ): Promise<void> {
-  const hydrated = await withLocalWriteBarrier(async () => {
+  const snapshot = await withLocalWriteBarrier(async () => {
     if (!owns(owner)) return null;
     await migrateLegacyRoutines();
     if (!owns(owner)) return null;
-    return loadHydratedCollections();
+    const routinesAtRead = useStore.getState().routines;
+    return { hydrated: await loadHydratedCollections(), routinesAtRead };
   });
-  if (!hydrated || !owns(owner)) return;
-  const { techniqueMigrations, ...collections } = hydrated;
+  if (!snapshot || !owns(owner)) return;
+  const { techniqueMigrations, ...collections } = snapshot.hydrated;
   registerCustomExercises(collections.customExercises);
-  set(collections);
+  if (!owns(owner)) return;
+  const routines = useStore.getState().routines === snapshot.routinesAtRead
+    ? collections.routines
+    : useStore.getState().routines;
+  set({ ...collections, routines });
+  if (!owns(owner)) return;
   await pushTechniqueMigrations(owner, techniqueMigrations);
 }
 
