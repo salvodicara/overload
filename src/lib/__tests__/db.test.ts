@@ -433,6 +433,36 @@ describe('account transitions', () => {
     }
   });
 
+  it('keeps a newer routine save when migration reads before hydration', async () => {
+    await login('account-a');
+    const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
+    await saveRoutine(base);
+    useStore.setState({ routines: [base] });
+    const migrationRead = deferred<Routine[]>();
+    const readSpy = vi
+      .spyOn(db.routines, 'toArray')
+      .mockReturnValueOnce(migrationRead.promise as PromiseExtended<Routine[]>)
+      .mockReturnValueOnce(Promise.resolve([base]) as PromiseExtended<Routine[]>);
+    const reload = useStore.getState().reload();
+    let newest: RoutineSave | undefined;
+    try {
+      await vi.waitFor(() => expect(readSpy).toHaveBeenCalledOnce());
+      newest = useStore.getState().saveRoutine({ ...base, name: 'Newest' });
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Newest' });
+
+      migrationRead.resolve([base]);
+      await reload;
+      await expect(newest).resolves.toMatchObject({ status: 'applied' });
+
+      expect(useStore.getState().routines[0]).toMatchObject({ name: 'Newest' });
+      expect(await db.routines.get('routine-a')).toMatchObject({ name: 'Newest' });
+    } finally {
+      migrationRead.resolve([base]);
+      await reload.catch(() => {});
+      await newest?.catch(() => {});
+    }
+  });
+
   it('keeps a newer routine save across failed-draft rollback and reload snapshots', async () => {
     await login('account-a');
     const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };

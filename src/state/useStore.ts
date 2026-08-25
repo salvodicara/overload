@@ -372,9 +372,9 @@ async function reloadForOwner(
 ): Promise<void> {
   const snapshot = await withLocalWriteBarrier(async () => {
     if (!owns(owner)) return null;
+    const routinesAtRead = useStore.getState().routines;
     await migrateLegacyRoutines();
     if (!owns(owner)) return null;
-    const routinesAtRead = useStore.getState().routines;
     return { hydrated: await loadHydratedCollections(), routinesAtRead };
   });
   if (!snapshot || !owns(owner)) return;
