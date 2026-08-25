@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FocusEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
+import { PageHeader } from '../components/PageHeader';
 import { exerciseName } from '../lib/exercises';
 import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
@@ -49,6 +51,7 @@ export function Workout() {
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [committingNotes, setCommittingNotes] = useState<Record<string, boolean>>({});
   const committingNoteKeys = useRef(new Set<string>());
+  const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -68,24 +71,26 @@ export function Workout() {
 
   return (
     <div className="screen workout-screen">
-      <header className="workout-header">
-        <button
-          className="iconbtn workout-header__minimize"
-          aria-label={t('workout.minimize')}
-          onClick={() => nav({ view: 'train' })}
-        >
-          <IconDown />
-        </button>
-        <div className="workout-header__copy">
-          <h1 className="display workout-header__title">{routine.name}</h1>
-          <span className="mono small muted workout-header__elapsed">
+      <PageHeader
+        className="workout-header"
+        sticky
+        title={<span className="workout-header__title">{routine.name}</span>}
+        eyebrow={
+          <span className="workout-header__elapsed">
             {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
           </span>
-        </div>
-        <button className="btn btn-accent workout-header__finish" onClick={() => void finish()}>
-          {t('workout.finish')}
-        </button>
-      </header>
+        }
+        back={{
+          label: t('workout.minimize'),
+          icon: <IconDown />,
+          onClick: () => nav({ view: 'train' }),
+        }}
+        action={
+          <button className="btn btn-accent workout-header__finish" onClick={() => void finish()}>
+            {t('workout.finish')}
+          </button>
+        }
+      />
 
       {routine.warmup && (
         <details className="workout-preparation">
@@ -461,18 +466,24 @@ export function Workout() {
       </details>
 
       {confirming && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true">
-          <div className="sheet card card-pad stack">
-            <strong>{t('workout.abandonTitle')}</strong>
-            <span className="muted small">{t('workout.abandonBody')}</span>
-            <button className="btn btn-danger btn-block" onClick={abandon}>
-              {t('workout.abandonConfirm')}
-            </button>
-            <button className="btn btn-ghost btn-block" onClick={() => setConfirming(false)}>
-              {t('workout.cancel')}
-            </button>
-          </div>
-        </div>
+        <BottomSheet
+          open
+          title={t('workout.abandonTitle')}
+          initialFocusRef={cancelAbandonRef}
+          onClose={() => setConfirming(false)}
+        >
+          <span className="muted small">{t('workout.abandonBody')}</span>
+          <button className="btn btn-danger btn-block" onClick={abandon}>
+            {t('workout.abandonConfirm')}
+          </button>
+          <button
+            ref={cancelAbandonRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setConfirming(false)}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
       )}
     </div>
   );

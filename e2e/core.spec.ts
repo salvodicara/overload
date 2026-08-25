@@ -1049,6 +1049,101 @@ test('empty session is discarded, not recorded', async ({ page }) => {
   await expect(page.getByText(/no workouts yet|ancora nessun allenamento/i)).toBeVisible();
 });
 
+test('create sheet contains focus and restores its trigger and scroll position', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 400 });
+  const trigger = page.getByRole('button', { name: /^\+ (create|crea)$/i });
+  await trigger.evaluate((button) => button.focus({ preventScroll: true }));
+  await page.evaluate(() => window.scrollTo(0, 24));
+  const scrollBefore = await page.evaluate(() => window.scrollY);
+  expect(scrollBefore).toBeGreaterThan(0);
+
+  await trigger.evaluate((button: HTMLButtonElement) => button.click());
+  const dialog = page.getByRole('dialog', { name: /^\+ (create|crea)$/i });
+  const newRoutine = dialog.getByRole('button', {
+    name: /^(new routine|nuova scheda)$/i,
+  });
+  const newProgram = dialog.getByRole('button', {
+    name: /^(new program|nuovo programma)$/i,
+  });
+
+  await expect(dialog).toBeVisible();
+  await expect(newRoutine).toBeFocused();
+  expect(
+    await page.evaluate(() => ({
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+    })),
+  ).toEqual({ overflow: 'hidden', position: 'fixed' });
+
+  await page.keyboard.press('Shift+Tab');
+  await expect(newProgram).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(newRoutine).toBeFocused();
+
+  const dialogElement = await dialog.elementHandle();
+  await newRoutine.click();
+  const nestedDialog = page.getByRole('dialog', {
+    name: /^(new routine|nuova scheda)$/i,
+  });
+  const name = nestedDialog.getByRole('textbox', { name: /routine name|nome scheda/i });
+  await expect(nestedDialog).toBeVisible();
+  expect(
+    await dialogElement?.evaluate(
+      (element) => element.isConnected && element === document.querySelector('dialog[open]'),
+    ),
+  ).toBe(true);
+  await expect(name).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(nestedDialog.getByRole('button', { name: /^(cancel|annulla)$/i })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(name).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(nestedDialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollBefore);
+  expect(
+    await page.evaluate(() => ({
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+    })),
+  ).toEqual({ overflow: '', position: '' });
+});
+
+test('destructive routine sheet ignores its scrim and restores focus on Escape', async ({
+  page,
+}) => {
+  await openNeutralRoutineEditor(page);
+  const trigger = page.getByRole('button', { name: /delete routine|elimina routine/i });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: /delete routine|elimina routine/i });
+
+  await expect(dialog).toBeVisible();
+  await dialog.click({ position: { x: 4, y: 4 } });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test('custom exercise sheet closes from its scrim', async ({ page }) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  const trigger = page.getByRole('button', {
+    name: /create custom exercise|crea esercizio personalizzato/i,
+  });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', {
+    name: /create custom exercise|crea esercizio personalizzato/i,
+  });
+
+  await expect(dialog).toBeVisible();
+  await dialog.click({ position: { x: 4, y: 4 } });
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
 test('routines are fully editable and deletable', async ({ page }) => {
   await page.getByRole('button', { name: /\+ (create|crea)/i }).click();
   await page.getByRole('button', { name: /^(new routine|nuova scheda)$/i }).click();

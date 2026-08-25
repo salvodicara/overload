@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { IconForward } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
 import { lastCompletedFor, nextRoutine } from '../lib/routines';
@@ -78,6 +80,7 @@ export function Train() {
   const deleteFolder = useStore((s) => s.deleteFolder);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [nameDraft, setNameDraft] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const ungrouped = routines.filter(
     (r) => !r.folderId || !folders.some((f) => f.id === r.folderId),
@@ -87,6 +90,19 @@ export function Train() {
   );
 
   const suggestedId = nextRoutine(routines, folders, workouts)?.id;
+  const sheetTitle = !sheet
+    ? ''
+    : sheet.kind === 'create'
+      ? t('train.create')
+      : sheet.kind === 'newRoutine'
+        ? t('train.newRoutine')
+        : sheet.kind === 'newProgram'
+          ? t('train.newProgram')
+          : sheet.kind === 'renameProgram'
+            ? t('train.renameProgram')
+            : sheet.kind === 'program'
+              ? sheet.folder.name
+              : t('train.deleteFolder');
 
   async function createRoutine(name: string, folderId?: string): Promise<void> {
     const routine: Routine = {
@@ -115,21 +131,21 @@ export function Train() {
 
   return (
     <div className="screen">
-      <div className="spread" style={{ padding: '22px 0 6px' }}>
-        <div className="display" style={{ fontSize: 30 }}>
-          {t('nav.workout')}
-        </div>
-        <button
-          className="btn btn-accent"
-          style={{ padding: '10px 16px' }}
-          onClick={() => {
-            setNameDraft('');
-            setSheet({ kind: 'create' });
-          }}
-        >
-          {t('train.create')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('nav.workout')}
+        action={
+          <button
+            className="btn btn-accent"
+            style={{ padding: '10px 16px' }}
+            onClick={() => {
+              setNameDraft('');
+              setSheet({ kind: 'create' });
+            }}
+          >
+            {t('train.create')}
+          </button>
+        }
+      />
 
       {routines.length === 0 && folders.length === 0 && (
         <div className="card card-pad stack">
@@ -226,131 +242,119 @@ export function Train() {
       )}
 
       {sheet && (
-        <div
-          className="sheet-scrim"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => e.target === e.currentTarget && setSheet(null)}
+        <BottomSheet
+          open
+          title={sheetTitle}
+          initialFocusRef={nameInputRef}
+          closeOnScrim
+          onClose={() => setSheet(null)}
         >
-          <div className="sheet card card-pad stack">
-            {sheet.kind === 'create' && (
-              <>
-                <strong>{t('train.create')}</strong>
-                <button
-                  className="btn btn-ghost btn-block"
-                  onClick={() => setSheet({ kind: 'newRoutine' })}
-                >
-                  {t('train.newRoutine')}
-                </button>
-                <button
-                  className="btn btn-ghost btn-block"
-                  onClick={() => setSheet({ kind: 'newProgram' })}
-                >
-                  {t('train.newProgram')}
-                </button>
-                <span className="muted small">{t('train.programHint')}</span>
-              </>
-            )}
-            {(sheet.kind === 'newRoutine' ||
-              sheet.kind === 'newProgram' ||
-              sheet.kind === 'renameProgram') && (
-              <>
-                <strong>
-                  {sheet.kind === 'newRoutine'
-                    ? t('train.newRoutine')
-                    : sheet.kind === 'newProgram'
-                      ? t('train.newProgram')
-                      : t('train.renameProgram')}
-                </strong>
-                <input
-                  autoFocus
-                  value={nameDraft}
-                  placeholder={
-                    sheet.kind === 'newRoutine'
-                      ? t('train.routineNamePh')
-                      : t('train.programNamePh')
-                  }
-                  aria-label={t('editor.name')}
-                  style={{ fontFamily: 'inherit' }}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                />
-                <button
-                  className="btn btn-accent btn-block"
-                  onClick={() => {
-                    if (sheet.kind === 'newRoutine') void createRoutine(nameDraft, sheet.folderId);
-                    else if (sheet.kind === 'newProgram') void createProgram(nameDraft);
-                    else {
-                      void (async () => {
-                        const result = await saveFolder({
-                          ...sheet.folder,
-                          name: nameDraft.trim() || sheet.folder.name,
-                        });
-                        if (isAccountActionCurrent(result)) setSheet(null);
-                      })();
-                    }
-                  }}
-                >
-                  {sheet.kind === 'renameProgram' ? t('train.save') : t('train.createConfirm')}
-                </button>
-                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
-                  {t('workout.cancel')}
-                </button>
-              </>
-            )}
-            {sheet.kind === 'program' && (
-              <>
-                <strong>{sheet.folder.name}</strong>
-                <button
-                  className="btn btn-ghost btn-block"
-                  onClick={() => {
-                    setNameDraft('');
-                    setSheet({ kind: 'newRoutine', folderId: sheet.folder.id });
-                  }}
-                >
-                  {t('train.addToProgram')}
-                </button>
-                <button
-                  className="btn btn-ghost btn-block"
-                  onClick={() => {
-                    setNameDraft(sheet.folder.name);
-                    setSheet({ kind: 'renameProgram', folder: sheet.folder });
-                  }}
-                >
-                  {t('train.renameProgram')}
-                </button>
-                <button
-                  className="btn btn-danger btn-block"
-                  onClick={() => setSheet({ kind: 'deleteProgram', folder: sheet.folder })}
-                >
-                  {t('train.deleteFolder')}
-                </button>
-                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
-                  {t('workout.cancel')}
-                </button>
-              </>
-            )}
-            {sheet.kind === 'deleteProgram' && (
-              <>
-                <strong>{t('train.deleteFolder')}</strong>
-                <span className="muted small">{t('train.deleteFolderBody')}</span>
-                <button
-                  className="btn btn-danger btn-block"
-                  onClick={() => {
+          {sheet.kind === 'create' && (
+            <>
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => setSheet({ kind: 'newRoutine' })}
+              >
+                {t('train.newRoutine')}
+              </button>
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => setSheet({ kind: 'newProgram' })}
+              >
+                {t('train.newProgram')}
+              </button>
+              <span className="muted small">{t('train.programHint')}</span>
+            </>
+          )}
+          {(sheet.kind === 'newRoutine' ||
+            sheet.kind === 'newProgram' ||
+            sheet.kind === 'renameProgram') && (
+            <>
+              <input
+                ref={nameInputRef}
+                autoFocus
+                value={nameDraft}
+                placeholder={
+                  sheet.kind === 'newRoutine' ? t('train.routineNamePh') : t('train.programNamePh')
+                }
+                aria-label={t('editor.name')}
+                style={{ fontFamily: 'inherit' }}
+                onChange={(e) => setNameDraft(e.target.value)}
+              />
+              <button
+                className="btn btn-accent btn-block"
+                onClick={() => {
+                  if (sheet.kind === 'newRoutine') void createRoutine(nameDraft, sheet.folderId);
+                  else if (sheet.kind === 'newProgram') void createProgram(nameDraft);
+                  else {
                     void (async () => {
-                      const result = await deleteFolder(sheet.folder.id);
+                      const result = await saveFolder({
+                        ...sheet.folder,
+                        name: nameDraft.trim() || sheet.folder.name,
+                      });
                       if (isAccountActionCurrent(result)) setSheet(null);
                     })();
-                  }}
-                >
-                  {t('history.deleteConfirm')}
-                </button>
-                <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
-                  {t('workout.cancel')}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+                  }
+                }}
+              >
+                {sheet.kind === 'renameProgram' ? t('train.save') : t('train.createConfirm')}
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                {t('workout.cancel')}
+              </button>
+            </>
+          )}
+          {sheet.kind === 'program' && (
+            <>
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => {
+                  setNameDraft('');
+                  setSheet({ kind: 'newRoutine', folderId: sheet.folder.id });
+                }}
+              >
+                {t('train.addToProgram')}
+              </button>
+              <button
+                className="btn btn-ghost btn-block"
+                onClick={() => {
+                  setNameDraft(sheet.folder.name);
+                  setSheet({ kind: 'renameProgram', folder: sheet.folder });
+                }}
+              >
+                {t('train.renameProgram')}
+              </button>
+              <button
+                className="btn btn-danger btn-block"
+                onClick={() => setSheet({ kind: 'deleteProgram', folder: sheet.folder })}
+              >
+                {t('train.deleteFolder')}
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                {t('workout.cancel')}
+              </button>
+            </>
+          )}
+          {sheet.kind === 'deleteProgram' && (
+            <>
+              <span className="muted small">{t('train.deleteFolderBody')}</span>
+              <button
+                className="btn btn-danger btn-block"
+                onClick={() => {
+                  void (async () => {
+                    const result = await deleteFolder(sheet.folder.id);
+                    if (isAccountActionCurrent(result)) setSheet(null);
+                  })();
+                }}
+              >
+                {t('history.deleteConfirm')}
+              </button>
+              <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+                {t('workout.cancel')}
+              </button>
+            </>
+          )}
+        </BottomSheet>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
 import { exerciseName } from '../lib/exercises';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
@@ -73,6 +75,7 @@ export function RoutineEditor({ id }: { id: string }) {
   const [confirming, setConfirming] = useState(false);
   const draftRef = useRef<Routine | null>(null);
   const latestSaveRef = useRef<Promise<AccountActionResult> | null>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
   if (storedRoutine && draftRef.current?.id !== id)
     draftRef.current = structuredClone(storedRoutine);
@@ -114,11 +117,10 @@ export function RoutineEditor({ id }: { id: string }) {
   if (!storedRoutine || !routine)
     return (
       <div className="screen page">
-        <div className="row" style={{ padding: 'var(--space-4) 0 var(--space-2)' }}>
-          <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
-            <IconBack />
-          </button>
-        </div>
+        <PageHeader
+          title={t('editor.title')}
+          back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+        />
         <div className="empty">{t('editor.notFound')}</div>
       </div>
     );
@@ -130,21 +132,19 @@ export function RoutineEditor({ id }: { id: string }) {
   } as const;
   return (
     <div className="screen page">
-      <header className="row" style={{ padding: 'var(--space-4) 0 var(--space-2)' }}>
-        <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
-          <IconBack />
-        </button>
-        <h1 className="display page-title" style={{ flex: 1, margin: 0 }}>
-          {t('editor.title')}
-        </h1>
-        <button
-          className="btn btn-accent"
-          disabled={routine.exercises.length === 0}
-          onClick={() => void startEditedWorkout()}
-        >
-          {t('home.start')}
-        </button>
-      </header>
+      <PageHeader
+        title={t('editor.title')}
+        back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+        action={
+          <button
+            className="btn btn-accent"
+            disabled={routine.exercises.length === 0}
+            onClick={() => void startEditedWorkout()}
+          >
+            {t('home.start')}
+          </button>
+        }
+      />
 
       <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
         <span
@@ -469,23 +469,29 @@ export function RoutineEditor({ id }: { id: string }) {
         {t('editor.deleteRoutine')}
       </button>
       {confirming && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true">
-          <div className="sheet card card-pad stack">
-            <strong>{t('editor.deleteRoutine')}</strong>
-            <span className="muted small">{t('editor.deleteRoutineBody')}</span>
-            <button
-              className="btn btn-danger btn-block"
-              onClick={() =>
-                void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }))
-              }
-            >
-              {t('history.deleteConfirm')}
-            </button>
-            <button className="btn btn-ghost btn-block" onClick={() => setConfirming(false)}>
-              {t('workout.cancel')}
-            </button>
-          </div>
-        </div>
+        <BottomSheet
+          open
+          title={t('editor.deleteRoutine')}
+          initialFocusRef={cancelDeleteRef}
+          onClose={() => setConfirming(false)}
+        >
+          <span className="muted small">{t('editor.deleteRoutineBody')}</span>
+          <button
+            className="btn btn-danger btn-block"
+            onClick={() =>
+              void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }))
+            }
+          >
+            {t('history.deleteConfirm')}
+          </button>
+          <button
+            ref={cancelDeleteRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setConfirming(false)}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
       )}
     </div>
   );

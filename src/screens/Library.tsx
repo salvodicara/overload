@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
 import { muscleGroup, searchExercises, type MuscleGroup } from '../lib/exercises';
 import {
   isAccountActionCurrent,
@@ -52,6 +54,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const [newGroup, setNewGroup] = useState<MuscleGroup>('chest');
   const [query, setQuery] = useState('');
   const [group, setGroup] = useState<MuscleGroup | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(
     () => (catalogReady ? searchExercises(query, group, i18n.language) : []),
@@ -71,14 +74,14 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
 
   return (
     <div className="screen">
-      {pickFor && (
-        <div className="row" style={{ padding: '18px 0 0' }}>
-          <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
-            <IconBack />
-          </button>
-        </div>
-      )}
-      <div className="display screen-title" style={{ paddingTop: pickFor ? 6 : undefined }}>{t(pickFor ? 'library.pickTitle' : 'library.title')}</div>
+      <PageHeader
+        title={t(pickFor ? 'library.pickTitle' : 'library.title')}
+        back={
+          pickFor
+            ? { label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }
+            : undefined
+        }
+      />
 
       <div
         className="stack"
@@ -154,24 +157,37 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
           ))}
         </div>
       )}
-      <button className="btn btn-ghost btn-block" style={{ marginTop: 14 }} onClick={() => { setNewName(query); setCreating(true); }}>
+      <button
+        className="btn btn-ghost btn-block"
+        style={{ marginTop: 14 }}
+        onClick={() => {
+          setNewName(query);
+          setCreating(true);
+        }}
+      >
         {t('library.create')}
       </button>
 
       {creating && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setCreating(false)}>
-          <div className="sheet card card-pad stack">
-            <strong>{t('library.create')}</strong>
-            <input
-              autoFocus
-              value={newName}
-              placeholder={t('library.createNamePh')}
-              aria-label={t('library.createNamePh')}
-              style={{ fontFamily: 'inherit' }}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
-              {(['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'calves'] as const).map((g) => (
+        <BottomSheet
+          open
+          title={t('library.create')}
+          initialFocusRef={nameInputRef}
+          closeOnScrim
+          onClose={() => setCreating(false)}
+        >
+          <input
+            ref={nameInputRef}
+            autoFocus
+            value={newName}
+            placeholder={t('library.createNamePh')}
+            aria-label={t('library.createNamePh')}
+            style={{ fontFamily: 'inherit' }}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+            {(['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'calves'] as const).map(
+              (g) => (
                 <button
                   key={g}
                   className={`chip${newGroup === g ? ' chip-accent' : ''}`}
@@ -181,30 +197,30 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
                 >
                   {t(`library.muscle.${g}`)}
                 </button>
-              ))}
-            </div>
-            <button
-              className="btn btn-accent btn-block"
-              disabled={!newName.trim()}
-              onClick={() => {
-                void createCustomExerciseFlow(
-                  { name: newName, muscleGroup: newGroup, pickFor },
-                  {
-                    createCustomExercise,
-                    addExerciseToRoutine,
-                    nav,
-                    close: () => setCreating(false),
-                  },
-                );
-              }}
-            >
-              {t('train.createConfirm')}
-            </button>
-            <button className="btn btn-ghost btn-block" onClick={() => setCreating(false)}>
-              {t('workout.cancel')}
-            </button>
+              ),
+            )}
           </div>
-        </div>
+          <button
+            className="btn btn-accent btn-block"
+            disabled={!newName.trim()}
+            onClick={() => {
+              void createCustomExerciseFlow(
+                { name: newName, muscleGroup: newGroup, pickFor },
+                {
+                  createCustomExercise,
+                  addExerciseToRoutine,
+                  nav,
+                  close: () => setCreating(false),
+                },
+              );
+            }}
+          >
+            {t('train.createConfirm')}
+          </button>
+          <button className="btn btn-ghost btn-block" onClick={() => setCreating(false)}>
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
       )}
     </div>
   );

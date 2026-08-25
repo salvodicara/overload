@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { IconBack } from '../components/Icons';
+import { PageHeader } from '../components/PageHeader';
 import { exerciseName } from '../lib/exercises';
 import { kindOf, trackingOf, type SetLog, type Workout } from '../lib/types';
 import { displayVolume, formatWeight, weightLabel } from '../lib/units';
@@ -47,6 +49,7 @@ export function WorkoutDetail({ id }: { id: string }) {
   const nav = useStore((s) => s.nav);
   const deleteWorkout = useStore((s) => s.deleteWorkout);
   const [confirming, setConfirming] = useState(false);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
   const workout = workouts.find((candidate) => candidate.id === id);
   if (!workout) {
@@ -103,20 +106,16 @@ export function WorkoutDetail({ id }: { id: string }) {
 
   return (
     <div className="screen">
-      <header className="row" style={{ padding: '14px 0 10px' }}>
-        <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
-          <IconBack />
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="mono small muted">{fmtDate(workout.date, i18n.language)}</div>
-          <h1
-            className="display"
-            style={{ fontSize: 22, color: workout.dayLabel ? undefined : 'var(--muted)' }}
-          >
+      <PageHeader
+        className="workout-detail-header"
+        title={
+          <span style={{ color: workout.dayLabel ? undefined : 'var(--muted)' }}>
             {workout.dayLabel ?? t('nav.workout')}
-          </h1>
-        </div>
-      </header>
+          </span>
+        }
+        eyebrow={fmtDate(workout.date, i18n.language)}
+        back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+      />
 
       <div className="card card-pad spread">
         <div>
@@ -184,23 +183,29 @@ export function WorkoutDetail({ id }: { id: string }) {
       </button>
 
       {confirming && (
-        <div className="sheet-scrim" role="dialog" aria-modal="true">
-          <div className="sheet card card-pad stack">
-            <strong>{t('history.delete')}</strong>
-            <span className="muted small">{t('history.deleteBody')}</span>
-            <button
-              className="btn btn-danger btn-block"
-              onClick={() => {
-                void continueAccountAction(deleteWorkout(workout.id), () => nav({ view: 'home' }));
-              }}
-            >
-              {t('history.deleteConfirm')}
-            </button>
-            <button className="btn btn-ghost btn-block" onClick={() => setConfirming(false)}>
-              {t('workout.cancel')}
-            </button>
-          </div>
-        </div>
+        <BottomSheet
+          open
+          title={t('history.delete')}
+          initialFocusRef={cancelDeleteRef}
+          onClose={() => setConfirming(false)}
+        >
+          <span className="muted small">{t('history.deleteBody')}</span>
+          <button
+            className="btn btn-danger btn-block"
+            onClick={() => {
+              void continueAccountAction(deleteWorkout(workout.id), () => nav({ view: 'home' }));
+            }}
+          >
+            {t('history.deleteConfirm')}
+          </button>
+          <button
+            ref={cancelDeleteRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setConfirming(false)}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
       )}
     </div>
   );
