@@ -1,52 +1,41 @@
-// Curated overlay for the free-exercise-db catalog: Italian names, Hevy import
-// aliases, and per-exercise progression increments. Keyed by free-exercise-db id.
+// Curated overlay for the free-exercise-db catalog: Hevy import aliases and
+// demonstration videos. Keyed by free-exercise-db id.
 
 export type Curated = {
-  nameIt: string;
   /** Hevy exercise_title strings that map to this exercise on import. */
   aliases?: string[];
-  /** Double-progression increment; default 2.5 kg when omitted. */
-  incrementKg?: number;
   youtubeId?: string;
 };
 
 export const CURATED: Record<string, Curated> = {
   Dumbbell_Bench_Press: {
     youtubeId: 'Y_7aHqXeCfQ',
-    nameIt: 'Panca piana manubri',
     aliases: ['Panca Piana (Manubrio)'],
   },
   Incline_Dumbbell_Press: {
-    nameIt: 'Panca inclinata manubri',
     aliases: ['Panca Inclinata (Manubrio)'],
   },
   Smith_Machine_Incline_Bench_Press: {
     youtubeId: 'b8DqTO6ak0k',
-    nameIt: 'Panca inclinata al multipower',
     aliases: ['Panca Inclinata (Multipower)'],
   },
   Smith_Machine_Bench_Press: {
-    nameIt: 'Panca piana al multipower',
     aliases: ['Panca Piana (Multipower)'],
   },
   Butterfly: {
     youtubeId: 'Dbly77Jgbo8',
-    nameIt: 'Pectoral machine',
     aliases: ['Farfalla (Pec Deck)', 'Croci (Macchina)'],
   },
   Cable_Crossover: {
     youtubeId: '8Um35Es-ROE',
-    nameIt: 'Croci ai cavi alti',
     aliases: ['Croci ai Cavi'],
   },
-  Low_Cable_Crossover: { nameIt: 'Croci ai cavi bassi', aliases: ['Croci Cavo Basso'] },
+  Low_Cable_Crossover: { aliases: ['Croci Cavo Basso'] },
   Incline_Dumbbell_Flyes: {
-    nameIt: 'Croci su inclinata',
     aliases: ['Croci Petto Inclinate (Manubrio)'],
   },
   Seated_Cable_Rows: {
     youtubeId: 'GZbfZ033f74',
-    nameIt: 'Pulley',
     aliases: [
       'Rematore al Cavo da Seduto',
       'Rematore al Cavo da Seduto - Presa Larga',
@@ -55,124 +44,95 @@ export const CURATED: Record<string, Curated> = {
   },
   Dumbbell_Incline_Row: {
     youtubeId: 'r9ggHLL1tgs',
-    nameIt: 'Rematore manubri su panca',
     aliases: ['Rematore Inclinato con Petto Appoggiato (Manubrio)'],
   },
   Bent_Over_Barbell_Row: {
-    nameIt: 'Rematore bilanciere',
     aliases: ['Rematore Inclinato (Bilanciere)'],
   },
-  'One-Arm_Dumbbell_Row': { nameIt: 'Rematore manubrio singolo', aliases: ['Rematore Manubrio'] },
+  'One-Arm_Dumbbell_Row': { aliases: ['Rematore Manubrio'] },
   'T-Bar_Row_with_Handle': {
     youtubeId: '5foJiIVhs8Q',
-    nameIt: 'Rematore T-bar',
     aliases: ['Rematore T Bar'],
   },
   'Wide-Grip_Lat_Pulldown': {
     youtubeId: 'O94yEoGXtBY',
-    nameIt: 'Lat machine presa prona',
     aliases: ['Lat Pulldown (Cavo)'],
   },
   'V-Bar_Pulldown': {
     youtubeId: 'kVB6SlEyjQM',
-    nameIt: 'Lat machine presa neutra',
     aliases: ['Lat Pulldown (Banda)'],
   },
-  Face_Pull: { youtubeId: 'eIq5CB9JfKE', nameIt: 'Face pull ai cavi' },
+  Face_Pull: { youtubeId: 'eIq5CB9JfKE' },
   'EZ-Bar_Curl': {
     youtubeId: '6LrOTcr595A',
-    nameIt: 'Curl bilanciere EZ',
     aliases: ['Curl Bicipiti con EZ Bar'],
   },
-  Barbell_Curl: { nameIt: 'Curl bilanciere', aliases: ['Curl Bicipiti (Bilanciere)'] },
-  Hammer_Curls: { nameIt: 'Curl a martello', aliases: ['Bicipiti Martello (Manubrio)'] },
+  Barbell_Curl: { aliases: ['Curl Bicipiti (Bilanciere)'] },
+  Hammer_Curls: { aliases: ['Bicipiti Martello (Manubrio)'] },
   Spider_Curl: {
     youtubeId: 'BsE9zhhTU1A',
-    nameIt: 'Spider curl',
     aliases: ['Curl a ragno (manubri)'],
   },
   'EZ-Bar_Skullcrusher': {
     youtubeId: 'QXzhjRnYRT0',
-    nameIt: 'French press',
     aliases: ['Skullcrusher (Bilanciere)', 'Estensione Tricipiti (Bilanciere)'],
   },
   'Triceps_Pushdown_-_Rope_Attachment': {
     youtubeId: 'mRmIthbCSNI',
-    nameIt: 'Push down fune',
     aliases: ['Pushdown Tricipiti con Corda'],
   },
   Seated_Side_Lateral_Raise: {
     youtubeId: 'n5dsI9qQXwY',
-    nameIt: 'Alzate laterali da seduto',
     aliases: ['Aperture Laterali Seduto (Manubrio)'],
   },
   Barbell_Squat: {
     youtubeId: 'bEv6CCg2BC8',
-    nameIt: 'Squat con bilanciere',
     aliases: ['Squat (Bilanciere)'],
-    incrementKg: 5,
   },
   Leg_Press: {
     youtubeId: 'cDGOn-yfKJA',
-    nameIt: 'Leg press 45°',
     aliases: ['Leg Press (Macchina)', 'Leg Press Gamba Singola (Macchina)'],
-    incrementKg: 5,
   },
   Hack_Squat: {
     youtubeId: 'fE5BWPy7uRc',
-    nameIt: 'Hack squat',
     aliases: ['Hack Squat (Macchina)'],
-    incrementKg: 5,
   },
   Barbell_Deadlift: {
-    nameIt: 'Stacco da terra',
     aliases: ['Stacco da Terra (Bilanciere)'],
-    incrementKg: 5,
   },
   Romanian_Deadlift: {
     youtubeId: 'KecWzqYscYc',
-    nameIt: 'Stacco rumeno',
     aliases: ['Stacco da Terra (Manubrio)'],
-    incrementKg: 5,
   },
   Seated_Leg_Curl: {
     youtubeId: '_2Kd0d-JEUM',
-    nameIt: 'Leg curl seduto',
     aliases: ['Leg Curl Seduto (Macchina)'],
   },
   Leg_Extensions: {
     youtubeId: 'tTbJBUKnWU8',
-    nameIt: 'Leg extension',
     aliases: ['Leg Extension (Macchina)', 'Leg Extensions Gamba Singola'],
   },
   Dumbbell_Lunges: {
     youtubeId: '_DLIS8SySzs',
-    nameIt: 'Affondi con manubri',
     aliases: ['Affondi (Manubrio)'],
   },
   Calf_Press_On_The_Leg_Press_Machine: {
     youtubeId: '8k435cj30gc',
-    nameIt: 'Polpacci alla pressa',
     aliases: ['Calf Press (Macchina)'],
   },
-  Standing_Calf_Raises: { nameIt: 'Polpacci in piedi' },
   'Seated_One-arm_Cable_Pulley_Rows': {
-    nameIt: 'Pulley a un braccio',
     aliases: ['Rematore al Cavo Singolo'],
   },
   One_Arm_Lat_Pulldown: {
-    nameIt: 'Lat machine a un braccio',
     aliases: ['Lat Pulldown Braccio Singolo'],
   },
   Standing_Biceps_Cable_Curl: {
-    nameIt: 'Curl bicipiti al cavo',
     aliases: ['Curl Bicipiti (Cavo)'],
   },
   Machine_Triceps_Extension: {
-    nameIt: 'Estensioni tricipiti alla macchina',
     aliases: ['Estensione Tricipiti (Macchina)'],
   },
-  Hanging_Leg_Raise: { youtubeId: 'fLbZrF6MZuE', nameIt: 'Leg raise alla sbarra' },
-  Plank: { youtubeId: 'mwlp75MS6Rg', nameIt: 'Plank' },
-  Side_Bridge: { youtubeId: '44ND4bOB-T0', nameIt: 'Side plank' },
+  Hanging_Leg_Raise: { youtubeId: 'fLbZrF6MZuE' },
+  Plank: { youtubeId: 'mwlp75MS6Rg' },
+  Side_Bridge: { youtubeId: '44ND4bOB-T0' },
 };

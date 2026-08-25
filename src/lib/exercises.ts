@@ -7,7 +7,6 @@ type FedbExercise = {
   name: string;
   equipment?: string | null;
   primaryMuscles: string[];
-  secondaryMuscles?: string[];
   instructions?: string[];
   images?: string[];
 };
@@ -67,7 +66,7 @@ export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
         map.set(row.id, {
           id: row.id,
           nameEn: row.name,
-          nameIt: cur?.nameIt ?? (NAMES_IT as Record<string, string>)[row.id] ?? row.name,
+          nameIt: (NAMES_IT as Record<string, string>)[row.id] ?? row.name,
           muscles: row.primaryMuscles,
           equipment: row.equipment ?? undefined,
           media: (row.images ?? []).map((p) => `/exercise-media/${p}`),
