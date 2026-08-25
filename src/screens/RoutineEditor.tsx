@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
@@ -61,6 +62,7 @@ function defaultWarmup(rx: RoutineExercise): NonNullable<RoutineExercise['warmup
 
 export function RoutineEditor({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const storedRoutine = useStore((s) => s.routines.find((r) => r.id === id));
   const folders = useStore((s) => s.folders);
   const catalogReady = useStore((s) => s.catalogReady);

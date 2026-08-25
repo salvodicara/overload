@@ -4,6 +4,7 @@ import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack, IconPlay } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import {
   exerciseName,
   getCatalog,
@@ -18,6 +19,7 @@ import { isAccountActionCurrent, useStore } from '../state/useStore';
 
 export function ExerciseSheet({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const isIt = i18n.language.startsWith('it');
   const [itInstructionsReady, setItInstructionsReady] = useState(!isIt);
   const catalogReady = useStore((s) => s.catalogReady);

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { kindOf } from '../lib/types';
 import { displayVolume, weightLabel } from '../lib/units';
@@ -6,6 +7,7 @@ import { useStore } from '../state/useStore';
 
 export function Summary({ workoutId }: { workoutId: string }) {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const { settings, workouts } = useStore();
   const nav = useStore((s) => s.nav);
   const pending = useStore((s) => s.pendingRoutineChanges);

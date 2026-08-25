@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { initI18n, setLocale } from './i18n';
 import { onUser } from './lib/firebase';
@@ -7,19 +7,41 @@ import { Nav } from './components/Nav';
 import { ActiveWorkoutBar } from './components/ActiveWorkoutBar';
 import { RestWatcher } from './components/RestWatcher';
 import { RestBar } from './components/RestBar';
+import { PageHeader } from './components/PageHeader';
 import { Login } from './screens/Login';
 import { Home } from './screens/Home';
-import { History } from './screens/History';
-import { Train } from './screens/Train';
-import { Profile } from './screens/Profile';
-import { Workout } from './screens/Workout';
-import { Summary } from './screens/Summary';
-import { WorkoutDetail } from './screens/WorkoutDetail';
-import { Progress } from './screens/Progress';
-import { Library } from './screens/Library';
-import { ExerciseSheet } from './screens/ExerciseSheet';
-import { ImportExport } from './screens/ImportExport';
-import { RoutineEditor } from './screens/RoutineEditor';
+
+const History = lazy(() =>
+  import('./screens/History').then(({ History }) => ({ default: History })),
+);
+const Train = lazy(() => import('./screens/Train').then(({ Train }) => ({ default: Train })));
+const Profile = lazy(() =>
+  import('./screens/Profile').then(({ Profile }) => ({ default: Profile })),
+);
+const Workout = lazy(() =>
+  import('./screens/Workout').then(({ Workout }) => ({ default: Workout })),
+);
+const Summary = lazy(() =>
+  import('./screens/Summary').then(({ Summary }) => ({ default: Summary })),
+);
+const WorkoutDetail = lazy(() =>
+  import('./screens/WorkoutDetail').then(({ WorkoutDetail }) => ({ default: WorkoutDetail })),
+);
+const Progress = lazy(() =>
+  import('./screens/Progress').then(({ Progress }) => ({ default: Progress })),
+);
+const Library = lazy(() =>
+  import('./screens/Library').then(({ Library }) => ({ default: Library })),
+);
+const ExerciseSheet = lazy(() =>
+  import('./screens/ExerciseSheet').then(({ ExerciseSheet }) => ({ default: ExerciseSheet })),
+);
+const ImportExport = lazy(() =>
+  import('./screens/ImportExport').then(({ ImportExport }) => ({ default: ImportExport })),
+);
+const RoutineEditor = lazy(() =>
+  import('./screens/RoutineEditor').then(({ RoutineEditor }) => ({ default: RoutineEditor })),
+);
 
 initI18n();
 
@@ -51,6 +73,49 @@ function Screen() {
     case 'routineEditor':
       return <RoutineEditor id={route.id} />;
   }
+}
+
+function RouteFallback() {
+  const { t } = useTranslation();
+  const route = useStore((state) => state.route);
+  const title =
+    route.view === 'history' || route.view === 'workoutDetail'
+      ? t('history.title')
+      : route.view === 'train' || route.view === 'workout'
+        ? t('nav.workout')
+        : route.view === 'profile'
+          ? t('nav.profile')
+          : route.view === 'summary'
+            ? t('summary.title')
+            : route.view === 'progress'
+              ? t('progress.title')
+              : route.view === 'importExport'
+                ? t('import.title')
+                : route.view === 'routineEditor'
+                  ? t('editor.title')
+                  : route.view === 'library' && route.pickFor
+                    ? t('library.pickTitle')
+                    : t('library.title');
+
+  return (
+    <div
+      className="screen route-fallback"
+      role="status"
+      aria-busy="true"
+      aria-live="off"
+      aria-label={title}
+    >
+      <PageHeader title={title} />
+      <div className="library-loading" aria-hidden="true">
+        {Array.from({ length: 2 }, (_, index) => (
+          <div key={index} className="library-result library-result--skeleton">
+            <span className="library-result__thumb" />
+            <span className="library-result__copy" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Toast() {
@@ -123,7 +188,9 @@ export default function App() {
         ) : !user ? (
           <Login />
         ) : (
-          <Screen />
+          <Suspense fallback={<RouteFallback />}>
+            <Screen />
+          </Suspense>
         )}
       </main>
       {ready ? (

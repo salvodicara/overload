@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
@@ -32,6 +33,7 @@ export function Home() {
   const { active, folders, routines, settings, workouts } = useStore();
   const nav = useStore((state) => state.nav);
   const startWorkout = useStore((state) => state.startWorkout);
+  const ensureCatalog = useStore((state) => state.ensureCatalog);
   const days = weekDays();
   const daySet = new Set(days.map((day) => day.iso));
   const weeklyWorkouts = workouts.filter(
@@ -49,6 +51,21 @@ export function Home() {
   const today = new Date().toLocaleDateString('sv');
   const unit = settings.unit ?? 'kg';
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+
+  useEffect(() => {
+    if (workouts.length > 0) return;
+    const load = () => void ensureCatalog().catch(() => {});
+    const idleWindow = window as Window & {
+      requestIdleCallback?: typeof window.requestIdleCallback;
+      cancelIdleCallback?: typeof window.cancelIdleCallback;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const id = idleWindow.requestIdleCallback(load, { timeout: 2_000 });
+      return () => idleWindow.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(load, 2_000);
+    return () => clearTimeout(id);
+  }, [ensureCatalog, workouts.length]);
 
   return (
     <div className="screen page home-screen">

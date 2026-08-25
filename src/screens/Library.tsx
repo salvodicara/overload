@@ -4,6 +4,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import { muscleGroup, searchExercises, type MuscleGroup } from '../lib/exercises';
 import type { TrackingType } from '../lib/types';
 import {
@@ -67,6 +68,7 @@ export async function createCustomExerciseFlow(
 
 export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const catalogReady = useStore((s) => s.catalogReady);
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);

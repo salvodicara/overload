@@ -27,7 +27,8 @@ export async function startNeutralWorkout(page: Page): Promise<void> {
 export async function openNeutralRoutineEditor(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /edit full body a|modifica full body a/i }).click();
-  await expect(page.getByRole('heading', { name: /edit routine|modifica scheda/i })).toBeVisible();
+  await expect(page.locator('.route-fallback')).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: /routine name|nome scheda/i })).toBeVisible();
 }
 
 export async function completeAndFinishOneSet(page: Page): Promise<void> {
@@ -255,6 +256,8 @@ async function setStoredLocale(page: Page, locale: 'it' | 'en'): Promise<void> {
     database.close();
   }, locale);
   await page.reload();
+  await expect(page.getByRole('main')).toBeVisible();
+  await expect(page.locator('.route-fallback')).toHaveCount(0);
 }
 
 type StoredWorkoutJournalFact = {
@@ -755,6 +758,8 @@ async function openImportSurface(page: Page, locale: 'it' | 'en' = 'en'): Promis
   await page
     .getByRole('button', { name: locale === 'it' ? 'Importa o ripristina' : 'Import or restore' })
     .click();
+  await expect(page.locator('.route-fallback')).toHaveCount(0);
+  await expect(page.getByLabel(locale === 'it' ? 'Scegli un file' : 'Choose a file')).toBeVisible();
 }
 
 async function uploadImportFixture(page: Page, name: string, contents: string): Promise<void> {
@@ -1327,6 +1332,9 @@ test('active workout keeps localized weighted headings visible', async ({ page }
   for (const locale of ['it', 'en'] as const) {
     if (locale === 'en') await setStoredLocale(page, locale);
     const previousLabel = locale === 'it' ? 'Precedente' : 'Previous';
+    await expect(
+      page.locator('.set-table--weight-reps .set-table__header > :nth-child(2)'),
+    ).toHaveCount(5);
     for (const viewport of [
       { width: 320, height: 700 },
       { width: 390, height: 844 },
@@ -3147,4 +3155,272 @@ test('workout in progress survives reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
   await expect(page.locator('.setrow.done')).toHaveCount(1);
+});
+
+test('cold empty screens defer the catalog until idle or first dependent use', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.addInitScript(() => {
+    let nextId = 0;
+    const idleCallbacks = new Map<number, IdleRequestCallback>();
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: (callback: IdleRequestCallback) => {
+        const id = ++nextId;
+        idleCallbacks.set(id, callback);
+        return id;
+      },
+    });
+    Object.defineProperty(window, 'cancelIdleCallback', {
+      configurable: true,
+      value: (id: number) => idleCallbacks.delete(id),
+    });
+    (window as unknown as Window & { __flushCatalogIdle(): void }).__flushCatalogIdle = () => {
+      for (const callback of idleCallbacks.values()) {
+        callback({ didTimeout: false, timeRemaining: () => 50 });
+      }
+      idleCallbacks.clear();
+    };
+  });
+  let catalogRequests = 0;
+  context.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/data/exercises.json') catalogRequests += 1;
+  });
+  const coldPage = await context.newPage();
+  try {
+    await coldPage.goto('/');
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    expect(catalogRequests).toBe(0);
+
+    await coldPage.getByRole('button', { name: 'Train' }).click();
+    await expect(coldPage.getByRole('heading', { name: 'Train' })).toBeVisible();
+    await expect(coldPage.locator('.route-fallback')).toHaveCount(0);
+    await coldPage.evaluate(() =>
+      (window as unknown as Window & { __flushCatalogIdle(): void }).__flushCatalogIdle(),
+    );
+    expect(catalogRequests).toBe(0);
+
+    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await expect.poll(() => catalogRequests).toBe(1);
+    await expect(coldPage.getByRole('searchbox', { name: 'Search exercises' })).toBeVisible();
+
+    catalogRequests = 0;
+    await coldPage.evaluate(() => localStorage.setItem('overload_route', 'home'));
+    await coldPage.close();
+    const idlePage = await context.newPage();
+    await idlePage.goto('/');
+    await expect(idlePage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    expect(catalogRequests).toBe(0);
+    await idlePage.evaluate(() =>
+      (window as unknown as Window & { __flushCatalogIdle(): void }).__flushCatalogIdle(),
+    );
+    await expect.poll(() => catalogRequests).toBe(1);
+  } finally {
+    await context.close();
+  }
+});
+
+test('catalog failure stays contained and retries once while already online', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: () => 1,
+    });
+    Object.defineProperty(window, 'cancelIdleCallback', {
+      configurable: true,
+      value: () => undefined,
+    });
+  });
+  let attempts = 0;
+  await context.route('**/data/exercises.json', async (route) => {
+    attempts += 1;
+    await route.fulfill({
+      status: attempts === 1 ? 503 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        attempts === 1
+          ? []
+          : [
+              {
+                id: 'Barbell_Squat',
+                name: 'Barbell Squat',
+                primaryMuscles: ['quadriceps'],
+                instructions: [],
+                images: [],
+              },
+            ],
+      ),
+    });
+  });
+  const pageErrors: string[] = [];
+  const coldPage = await context.newPage();
+  coldPage.on('pageerror', (error) => pageErrors.push(error.message));
+  try {
+    await coldPage.goto('/');
+    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await expect.poll(() => attempts).toBe(1);
+    await expect(coldPage.getByRole('status', { name: 'Loading exercises' })).toBeVisible();
+
+    await expect.poll(() => attempts).toBe(2);
+    await expect(coldPage.getByRole('button', { name: 'Barbell Squat Legs' })).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
+
+test('visible workout rows refresh their exercise names when the catalog resolves', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: () => 1,
+    });
+    Object.defineProperty(window, 'cancelIdleCallback', {
+      configurable: true,
+      value: () => undefined,
+    });
+  });
+  let releaseCatalog!: () => void;
+  const catalogAllowed = new Promise<void>((resolve) => {
+    releaseCatalog = resolve;
+  });
+  await context.route('**/data/exercises.json', async (route) => {
+    await catalogAllowed;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 'opaque-id',
+          name: 'Resolved name',
+          primaryMuscles: ['abdominals'],
+          instructions: [],
+          images: [],
+        },
+      ]),
+    });
+  });
+  const coldPage = await context.newPage();
+  try {
+    await coldPage.goto('/');
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    await putStoredRow(coldPage, 'workouts', {
+      ...PROFILE_VOLUME_WORKOUT,
+      id: 'catalog-name-workout',
+      dayLabel: 'Catalog refresh',
+      sets: [
+        {
+          exerciseId: 'opaque-id',
+          weightKg: 20,
+          reps: 5,
+          done: true,
+          kind: 'working',
+        },
+      ],
+    });
+    await coldPage.reload();
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    await coldPage.getByRole('button', { name: 'All history' }).click();
+    const workout = coldPage.getByRole('button', { name: /Catalog refresh/i });
+    await expect(workout).toContainText('opaque id');
+
+    releaseCatalog();
+    await expect(workout).toContainText('Resolved name');
+    await expect(workout).not.toContainText('opaque id');
+  } finally {
+    releaseCatalog();
+    await context.close();
+  }
+});
+
+test('CSV export waits for exercise names while the full backup stays available', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: () => 1,
+    });
+    Object.defineProperty(window, 'cancelIdleCallback', {
+      configurable: true,
+      value: () => undefined,
+    });
+  });
+  let releaseCatalog!: () => void;
+  const catalogAllowed = new Promise<void>((resolve) => {
+    releaseCatalog = resolve;
+  });
+  await context.route('**/data/exercises.json', async (route) => {
+    await catalogAllowed;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
+  const coldPage = await context.newPage();
+  try {
+    await coldPage.goto('/');
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    await putStoredRow(coldPage, 'workouts', PROFILE_VOLUME_WORKOUT);
+    await coldPage.reload();
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+    await coldPage.getByRole('button', { name: 'Profile' }).click();
+
+    await expect(coldPage.getByRole('group', { name: 'Training summary' })).toContainText(
+      '1 workout',
+    );
+    await expect(coldPage.getByRole('button', { name: 'Full backup (JSON)' })).toBeEnabled();
+    await expect(coldPage.getByRole('button', { name: 'Export workouts (CSV)' })).toBeDisabled();
+    releaseCatalog();
+    await expect(coldPage.getByRole('button', { name: 'Export workouts (CSV)' })).toBeEnabled();
+  } finally {
+    releaseCatalog();
+    await context.close();
+  }
+});
+
+test('recovered workout keeps a route-shaped fallback without flashing Home', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const setup = await context.newPage();
+  await setup.goto('/');
+  await setup.getByRole('button', { name: 'Train' }).click();
+  await setup.getByRole('button', { name: 'Use' }).first().click();
+  await setup.getByRole('button', { name: 'Start Full Body A' }).click();
+  await expect(setup.getByText('Full Body A').first()).toBeVisible();
+  await setup.close();
+
+  let releaseWorkout!: () => void;
+  const workoutAllowed = new Promise<void>((resolve) => {
+    releaseWorkout = resolve;
+  });
+  await context.route('**/src/screens/Workout.tsx', async (route) => {
+    await workoutAllowed;
+    await route.continue();
+  });
+  const recovered = await context.newPage();
+  try {
+    const navigation = recovered.goto('/');
+    const fallback = recovered.locator('.route-fallback[aria-busy="true"]');
+    await expect(fallback).toBeVisible();
+    await expect(fallback).toHaveAttribute('role', 'status');
+    await expect(fallback).toHaveAttribute('aria-live', 'off');
+    await expect(fallback.getByRole('heading', { name: 'Train' })).toBeVisible();
+    await expect(
+      recovered.getByRole('heading', { name: /next workout|build your plan/i }),
+    ).toHaveCount(0);
+
+    releaseWorkout();
+    await navigation;
+    await expect(recovered.getByText('Full Body A').first()).toBeVisible();
+  } finally {
+    releaseWorkout();
+    await context.close();
+  }
 });

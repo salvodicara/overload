@@ -4,6 +4,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
@@ -32,6 +33,7 @@ function tableMode(tracking: TrackingType): string {
 
 export function Workout() {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const { active, routines, workouts, settings } = useStore();
   const nav = useStore((s) => s.nav);
   const updateSet = useStore((s) => s.updateSet);

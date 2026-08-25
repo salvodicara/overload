@@ -18,17 +18,20 @@ export type MuscleGroup = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'co
 
 const GROUP_OF: Record<string, MuscleGroup> = {
   chest: 'chest',
+  back: 'back',
   lats: 'back',
   'middle back': 'back',
   'lower back': 'back',
   traps: 'back',
   neck: 'back',
+  legs: 'legs',
   quadriceps: 'legs',
   hamstrings: 'legs',
   glutes: 'legs',
   adductors: 'legs',
   abductors: 'legs',
   shoulders: 'shoulders',
+  arms: 'arms',
   biceps: 'arms',
   triceps: 'arms',
   forearms: 'arms',
@@ -40,13 +43,23 @@ export function muscleGroup(ex: Exercise): MuscleGroup {
   return GROUP_OF[ex.muscles[0] ?? ''] ?? 'core';
 }
 
-let catalog: Map<string, CatalogExercise> | null = null;
+let publicCatalog: Map<string, CatalogExercise> | null = null;
+let customCatalog = new Map<string, CatalogExercise>();
+let catalog = new Map<string, CatalogExercise>();
 let loading: Promise<Map<string, CatalogExercise>> | null = null;
-const customExerciseIds = new Set<string>();
+
+function mergeCatalogs(): Map<string, CatalogExercise> {
+  catalog = new Map([...(publicCatalog ?? []), ...customCatalog]);
+  return catalog;
+}
 
 export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
+  if (publicCatalog) return Promise.resolve(catalog);
   loading ??= fetch('/data/exercises.json')
-    .then((r) => r.json() as Promise<FedbExercise[]>)
+    .then((response) => {
+      if (!response.ok) throw new Error(`catalog request failed: ${response.status}`);
+      return response.json() as Promise<FedbExercise[]>;
+    })
     .then((rows) => {
       const map = new Map<string, CatalogExercise>();
       for (const row of rows) {
@@ -63,8 +76,13 @@ export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
           instructions: row.instructions ?? [],
         });
       }
-      catalog = map;
-      return map;
+      publicCatalog = map;
+      loading = null;
+      return mergeCatalogs();
+    })
+    .catch((error: unknown) => {
+      loading = null;
+      throw error;
     });
   return loading;
 }
@@ -73,12 +91,9 @@ export function loadCatalog(): Promise<Map<string, CatalogExercise>> {
 export function registerCustomExercises(
   list: { id: string; name: string; muscleGroup: string }[],
 ): void {
-  const map = catalog;
-  if (!map) return;
-  for (const id of customExerciseIds) map.delete(id);
-  customExerciseIds.clear();
+  const next = new Map<string, CatalogExercise>();
   for (const x of list) {
-    map.set(x.id, {
+    next.set(x.id, {
       id: x.id,
       nameEn: x.name,
       nameIt: x.name,
@@ -86,13 +101,14 @@ export function registerCustomExercises(
       media: [],
       instructions: [],
     });
-    customExerciseIds.add(x.id);
   }
+  customCatalog = next;
+  mergeCatalogs();
 }
 
-/** Synchronous access after loadCatalog resolved (returns empty map before). */
+/** Synchronous access includes registered custom rows before the public catalog resolves. */
 export function getCatalog(): Map<string, CatalogExercise> {
-  return catalog ?? new Map();
+  return catalog;
 }
 
 export function exerciseName(id: string, locale: string): string {
@@ -106,7 +122,11 @@ function humanize(s: string): string {
   return s.replace(/[_-]+/g, ' ').trim();
 }
 
-export function searchExercises(query: string, group: MuscleGroup | null, locale: string): CatalogExercise[] {
+export function searchExercises(
+  query: string,
+  group: MuscleGroup | null,
+  locale: string,
+): CatalogExercise[] {
   const q = query.trim().toLowerCase();
   const all = [...getCatalog().values()];
   return all

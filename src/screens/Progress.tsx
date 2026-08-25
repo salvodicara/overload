@@ -2,6 +2,7 @@ import { useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { displayVolume, displayWeight, weightLabel } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
@@ -100,6 +101,7 @@ function topSets(
 function TrainingSection() {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
+  useCatalog(workouts.length > 0);
   const [picked, setPicked] = useState<string | null>(null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const unit = settings.unit ?? 'kg';

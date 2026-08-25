@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { kindOf, trackingOf, type SetLog, type Workout } from '../lib/types';
 import { displayVolume, formatWeight, weightLabel } from '../lib/units';
@@ -44,6 +45,7 @@ function byExercise(workout: Workout): ExerciseGroup[] {
 
 export function WorkoutDetail({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
+  useCatalog();
   const { workouts, catalogReady } = useStore();
   const unit = useStore((state) => state.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);

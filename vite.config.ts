@@ -5,16 +5,38 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   plugins: [
     react(),
+    {
+      name: 'enforce-app-chunk-size',
+      apply: 'build',
+      generateBundle(_options, bundle) {
+        for (const output of Object.values(bundle)) {
+          if (output.type !== 'chunk') continue;
+          const bytes = Buffer.byteLength(output.code);
+          if (bytes > 500_000) this.error(`${output.fileName} is ${bytes} B; limit is 500000 B`);
+        }
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
         // Never intercept Firebase Auth's reserved /__/* endpoints: serving the
         // SPA there breaks the sign-in popup/redirect handler.
         navigateFallbackDenylist: [/^\/__\//],
-        globPatterns: ['**/*.{js,css,html,woff2,png}', 'data/exercises.json', 'data/instructions.it.json'],
+        globPatterns: ['**/*.{js,css,html,woff2,png}'],
         globIgnores: ['exercise-media/**'],
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.origin === self.location.origin &&
+              (url.pathname === '/data/exercises.json' ||
+                url.pathname === '/data/instructions.it.json'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'exercise-data',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 2 },
+            },
+          },
           {
             urlPattern: /\/exercise-media\//,
             handler: 'CacheFirst',

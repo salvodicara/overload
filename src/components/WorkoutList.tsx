@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { fmtDate } from '../lib/format';
 import { kindOf, type Workout } from '../lib/types';
@@ -40,6 +41,7 @@ export function WorkoutList({ workouts, limit, onOpen }: WorkoutListProps) {
   const { t, i18n } = useTranslation();
   const unit = useStore((state) => state.settings.unit ?? 'kg');
   const visible = [...workouts].sort(newestFirst).slice(0, limit);
+  useCatalog(visible.length > 0);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const months = visible.reduce<WorkoutMonth[]>((groups, workout) => {
     const key = workout.date.slice(0, 7);

@@ -46,7 +46,18 @@ import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
 import { loadCatalog, registerCustomExercises } from '../lib/exercises';
-import type { CustomExercise, ExerciseNote, Folder, MeasureMetric, Measurement, NutritionDay, Routine, Settings, TrackingType, Workout } from '../lib/types';
+import type {
+  CustomExercise,
+  ExerciseNote,
+  Folder,
+  MeasureMetric,
+  Measurement,
+  NutritionDay,
+  Routine,
+  Settings,
+  TrackingType,
+  Workout,
+} from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 import { routineTechniqueMigrations } from '../lib/notes';
 import type { BackupV2 } from '../lib/importer';
@@ -72,8 +83,7 @@ export type { ActiveSession, ActiveSet };
 export type AccountOwnerReceipt = Readonly<{ uid: string; generation: number }>;
 
 export type AccountActionResult<T = void> =
-  | { status: 'applied'; value: T; owner: AccountOwnerReceipt }
-  | { status: 'stale' };
+  { status: 'applied'; value: T; owner: AccountOwnerReceipt } | { status: 'stale' };
 
 export const STALE_ACCOUNT_ACTION = Object.freeze({ status: 'stale' as const });
 
@@ -123,8 +133,7 @@ const UID_KEY = 'overload_uid';
 function readActive(): ActiveSession | null {
   try {
     const raw = JSON.parse(localStorage.getItem(ACTIVE_KEY) ?? 'null') as
-      | (PersistedActiveSession & { dayIndex?: number })
-      | null;
+      (PersistedActiveSession & { dayIndex?: number }) | null;
     // Sessions persisted under the pre-folders model are discarded.
     if (raw && raw.dayIndex !== undefined) return null;
     if (!raw) return null;
@@ -222,7 +231,15 @@ async function withOwnedLocalWrite<T>(
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
 const scrollMemory = new Map<string, number>();
-const RESTORE_SCROLL = new Set<Route['view']>(['home', 'history', 'train', 'library', 'progress', 'profile', 'workout']);
+const RESTORE_SCROLL = new Set<Route['view']>([
+  'home',
+  'history',
+  'train',
+  'library',
+  'progress',
+  'profile',
+  'workout',
+]);
 const ROUTE_KEY = 'overload_route';
 const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile']);
 
@@ -240,7 +257,6 @@ function savedRoute(): Route {
   }
   return { view: 'home' };
 }
-
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
 const routinePushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -361,10 +377,14 @@ export type Store = {
   restUntil: number | null;
   restExerciseId: string | null;
   restTotalSec: number | null;
-  pendingRoutineChanges: { routineId: string; items: { exerciseId: string; restSec?: number; sets?: number }[] } | null;
+  pendingRoutineChanges: {
+    routineId: string;
+    items: { exerciseId: string; restSec?: number; sets?: number }[];
+  } | null;
   catalogReady: boolean;
 
   nav(route: Route): void;
+  ensureCatalog(): Promise<void>;
   setUser(user: AppUser | null): void;
   init(): Promise<void>;
   reload(): Promise<void>;
@@ -389,7 +409,11 @@ export type Store = {
   deleteRoutine(id: string): Promise<AccountActionResult>;
   saveFolder(f: Folder): Promise<AccountActionResult>;
   deleteFolder(id: string): Promise<AccountActionResult>;
-  addExerciseToRoutine(routineId: string, exerciseId: string, tracking?: TrackingType): Promise<AccountActionResult>;
+  addExerciseToRoutine(
+    routineId: string,
+    exerciseId: string,
+    tracking?: TrackingType,
+  ): Promise<AccountActionResult>;
   queueTechniqueNote(exerciseId: string, text: string): void;
   saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
   addNoteEntry(exerciseId: string, text: string): Promise<AccountActionResult>;
@@ -397,7 +421,10 @@ export type Store = {
   createCustomExercise(name: string, muscleGroup: string): Promise<AccountActionResult<string>>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<AccountActionResult>;
   deleteMeasurement(id: string): Promise<AccountActionResult>;
-  saveNutritionDay(date: string, patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>): Promise<AccountActionResult>;
+  saveNutritionDay(
+    date: string,
+    patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>,
+  ): Promise<AccountActionResult>;
   deleteWorkout(id: string): Promise<AccountActionResult>;
   importWorkouts(fresh: Workout[]): Promise<AccountActionResult>;
   restoreBackup(backup: BackupV2): Promise<AccountActionResult>;
@@ -447,10 +474,7 @@ async function loadHydratedCollections(): Promise<HydratedCollections> {
   };
 }
 
-async function reloadForOwner(
-  owner: Owner,
-  set: (state: Partial<Store>) => void,
-): Promise<void> {
+async function reloadForOwner(owner: Owner, set: (state: Partial<Store>) => void): Promise<void> {
   const snapshot = await withLocalWriteBarrier(async () => {
     if (!owns(owner)) return null;
     const routinesAtRead = useStore.getState().routines;
@@ -462,18 +486,16 @@ async function reloadForOwner(
   const { techniqueMigrations, ...collections } = snapshot.hydrated;
   registerCustomExercises(collections.customExercises);
   if (!owns(owner)) return;
-  const routines = useStore.getState().routines === snapshot.routinesAtRead
-    ? collections.routines
-    : useStore.getState().routines;
+  const routines =
+    useStore.getState().routines === snapshot.routinesAtRead
+      ? collections.routines
+      : useStore.getState().routines;
   set({ ...collections, routines });
   if (!owns(owner)) return;
   await pushTechniqueMigrations(owner, techniqueMigrations);
 }
 
-async function pushTechniqueMigrations(
-  owner: Owner,
-  migrations: ExerciseNote[],
-): Promise<boolean> {
+async function pushTechniqueMigrations(owner: Owner, migrations: ExerciseNote[]): Promise<boolean> {
   for (const migration of migrations) {
     if (!owns(owner)) return false;
     await pushRecord(owner.uid, 'notes', migration);
@@ -497,7 +519,10 @@ export const useStore = create<Store>((set, get) => ({
   customExercises: [],
   syncState: 'offline',
   active: initialActive,
-  restUntil: initialActive?.restUntil && initialActive.restUntil > Date.now() ? initialActive.restUntil : null,
+  restUntil:
+    initialActive?.restUntil && initialActive.restUntil > Date.now()
+      ? initialActive.restUntil
+      : null,
   restExerciseId: initialActive?.restExerciseId ?? null,
   restTotalSec: initialActive?.restTotalSec ?? null,
   pendingRoutineChanges: null,
@@ -525,6 +550,17 @@ export const useStore = create<Store>((set, get) => ({
     applyScroll(route.view);
   },
 
+  async ensureCatalog() {
+    if (get().catalogReady) return;
+    const owner = captureOwner();
+    if (!owner) return;
+    await loadCatalog();
+    if (!owns(owner)) return;
+    registerCustomExercises(get().customExercises);
+    if (!owns(owner)) return;
+    set({ catalogReady: true });
+  },
+
   setUser(user) {
     if (user && pendingBoot?.uid === user.uid) {
       pendingBoot.user = user;
@@ -544,8 +580,9 @@ export const useStore = create<Store>((set, get) => ({
     syncController = null;
     clearRoutinePushTimers();
     clearTechniqueSaveTimers();
+    registerCustomExercises([]);
     if (!user || previousOwner) releaseWakeLock();
-    set({ user: undefined, authState: 'loading', syncState: 'offline' });
+    set({ user: undefined, authState: 'loading', syncState: 'offline', catalogReady: false });
 
     const boot = async (): Promise<void> => {
       try {
@@ -608,14 +645,6 @@ export const useStore = create<Store>((set, get) => ({
         });
         if (get().active) acquireWakeLock();
         void pushTechniqueMigrations(owner, techniqueMigrations);
-
-        if (typeof window !== 'undefined') {
-          void loadCatalog().then(() => {
-            if (!owns(owner)) return;
-            registerCustomExercises(get().customExercises);
-            set({ catalogReady: true });
-          });
-        }
 
         if (import.meta.env.VITE_E2E !== '1' && owns(owner)) {
           syncController = startSync(
@@ -811,8 +840,11 @@ export const useStore = create<Store>((set, get) => ({
       for (const e of active.ex) {
         const rx = routine.exercises.find((x) => x.exerciseId === e.exerciseId);
         if (!rx) continue;
-        const change: { exerciseId: string; restSec?: number; sets?: number } = { exerciseId: e.exerciseId };
-        if (e.restOverride !== undefined && e.restOverride !== rx.restSec) change.restSec = e.restOverride;
+        const change: { exerciseId: string; restSec?: number; sets?: number } = {
+          exerciseId: e.exerciseId,
+        };
+        if (e.restOverride !== undefined && e.restOverride !== rx.restSec)
+          change.restSec = e.restOverride;
         const doneCount = e.sets.filter((set) => set.done && set.kind === 'working').length;
         if (doneCount > 0 && doneCount !== rx.sets) change.sets = doneCount;
         if (change.restSec !== undefined || change.sets !== undefined) items.push(change);
@@ -841,13 +873,15 @@ export const useStore = create<Store>((set, get) => ({
     const restUntil = Date.now() + sec * 1000;
     set({ restUntil, restExerciseId: exerciseId, restTotalSec: sec });
     const active = get().active;
-    if (active) persistActive({ ...active, restUntil, restExerciseId: exerciseId, restTotalSec: sec });
+    if (active)
+      persistActive({ ...active, restUntil, restExerciseId: exerciseId, restTotalSec: sec });
   },
 
   stopRest() {
     set({ restUntil: null, restExerciseId: null, restTotalSec: null });
     const active = get().active;
-    if (active) persistActive({ ...active, restUntil: null, restExerciseId: null, restTotalSec: null });
+    if (active)
+      persistActive({ ...active, restUntil: null, restExerciseId: null, restTotalSec: null });
   },
 
   async saveRoutine(r) {
@@ -919,8 +953,8 @@ export const useStore = create<Store>((set, get) => ({
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     // Routines inside a deleted folder become ungrouped, never deleted.
-    const moved = get().routines
-      .filter((routine) => routine.folderId === id)
+    const moved = get()
+      .routines.filter((routine) => routine.folderId === id)
       .map((routine) => ({ ...routine, folderId: undefined, updatedAt: Date.now() }));
     const result = await withOwnedLocalWrite(owner, async () => {
       for (const routine of moved) await saveRoutine(routine);

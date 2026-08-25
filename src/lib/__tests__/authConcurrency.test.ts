@@ -21,6 +21,7 @@ vi.mock('../wakeLock', () => ({
 }));
 
 import { db } from '../db';
+import { searchExercises } from '../exercises';
 import { useStore } from '../../state/useStore';
 
 const storage = new Map<string, string>();
@@ -67,6 +68,7 @@ describe('auth transition with production sync cancellation', () => {
       restExerciseId: null,
       restTotalSec: null,
       pendingRoutineChanges: null,
+      catalogReady: false,
     });
   });
 
@@ -100,15 +102,19 @@ describe('auth transition with production sync cancellation', () => {
     useStore.getState().setUser({ uid: 'account-b', name: null });
     await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
 
-    oldRemote.resolve(snapshot([{
-      id: 'remote-a',
-      date: '2026-08-25',
-      startTs: 2,
-      sets: [],
-      volumeKg: 0,
-      updatedAt: 2,
-      source: 'app',
-    }]));
+    oldRemote.resolve(
+      snapshot([
+        {
+          id: 'remote-a',
+          date: '2026-08-25',
+          startTs: 2,
+          sets: [],
+          volumeKg: 0,
+          updatedAt: 2,
+          source: 'app',
+        },
+      ]),
+    );
     await Promise.resolve();
     await Promise.resolve();
 
@@ -122,15 +128,19 @@ describe('auth transition with production sync cancellation', () => {
     const localWrite = deferred<string>();
     const nextRemote = deferred<ReturnType<typeof snapshot>>();
     getDocsMock
-      .mockResolvedValueOnce(snapshot([{
-        id: 'remote-a',
-        date: '2026-08-25',
-        startTs: 2,
-        sets: [],
-        volumeKg: 0,
-        updatedAt: 2,
-        source: 'app',
-      }]))
+      .mockResolvedValueOnce(
+        snapshot([
+          {
+            id: 'remote-a',
+            date: '2026-08-25',
+            startTs: 2,
+            sets: [],
+            volumeKg: 0,
+            updatedAt: 2,
+            source: 'app',
+          },
+        ]),
+      )
       .mockReturnValue(nextRemote.promise);
     const bulkPut = vi
       .spyOn(db.workouts, 'bulkPut')
@@ -154,5 +164,41 @@ describe('auth transition with production sync cancellation', () => {
     expect(clear).toHaveBeenCalledOnce();
     expect(useStore.getState().user?.uid).toBe('account-b');
     expect(await db.workouts.toArray()).toEqual([]);
+  });
+
+  it('publishes catalog readiness and custom rows only for the current account', async () => {
+    getDocsMock.mockResolvedValue(snapshot([]));
+    const catalogRequest = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => catalogRequest.promise),
+    );
+
+    useStore.getState().setUser({ uid: 'account-a', name: null });
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+    await useStore.getState().createCustomExercise('Account A carry', 'core');
+    const accountALoad = useStore.getState().ensureCatalog();
+
+    useStore.getState().setUser({ uid: 'account-b', name: null });
+    expect(useStore.getState().catalogReady).toBe(false);
+    expect(searchExercises('Account A carry', null, 'en')).toEqual([]);
+    await vi.waitFor(() => expect(useStore.getState().user?.uid).toBe('account-b'));
+    await useStore.getState().createCustomExercise('Account B carry', 'core');
+    const accountBLoad = useStore.getState().ensureCatalog();
+
+    catalogRequest.resolve({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    } as unknown as Response);
+    await Promise.all([accountALoad, accountBLoad]);
+
+    expect(useStore.getState().catalogReady).toBe(true);
+    expect(searchExercises('Account A carry', null, 'en')).toEqual([]);
+    expect(searchExercises('Account B carry', null, 'en')).toHaveLength(1);
+
+    useStore.getState().setUser(null);
+    expect(useStore.getState().catalogReady).toBe(false);
+    expect(searchExercises('Account B carry', null, 'en')).toEqual([]);
   });
 });
