@@ -1,6 +1,8 @@
-# Overload — Design Spec
+# Overload — Design Spec (superseded)
 
-**Date:** 2026-08-24 · **Status:** Approved by Salvatore (chat, 2026-08-24)
+**Date:** 2026-08-24 · **Status:** Superseded on 2026-08-25 by `2026-08-25-overload-general-redesign.md`
+
+This file remains as historical context. Its personal-program assumptions are not current product requirements.
 
 ## Purpose
 
