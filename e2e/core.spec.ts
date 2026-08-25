@@ -2,8 +2,6 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { BackupV1, BackupV2 } from '../src/lib/importer';
 import type { Workout } from '../src/lib/types';
 
-declare const Buffer: { from(value: string): never };
-
 const NEUTRAL_ROUTINE = /full body a/i;
 const DOM_RECT_SUBPIXEL_EPSILON_PX = 0.01;
 
@@ -760,11 +758,19 @@ async function openImportSurface(page: Page, locale: 'it' | 'en' = 'en'): Promis
 }
 
 async function uploadImportFixture(page: Page, name: string, contents: string): Promise<void> {
-  await page.locator('input[type="file"]').setInputFiles({
-    name,
-    mimeType: name.endsWith('.csv') ? 'text/csv' : 'application/json',
-    buffer: Buffer.from(contents),
-  });
+  await page.locator('input[type="file"]').evaluate(
+    (input, file) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(
+        new File([file.contents], file.name, {
+          type: file.name.endsWith('.csv') ? 'text/csv' : 'application/json',
+        }),
+      );
+      (input as HTMLInputElement).files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    { name, contents },
+  );
 }
 
 async function installProgressSurfaceFixture(page: Page): Promise<void> {
@@ -862,15 +868,60 @@ async function expectNarrowTouchTargets(page: Page, controls: Locator): Promise<
   }
 }
 
-async function expectLightAndDarkSurfaces(page: Page): Promise<void> {
-  const surfaces = [];
+async function expectLightAndDarkSurfaces(
+  page: Page,
+  surface: Locator,
+  control: Locator,
+): Promise<void> {
+  const appearance = (locator: Locator) =>
+    locator.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const contrast = (foreground: string, background: string) => {
+        const luminance = (value: string) => {
+          const channels = value
+            .match(/[\d.]+/g)!
+            .slice(0, 3)
+            .map(Number)
+            .map((channel) => {
+              const normalized = channel / 255;
+              return normalized <= 0.04045
+                ? normalized / 12.92
+                : ((normalized + 0.055) / 1.055) ** 2.4;
+            });
+          return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+        };
+        const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+        return (values[0] + 0.05) / (values[1] + 0.05);
+      };
+      return {
+        background: style.backgroundColor,
+        border: style.borderTopColor,
+        color: style.color,
+        contrast: contrast(style.color, style.backgroundColor),
+      };
+    });
+  const themes = [];
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme });
-    surfaces.push(
-      await page.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor),
-    );
+    await page.evaluate(async () => {
+      for (const animation of document.getAnimations()) animation.finish();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      for (const animation of document.getAnimations()) animation.finish();
+    });
+    themes.push({ surface: await appearance(surface), control: await appearance(control) });
   }
-  expect(new Set(surfaces).size).toBe(2);
+  for (const layer of ['surface', 'control'] as const) {
+    expect(themes[0][layer].background, JSON.stringify({ layer, themes })).not.toBe(
+      themes[1][layer].background,
+    );
+    expect(themes[0][layer].border).not.toBe(themes[1][layer].border);
+    expect(themes[0][layer].color).not.toBe(themes[1][layer].color);
+    expect(themes[0][layer].contrast).toBeGreaterThanOrEqual(4.5);
+    expect(themes[1][layer].contrast).toBeGreaterThanOrEqual(4.5);
+  }
 }
 
 test.beforeEach(async ({ page }) => {
@@ -2822,7 +2873,7 @@ test('profile persists real units without personal setup fields', async ({ page 
   await page.reload();
   await expect(summary).toContainText('1,543.2 lb');
   await expectNarrowTouchTargets(page, profile.getByRole('button'));
-  await expectLightAndDarkSurfaces(page);
+  await expectLightAndDarkSurfaces(page, profile.locator('.profile-identity'), pounds);
   await profile.getByRole('button', { name: 'Italiano' }).click();
   await expect(profile.getByRole('group', { name: 'Unità di peso' })).toBeVisible();
 });
@@ -2839,7 +2890,6 @@ test('complete backup preview names every restored collection', async ({ page })
     (await screen.locator('.file-picker-trigger').boundingBox())?.height,
   ).toBeGreaterThanOrEqual(48);
   await expectNarrowTouchTargets(page, screen.locator('button'));
-  await expectLightAndDarkSurfaces(page);
 
   await uploadImportFixture(page, 'complete.json', JSON.stringify(COMPLETE_BACKUP));
   const preview = screen.getByRole('region', { name: 'Import preview' });
@@ -2856,7 +2906,39 @@ test('complete backup preview names every restored collection', async ({ page })
   ])
     await expect(preview.getByRole('listitem', { name: row, exact: true })).toBeVisible();
   await expect(preview.getByRole('listitem')).toHaveCount(8);
-  await expect(preview.getByRole('button', { name: 'Restore complete backup' })).toBeVisible();
+  const restore = preview.getByRole('button', { name: 'Restore complete backup' });
+  await expect(restore).toBeVisible();
+  await expectLightAndDarkSurfaces(page, preview, restore);
+});
+
+test('an unreadable file clears the current preview without an unhandled rejection', async ({
+  page,
+}) => {
+  await openImportSurface(page);
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await uploadImportFixture(page, 'valid.json', JSON.stringify(COMPLETE_BACKUP));
+  await expect(page.getByRole('button', { name: 'Restore complete backup' })).toBeVisible();
+  await page.evaluate(() => {
+    const read = File.prototype.text;
+    File.prototype.text = function () {
+      if (this.name !== 'unreadable.json') return read.call(this);
+      File.prototype.text = read;
+      return Promise.reject(new Error('read failure'));
+    };
+  });
+
+  await uploadImportFixture(page, 'unreadable.json', '{}');
+  await expect.soft(page.getByRole('region', { name: 'Import preview' })).toHaveCount(0);
+  await expect.soft(page.getByRole('button', { name: 'Restore complete backup' })).toHaveCount(0);
+  await expect.soft(page.getByRole('alert')).toContainText('could not be read');
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect.soft(pageErrors).toEqual([]);
 });
 
 test('legacy JSON and Hevy CSV keep workout-only previews', async ({ page }) => {
@@ -2944,6 +3026,7 @@ test('restore outcomes stay truthful and busy submission stays single', async ({
   await expect(confirm).toBeDisabled();
   await expect(confirm).toHaveText('Ripristino…');
   expect((await confirm.boundingBox())?.height).toBe(height);
+  await expectLightAndDarkSurfaces(page, page.locator('.import-preview'), confirm);
   await page.evaluate(() =>
     (document as Document & { releaseRestore?: () => void }).releaseRestore?.(),
   );

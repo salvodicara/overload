@@ -225,6 +225,7 @@
     "restoring": "Restoring…",
     "importing": "Importing…",
     "invalid": "Invalid file: expected a Hevy CSV or an Overload backup.",
+    "readFailed": "This file could not be read. Choose it again or try another file.",
     "done_one": "Imported {{count}} workout",
     "done_other": "Imported {{count}} workouts",
     "backupDone": "Complete backup restored",

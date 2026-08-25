@@ -1232,7 +1232,6 @@ textarea:disabled {
 }
 
 .profile-sign-out {
-  min-height: 48px;
   margin-top: var(--space-6);
 }
 
@@ -1264,6 +1263,10 @@ textarea:disabled {
 .import-file-hint {
   margin-top: var(--space-2);
   text-align: center;
+}
+
+.import-file-error {
+  margin-top: var(--space-3);
 }
 
 .import-preview {
@@ -1301,10 +1304,6 @@ textarea:disabled {
 .import-counts span {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.import-confirm {
-  min-height: 48px;
 }
 
 @media (hover: hover) {

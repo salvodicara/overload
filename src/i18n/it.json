@@ -225,6 +225,7 @@
     "restoring": "Ripristino…",
     "importing": "Importazione…",
     "invalid": "File non valido: serve un CSV di Hevy o un backup di Overload.",
+    "readFailed": "Impossibile leggere il file. Selezionalo di nuovo o provane un altro.",
     "done_one": "Importato {{count}} allenamento",
     "done_other": "Importati {{count}} allenamenti",
     "backupDone": "Backup completo ripristinato",

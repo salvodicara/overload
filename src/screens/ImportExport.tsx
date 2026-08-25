@@ -71,12 +71,20 @@ export function ImportExport() {
   const importNotes = useStore((state) => state.importNotes);
   const saveRoutine = useStore((state) => state.saveRoutine);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const fileRequestRef = useRef(0);
 
   async function onFile(file: File): Promise<void> {
-    const text = await file.text();
+    const request = ++fileRequestRef.current;
+    setPreview(null);
+    setFileError(null);
+    let readComplete = false;
     try {
+      const text = await file.text();
+      readComplete = true;
+      if (request !== fileRequestRef.current) return;
       let incoming: Workout[];
       let unknown: string[] = [];
       let routines: Routine[] = [];
@@ -104,8 +112,10 @@ export function ImportExport() {
         : planImport(new Set(workouts.map((workout) => workout.id)), incoming);
       setPreview({ name: file.name, ...plan, unknown, routines, notes, backup });
     } catch {
+      if (request !== fileRequestRef.current) return;
       setPreview(null);
-      toast(t('import.invalid'));
+      if (readComplete) toast(t('import.invalid'));
+      else setFileError(t('import.readFailed'));
     }
   }
 
@@ -189,6 +199,11 @@ export function ImportExport() {
         </label>
       </div>
       <p className="small muted import-file-hint">{t('import.pickHint')}</p>
+      {fileError && (
+        <div className="banner banner-warn import-file-error" role="alert">
+          {fileError}
+        </div>
+      )}
 
       {preview && (
         <section
