@@ -1,3 +1,5 @@
+import type { WeightUnit } from './units';
+
 export type SetLog = {
   exerciseId: string;
   weightKg: number;
@@ -67,6 +69,7 @@ export type LegacyRoutine = {
 
 export type Settings = {
   id: 'settings';
+  unit?: WeightUnit;
   programStartDate?: string;
   locale?: 'it' | 'en';
   kcalTarget?: number;
