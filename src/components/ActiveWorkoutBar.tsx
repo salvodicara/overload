@@ -19,9 +19,10 @@ export function ActiveWorkoutBar() {
     return () => clearInterval(id);
   }, [active]);
 
-  if (!active || route.view === 'workout') return null;
+  if (!active || route.view === 'workout' || route.view === 'home') return null;
   const routine = routines.find((r) => r.id === active.routineId);
-  const fmt = (secs: number): string => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const fmt = (secs: number): string =>
+    `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
   const resting = restUntil && restUntil > Date.now();
   const shown = resting
     ? fmt(Math.ceil((restUntil - Date.now()) / 1000))

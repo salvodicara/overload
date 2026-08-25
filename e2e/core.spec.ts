@@ -822,8 +822,12 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
 
   const main = page.getByRole('main');
   const upNext = main.getByRole('region', { name: /next workout/i });
-  await expect(main.getByRole('button', { name: /^resume$/i })).toHaveCount(1);
-  await expect(main.getByRole('button', { name: /^start$/i })).toHaveCount(0);
+  const inlineResume = main
+    .getByRole('region', { name: /resume workout in progress|riprendi l'allenamento in corso/i })
+    .getByRole('button', { name: /^(resume|riprendi)$/i });
+  await expect(page.getByRole('button', { name: /(resume|riprendi)$/i })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /^(start|inizia)$/i })).toHaveCount(0);
+  await expect(inlineResume).toBeVisible();
   await expect(upNext).toContainText('Full Body B');
   await expect(upNext).toContainText('1 exercise');
   await expect(upNext.getByRole('button')).toHaveCount(0);
@@ -831,8 +835,7 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 700 });
     await expect(main.getByRole('heading', { level: 1 })).toHaveCount(1);
-    const resume = main.getByRole('button', { name: /^resume$/i });
-    const fit = await resume.evaluate((element) => {
+    const fit = await inlineResume.evaluate((element) => {
       const box = element.getBoundingClientRect();
       return {
         right: box.right,
@@ -2088,14 +2091,19 @@ test('no horizontal overflow on any tab', async ({ page }) => {
   }
 });
 
-test('active workout is reachable from any tab via the banner', async ({ page }) => {
+test('active workout is reachable from Train via exactly one persistent Resume action', async ({
+  page,
+}) => {
   await startNeutralWorkout(page);
   await page.locator('.setcheck').first().click();
-  // Minimize the workout, wander to another tab: nothing is lost.
+  // Minimize the workout, return to a non-Home tab: nothing is lost.
   await page.getByRole('button', { name: /minimize|riduci/i }).click();
-  await page.getByRole('button', { name: /^home$/i }).click();
-  await expect(page.locator('.active-bar')).toBeVisible();
-  await page.locator('.active-bar').click();
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
+  const persistentResume = page.getByRole('button', {
+    name: /full body a.*(resume|riprendi)$/i,
+  });
+  await expect(persistentResume).toHaveCount(1);
+  await persistentResume.click();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
   await expect(page.locator('.setrow.done')).toHaveCount(1);
 });
@@ -2127,7 +2135,9 @@ test('home protects an active workout until it is resumed', async ({ page }) => 
     .toEqual(activeBefore);
 });
 
-test('home content clears the active workout banner at 320px', async ({ page }) => {
+test('active Home clears fixed navigation at 320px without a persistent Resume bar', async ({
+  page,
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await startNeutralWorkout(page);
   await page.getByRole('button', { name: /minimize|riduci/i }).click();
@@ -2141,19 +2151,22 @@ test('home content clears the active workout banner at 320px', async ({ page }) 
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
     const lastSection = document.querySelector<HTMLElement>('.page > section:last-of-type');
-    const activeBar = document.querySelector<HTMLElement>('.active-bar');
-    if (!lastSection || !activeBar) throw new Error('home clearance surfaces missing');
+    const navigation = document.querySelector<HTMLElement>('nav[aria-label="Overload"]');
+    if (!lastSection || !navigation) throw new Error('home clearance surfaces missing');
     return {
       contentBottom: lastSection.getBoundingClientRect().bottom,
-      bannerTop: activeBar.getBoundingClientRect().top,
-      fixedClearance: window.innerHeight - activeBar.getBoundingClientRect().top,
+      navigationTop: navigation.getBoundingClientRect().top,
+      fixedClearance: window.innerHeight - navigation.getBoundingClientRect().top,
       rootScrollPaddingBottom: Number.parseFloat(
         getComputedStyle(document.documentElement).scrollPaddingBottom,
       ),
     };
   });
 
-  expect(bounds.contentBottom).toBeLessThanOrEqual(bounds.bannerTop);
+  await expect(page.getByRole('button', { name: /full body a.*(resume|riprendi)$/i })).toHaveCount(
+    0,
+  );
+  expect(bounds.contentBottom).toBeLessThanOrEqual(bounds.navigationTop);
   expect(bounds.rootScrollPaddingBottom).toBeGreaterThanOrEqual(bounds.fixedClearance);
 });
 
