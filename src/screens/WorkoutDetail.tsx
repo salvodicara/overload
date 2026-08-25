@@ -1,9 +1,10 @@
-import { IconBack } from '../components/Icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconBack } from '../components/Icons';
 import { exerciseName } from '../lib/exercises';
+import { kindOf, trackingOf, type SetLog, type Workout } from '../lib/types';
+import { formatWeight } from '../lib/units';
 import { continueAccountAction, useStore } from '../state/useStore';
-import type { SetLog } from '../lib/types';
 
 function fmtDate(iso: string, locale: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', {
@@ -13,95 +14,165 @@ function fmtDate(iso: string, locale: string): string {
   });
 }
 
-/** Sets bucketed per exercise, first-appearance order preserved. */
-function byExercise(sets: SetLog[]): { exerciseId: string; sets: SetLog[] }[] {
-  const out: { exerciseId: string; sets: SetLog[] }[] = [];
-  for (const s of sets) {
-    const found = out.find((g) => g.exerciseId === s.exerciseId);
-    if (found) found.sets.push(s);
-    else out.push({ exerciseId: s.exerciseId, sets: [s] });
+type ExerciseGroup = {
+  exerciseId: string;
+  sets: SetLog[];
+  notes: string[];
+};
+
+/** Completed sets and exercise observations, in their first saved appearance order. */
+function byExercise(workout: Workout): ExerciseGroup[] {
+  const groups: ExerciseGroup[] = [];
+  const groupFor = (exerciseId: string): ExerciseGroup => {
+    const existing = groups.find((group) => group.exerciseId === exerciseId);
+    if (existing) return existing;
+    const group = { exerciseId, sets: [], notes: [] };
+    groups.push(group);
+    return group;
+  };
+
+  for (const set of workout.sets) {
+    if (set.done) groupFor(set.exerciseId).sets.push(set);
   }
-  return out;
+  for (const note of workout.exerciseNotes ?? []) {
+    groupFor(note.exerciseId).notes.push(note.text);
+  }
+  return groups;
 }
 
 export function WorkoutDetail({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady } = useStore();
+  const unit = useStore((state) => state.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const deleteWorkout = useStore((s) => s.deleteWorkout);
   const [confirming, setConfirming] = useState(false);
 
-  const w = workouts.find((x) => x.id === id);
-  if (!w) {
+  const workout = workouts.find((candidate) => candidate.id === id);
+  if (!workout) {
     nav({ view: 'home' });
     return null;
   }
   void catalogReady; // re-render exercise names once the catalog resolves
 
-  const groups = byExercise(w.sets);
+  const groups = byExercise(workout);
+  const workingSetCount = workout.sets.filter(
+    (set) => set.done && kindOf(set.kind) === 'working',
+  ).length;
+
+  const setValue = (set: SetLog): string => {
+    const tracking = trackingOf(set.tracking);
+    if (tracking === 'duration') {
+      return t('history.durationSet', { seconds: set.durationSec ?? 0 });
+    }
+    if (tracking === 'reps') return t('history.repsSet', { reps: set.reps });
+    return t('history.weightRepsSet', {
+      weight: formatWeight(set.weightKg, unit, i18n.language),
+      reps: set.reps,
+    });
+  };
+
+  const setGroup = (sets: SetLog[], kind: 'warmup' | 'working') => {
+    if (sets.length === 0) return null;
+    const heading = kind === 'warmup' ? t('history.warmupSets') : t('history.workingSets');
+    return (
+      <section style={{ marginTop: 10 }}>
+        <h3 className="mono small muted">{heading}</h3>
+        <div className="stack" style={{ gap: 4, marginTop: 4 }}>
+          {sets.map((set, index) => (
+            <div
+              key={index}
+              className="row mono small"
+              aria-label={t(kind === 'warmup' ? 'history.warmupSet' : 'history.workingSet', {
+                n: index + 1,
+              })}
+            >
+              <span className="muted" style={{ minWidth: 18 }}>
+                {kind === 'warmup' ? 'W' : index + 1}
+              </span>
+              <span>· {setValue(set)}</span>
+              {set.isPr && (
+                <span style={{ color: 'var(--good)', fontWeight: 700 }}>{t('history.pr')}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <div className="screen">
-      <div className="row" style={{ padding: '14px 0 10px' }}>
+      <header className="row" style={{ padding: '14px 0 10px' }}>
         <button className="iconbtn" aria-label={t('common.back')} onClick={() => history.back()}>
           <IconBack />
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="mono small muted">{fmtDate(w.date, i18n.language)}</div>
-          <div
+          <div className="mono small muted">{fmtDate(workout.date, i18n.language)}</div>
+          <h1
             className="display"
-            style={{ fontSize: 22, color: w.dayLabel ? undefined : 'var(--muted)' }}
+            style={{ fontSize: 22, color: workout.dayLabel ? undefined : 'var(--muted)' }}
           >
-            {w.dayLabel ?? '-'}
-          </div>
+            {workout.dayLabel ?? t('nav.workout')}
+          </h1>
         </div>
-      </div>
+      </header>
 
       <div className="card card-pad spread">
         <div>
           <div className="mono small muted">{t('summary.volume')}</div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-            {Math.round(w.volumeKg).toLocaleString(i18n.language)}
+            {Math.round(workout.volumeKg).toLocaleString(i18n.language)}
           </div>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <span className="chip">{t('history.sets', { n: w.sets.length })}</span>
-          {w.source !== 'app' && <span className="chip">{t('history.imported')}</span>}
+          <span className="chip">{t('history.workingSetCount', { count: workingSetCount })}</span>
+          {workout.source !== 'app' && <span className="chip">{t('history.imported')}</span>}
         </div>
       </div>
 
       <div className="stack" style={{ marginTop: 12 }}>
-        {groups.map((g) => (
-          <div key={g.exerciseId} className="card card-pad">
-            <button
-              style={{ fontWeight: 700, fontSize: 16, textAlign: 'left' }}
-              onClick={() => nav({ view: 'exercise', id: g.exerciseId })}
-            >
-              {exerciseName(g.exerciseId, i18n.language)}
-            </button>
-            <div className="stack" style={{ gap: 4, marginTop: 8 }}>
-              {g.sets.map((s, i) => (
-                <div key={i} className="row mono small">
-                  <span className="muted" style={{ minWidth: 18 }}>
-                    {i + 1}
-                  </span>
-                  <span>
-                    · {s.weightKg.toLocaleString(i18n.language)} {t('workout.kg')} × {s.reps}
-                  </span>
-                  {s.isPr && (
-                    <span style={{ color: 'var(--good)', fontWeight: 700 }}>{t('history.pr')}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
+        {groups.map((group) => {
+          const warmups = group.sets.filter((set) => kindOf(set.kind) === 'warmup');
+          const working = group.sets.filter((set) => kindOf(set.kind) === 'working');
+          return (
+            <section key={group.exerciseId} className="card card-pad">
+              <h2 style={{ fontSize: 16 }}>
+                <button
+                  style={{ minHeight: 44, fontWeight: 700, textAlign: 'left' }}
+                  onClick={() => nav({ view: 'exercise', id: group.exerciseId })}
+                >
+                  {exerciseName(group.exerciseId, i18n.language)}
+                </button>
+              </h2>
+              {setGroup(warmups, 'warmup')}
+              {setGroup(working, 'working')}
+              {group.notes.length > 0 && (
+                <section style={{ marginTop: 12 }}>
+                  <h3 className="mono small muted">{t('notes.session')}</h3>
+                  <div className="stack" style={{ gap: 6, marginTop: 4 }}>
+                    {group.notes.map((text, index) => (
+                      <p key={index} className="small">
+                        {text}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </section>
+          );
+        })}
       </div>
 
-      {w.note && (
-        <div className="card card-pad small muted" style={{ marginTop: 12 }}>
-          {w.note}
-        </div>
+      {workout.note && (
+        <section className="card card-pad" style={{ marginTop: 12 }}>
+          <h2 className="mono small muted">
+            {t(workout.source === 'app' ? 'history.overallNote' : 'history.importedWorkoutNote')}
+          </h2>
+          <p className="small" style={{ marginTop: 4 }}>
+            {workout.note}
+          </p>
+        </section>
       )}
 
       <button
@@ -120,7 +191,7 @@ export function WorkoutDetail({ id }: { id: string }) {
             <button
               className="btn btn-danger btn-block"
               onClick={() => {
-                void continueAccountAction(deleteWorkout(w.id), () => nav({ view: 'home' }));
+                void continueAccountAction(deleteWorkout(workout.id), () => nav({ view: 'home' }));
               }}
             >
               {t('history.deleteConfirm')}

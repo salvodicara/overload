@@ -254,6 +254,236 @@ async function setStoredLocale(page: Page, locale: 'it' | 'en'): Promise<void> {
   await page.reload();
 }
 
+type StoredWorkoutJournalFact = {
+  id: string;
+  startTs: number;
+  squatNote: string | null;
+};
+
+async function finishWithSessionNote(page: Page, text: string): Promise<void> {
+  await startNeutralWorkout(page);
+  await page
+    .getByRole('button', { name: /^this session|^questa sessione/i })
+    .first()
+    .click();
+  await page.getByLabel(/^this session|^questa sessione/i).fill(text);
+  await completeAndFinishOneSet(page);
+}
+
+async function createTwoSameDayWorkoutNotes(
+  page: Page,
+  first: string,
+  second: string,
+): Promise<void> {
+  await finishWithSessionNote(page, first);
+  await finishWithSessionNote(page, second);
+}
+
+async function openExerciseDetail(
+  page: Page,
+  query = 'squat',
+  name: RegExp = /^(barbell squat legs|squat con bilanciere gambe)$/i,
+): Promise<void> {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await page.getByRole('searchbox').fill(query);
+  await page.getByRole('button', { name }).first().click();
+}
+
+async function readStoredWorkoutJournalFacts(page: Page): Promise<StoredWorkoutJournalFact[]> {
+  return page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    try {
+      const records = await new Promise<
+        Array<{
+          id: string;
+          startTs: number;
+          exerciseNotes?: Array<{ exerciseId: string; text: string }>;
+        }>
+      >((resolve, reject) => {
+        const request = database
+          .transaction('workouts', 'readonly')
+          .objectStore('workouts')
+          .getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      return records.map((record) => ({
+        id: record.id,
+        startTs: record.startTs,
+        squatNote:
+          record.exerciseNotes?.find((note) => note.exerciseId === 'Barbell_Squat')?.text ?? null,
+      }));
+    } finally {
+      database.close();
+    }
+  });
+}
+
+async function installCompletedWorkoutFixture(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        try {
+          const routine = await new Promise<unknown>((resolve, reject) => {
+            const request = database
+              .transaction('routines', 'readonly')
+              .objectStore('routines')
+              .get('full-body-a');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+          return Boolean(routine);
+        } finally {
+          database.close();
+        }
+      }),
+    )
+    .toBe(true);
+
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(['workouts', 'notes', 'settings'], 'readwrite');
+        transaction.objectStore('settings').put({
+          id: 'settings',
+          locale: 'en',
+          unit: 'lb',
+          updatedAt: 400,
+        });
+        transaction.objectStore('notes').put({
+          id: 'Barbell_Squat',
+          technique: 'Brace and drive',
+          entries: [{ date: '2026-08-23', text: 'Legacy import' }],
+          updatedAt: 400,
+        });
+        transaction.objectStore('workouts').put({
+          id: 'newest-detail',
+          routineId: 'full-body-a',
+          dayLabel: 'Full Body A',
+          date: '2026-08-25',
+          startTs: 100,
+          endTs: 1_000,
+          sets: [
+            {
+              exerciseId: 'Barbell_Squat',
+              weightKg: 20,
+              reps: 5,
+              done: true,
+              kind: 'warmup',
+              tracking: 'weight_reps',
+            },
+            { exerciseId: 'Barbell_Squat', weightKg: 50, reps: 8, done: true },
+            {
+              exerciseId: 'Hanging_Leg_Raise',
+              weightKg: 0,
+              reps: 4,
+              done: true,
+              kind: 'warmup',
+              tracking: 'reps',
+            },
+            {
+              exerciseId: 'Hanging_Leg_Raise',
+              weightKg: 0,
+              reps: 12,
+              done: true,
+              kind: 'working',
+              tracking: 'reps',
+            },
+            {
+              exerciseId: 'Plank',
+              weightKg: 0,
+              reps: 0,
+              durationSec: 15,
+              done: true,
+              kind: 'warmup',
+              tracking: 'duration',
+            },
+            {
+              exerciseId: 'Plank',
+              weightKg: 0,
+              reps: 0,
+              durationSec: 35,
+              done: true,
+              kind: 'working',
+              tracking: 'duration',
+            },
+          ],
+          volumeKg: 300,
+          note: 'Imported coach note',
+          exerciseNotes: [
+            { exerciseId: 'Barbell_Squat', text: 'Linked observation' },
+            { exerciseId: 'Face_Pull', text: 'No-set observation' },
+          ],
+          updatedAt: 400,
+          source: 'hevy',
+        });
+        transaction.objectStore('workouts').put({
+          id: 'chronologically-latest',
+          routineId: 'full-body-a',
+          dayLabel: 'Full Body A',
+          date: '2026-08-24',
+          startTs: 200,
+          endTs: 1_000,
+          sets: [
+            {
+              exerciseId: 'Barbell_Squat',
+              weightKg: 40,
+              reps: 6,
+              done: true,
+              kind: 'working',
+              tracking: 'weight_reps',
+            },
+          ],
+          volumeKg: 100,
+          exerciseNotes: [{ exerciseId: 'Barbell_Squat', text: 'Older observation' }],
+          updatedAt: 200,
+          source: 'app',
+        });
+        transaction.objectStore('workouts').put({
+          id: 'collection-first',
+          routineId: 'full-body-a',
+          dayLabel: 'Full Body A',
+          date: '2026-08-25',
+          startTs: 50,
+          endTs: 1_000,
+          sets: [
+            {
+              exerciseId: 'Dumbbell_Bench_Press',
+              weightKg: 30,
+              reps: 10,
+              done: true,
+              kind: 'working',
+              tracking: 'weight_reps',
+            },
+          ],
+          volumeKg: 300,
+          updatedAt: 50,
+          source: 'app',
+        });
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => resolve();
+      });
+    } finally {
+      database.close();
+    }
+  });
+  await page.reload();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -840,10 +1070,12 @@ test('technique persists globally and session notes stay on their workouts', asy
   await session.click();
   await expect(session).toHaveAttribute('aria-expanded', 'true');
   expect(
-    await page.getByRole('textbox', { name: /^this session|^questa sessione/i }).evaluate((editor) => {
-      const labelId = editor.getAttribute('aria-labelledby');
-      return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
-    }),
+    await page
+      .getByRole('textbox', { name: /^this session|^questa sessione/i })
+      .evaluate((editor) => {
+        const labelId = editor.getAttribute('aria-labelledby');
+        return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
+      }),
   ).toBe('This session');
   await page.getByLabel(/^this session|^questa sessione/i).fill('First session');
   await expect
@@ -914,6 +1146,164 @@ test('technique persists globally and session notes stay on their workouts', asy
   expect(
     sessionNotes.filter((text) => text === 'First session' || text === 'Second session'),
   ).toHaveLength(2);
+});
+
+for (const locale of ['it', 'en'] as const) {
+  test(`exercise journal links session observations to distinct workouts (${locale})`, async ({
+    page,
+  }) => {
+    await setStoredLocale(page, locale);
+    await createTwoSameDayWorkoutNotes(page, 'First session', 'Second session');
+
+    const workouts = (await readStoredWorkoutJournalFacts(page)).filter(
+      (workout) => workout.squatNote !== null,
+    );
+    expect(workouts).toHaveLength(2);
+    expect(new Set(workouts.map((workout) => workout.id)).size).toBe(2);
+    expect(new Set(workouts.map((workout) => workout.startTs)).size).toBe(2);
+    expect(workouts.map((workout) => workout.squatNote)).toEqual(
+      expect.arrayContaining(['First session', 'Second session']),
+    );
+
+    await openExerciseDetail(page);
+    await expect(
+      page.getByRole('heading', {
+        name: locale === 'it' ? 'Squat con bilanciere' : 'Barbell Squat',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText('First session', { exact: true })).toBeVisible();
+    const secondSession = page.getByRole('button', { name: /Second session/ });
+    await expect(secondSession).toBeVisible();
+    expect(
+      await secondSession.evaluate((button) => button.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(44);
+    await secondSession.click();
+    await expect(page.getByRole('heading', { name: 'Full Body A', exact: true })).toBeVisible();
+    await expect(page.getByText('Second session', { exact: true })).toBeVisible();
+    await expect(page.getByText('First session', { exact: true })).toHaveCount(0);
+  });
+}
+
+test('exercise journal links truthful tracking, legacy and note-only workout records', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openExerciseDetail(page);
+
+  await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /latest working performance.*lb/i }),
+  ).toBeVisible();
+  await expect(page.getByText('110.2 × 8', { exact: true })).toBeVisible();
+  await expect(page.getByText('44.1 × 5', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Technique', exact: true })).toBeVisible();
+  const technique = page.getByRole('button', { name: /^technique/i });
+  expect(
+    await technique.evaluate((button) => button.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(44);
+  await technique.click();
+  const techniqueEditor = page.getByRole('textbox', { name: /^technique/i });
+  await expect(techniqueEditor).toHaveValue('Brace and drive');
+  await expect(techniqueEditor).toBeFocused();
+  await page.keyboard.press('Tab');
+  const techniqueDone = page.getByRole('button', { name: 'Done', exact: true });
+  await expect(techniqueDone).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(technique).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('heading', { name: 'Journal', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Linked observation/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Older observation/ })).toBeVisible();
+  await expect(page.getByText('Legacy import', { exact: true })).toBeVisible();
+  expect(
+    await page
+      .getByText('Legacy import', { exact: true })
+      .evaluate((entry) => entry.closest('button') === null),
+  ).toBe(true);
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(
+      await page
+        .getByRole('button', { name: /Linked observation/ })
+        .evaluate((button) => button.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(44);
+  }
+
+  await page.getByRole('button', { name: /Linked observation/ }).click();
+  await expect(page.getByRole('heading', { name: 'Full Body A', exact: true })).toBeVisible();
+  const squat = page.locator('section.card').filter({
+    has: page.getByRole('heading', { name: 'Barbell Squat', exact: true }),
+  });
+  await expect(squat.getByRole('heading', { name: 'Warm-up sets' })).toBeVisible();
+  await expect(squat.getByLabel('Warm-up set 1', { exact: true })).toContainText(
+    /W\s*· 44\.1 lb × 5 reps/,
+  );
+  await expect(squat.getByRole('heading', { name: 'Working sets' })).toBeVisible();
+  await expect(squat.getByLabel('Working set 1', { exact: true })).toContainText(
+    /1\s*· 110\.2 lb × 8 reps/,
+  );
+
+  const repetitions = page.locator('section.card').filter({
+    has: page.getByRole('heading', { name: 'Hanging Leg Raise', exact: true }),
+  });
+  await expect(repetitions.getByLabel('Warm-up set 1', { exact: true })).toContainText(
+    /W\s*· 4 reps/,
+  );
+  await expect(repetitions.getByLabel('Working set 1', { exact: true })).toContainText(
+    /1\s*· 12 reps/,
+  );
+  const duration = page.locator('section.card').filter({
+    has: page.getByRole('heading', { name: 'Plank', exact: true }),
+  });
+  await expect(duration.getByLabel('Warm-up set 1', { exact: true })).toContainText(
+    /W\s*· 15 seconds/,
+  );
+  await expect(duration.getByLabel('Working set 1', { exact: true })).toContainText(
+    /1\s*· 35 seconds/,
+  );
+
+  const noteOnly = page.locator('section.card').filter({ hasText: 'Face Pull' });
+  await expect(noteOnly.getByRole('heading', { name: 'This session' })).toBeVisible();
+  await expect(noteOnly.getByText('No-set observation', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Imported workout note' })).toBeVisible();
+  await expect(page.getByText('Imported coach note', { exact: true })).toBeVisible();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(
+      await page
+        .getByRole('button', { name: 'Barbell Squat', exact: true })
+        .evaluate((button) => button.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(44);
+  }
+
+  await openExerciseDetail(page, 'hanging leg raise', /hanging leg raise/i);
+  await expect(page.getByRole('heading', { name: 'Hanging Leg Raise', exact: true })).toBeVisible();
+  await expect(page.getByText('12 reps', { exact: true })).toBeVisible();
+  await openExerciseDetail(page, 'plank', /^plank core$/i);
+  await expect(page.getByRole('heading', { name: 'Plank', exact: true })).toBeVisible();
+  await expect(page.getByText('35 seconds', { exact: true })).toBeVisible();
+});
+
+test('exercise journal links summary working metrics to chronological history', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await installAdaptiveWorkoutFixture(page);
+  await startNeutralWorkout(page);
+
+  const squat = page.locator('.exercise-block').first();
+  await squat.getByLabel(/set 2 load.*lb/i).fill('100');
+  await squat.getByLabel(/set 2 reps/i).fill('8');
+  await squat.getByRole('button', { name: /^set 1$/i }).click();
+  await squat.getByRole('button', { name: /^set 2$/i }).click();
+  await page.getByRole('button', { name: /finish workout/i }).click();
+
+  await expect(page.locator('.summary-pop .mono.small.muted')).toContainText('1 working set');
+  await expect(page.getByText('+263 kg vs your last Full Body A', { exact: true })).toBeVisible();
+  await expect(page.getByText('363', { exact: true })).toBeVisible();
 });
 
 test('mid-workout rest tweak can update the routine', async ({ page }) => {

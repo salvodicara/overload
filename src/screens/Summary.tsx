@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { exerciseName } from '../lib/exercises';
+import { kindOf } from '../lib/types';
 import { useStore } from '../state/useStore';
 
 export function Summary({ workoutId }: { workoutId: string }) {
@@ -14,11 +15,22 @@ export function Summary({ workoutId }: { workoutId: string }) {
     nav({ view: 'home' });
     return null;
   }
-  const prev = workouts.find(
-    (x) => x.id !== w.id && x.source === 'app' && x.dayLabel === w.dayLabel && x.date <= w.date,
-  );
+  const prev = workouts
+    .filter(
+      (candidate) =>
+        candidate.id !== w.id &&
+        candidate.source === 'app' &&
+        candidate.dayLabel === w.dayLabel &&
+        candidate.startTs < w.startTs,
+    )
+    .reduce<(typeof workouts)[number] | null>(
+      (latest, candidate) =>
+        latest === null || candidate.startTs > latest.startTs ? candidate : latest,
+      null,
+    );
   const diff = prev ? Math.round(w.volumeKg - prev.volumeKg) : null;
   const prs = [...new Set(w.sets.filter((s) => s.isPr).map((s) => s.exerciseId))];
+  const workingSetCount = w.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
   const mins = w.endTs ? Math.max(1, Math.round((w.endTs - w.startTs) / 60000)) : 0;
 
   return (
@@ -27,17 +39,24 @@ export function Summary({ workoutId }: { workoutId: string }) {
         <div className="display" style={{ fontSize: 40 }}>
           {t('summary.title')}
         </div>
-        <div className="display" style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}>
+        <div
+          className="display"
+          style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}
+        >
           {Math.round(w.volumeKg).toLocaleString(i18n.language)}
         </div>
         <div className="muted">{t('summary.volume')}</div>
         <div className="mono small muted" style={{ marginTop: 8 }}>
-          {t('summary.sets', { n: w.sets.length })} · {t('summary.duration', { min: mins })}
+          {t('summary.workingSetCount', { count: workingSetCount })} ·{' '}
+          {t('summary.duration', { min: mins })}
         </div>
       </div>
 
       {diff !== null && (
-        <div className={`banner ${diff >= 0 ? 'banner-good' : 'banner-warn'}`} style={{ textAlign: 'center', marginTop: 14 }}>
+        <div
+          className={`banner ${diff >= 0 ? 'banner-good' : 'banner-warn'}`}
+          style={{ textAlign: 'center', marginTop: 14 }}
+        >
           {t(diff >= 0 ? 'summary.vsLastUp' : 'summary.vsLastDown', {
             diff: Math.abs(diff).toLocaleString(i18n.language),
             day: w.dayLabel ?? '',
@@ -47,7 +66,11 @@ export function Summary({ workoutId }: { workoutId: string }) {
 
       <div className="stack" style={{ marginTop: 14 }}>
         {prs.map((id, i) => (
-          <div key={id} className="banner banner-good" style={{ animationDelay: `${0.12 + i * 0.07}s` }}>
+          <div
+            key={id}
+            className="banner banner-good"
+            style={{ animationDelay: `${0.12 + i * 0.07}s` }}
+          >
             {t('summary.pr', { exercise: exerciseName(id, i18n.language) })}
           </div>
         ))}
@@ -60,7 +83,11 @@ export function Summary({ workoutId }: { workoutId: string }) {
             {t('summary.updateRoutineBody', { n: pending.items.length })}
           </span>
           <div className="row">
-            <button className="btn btn-accent" style={{ flex: 1 }} onClick={() => void applyRoutineChanges()}>
+            <button
+              className="btn btn-accent"
+              style={{ flex: 1 }}
+              onClick={() => void applyRoutineChanges()}
+            >
               {t('summary.updateRoutineYes')}
             </button>
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={dismissRoutineChanges}>
@@ -70,7 +97,11 @@ export function Summary({ workoutId }: { workoutId: string }) {
         </div>
       )}
 
-      <button className="btn btn-solid btn-block btn-big" style={{ marginTop: 24 }} onClick={() => nav({ view: 'home' })}>
+      <button
+        className="btn btn-solid btn-block btn-big"
+        style={{ marginTop: 24 }}
+        onClick={() => nav({ view: 'home' })}
+      >
         {t('summary.home')}
       </button>
     </div>
