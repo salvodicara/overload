@@ -34,7 +34,6 @@ export default defineConfig({
             options: {
               cacheName: 'exercise-data',
               cacheableResponse: { statuses: [200] },
-              expiration: { maxEntries: 2 },
             },
           },
           {

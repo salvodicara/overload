@@ -3157,6 +3157,69 @@ test('workout in progress survives reload', async ({ page }) => {
   await expect(page.locator('.setrow.done')).toHaveCount(1);
 });
 
+test('hydrated custom exercises stay searchable and usable without the public catalog', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.addInitScript(() => {
+    Object.defineProperty(window, 'requestIdleCallback', {
+      configurable: true,
+      value: () => 1,
+    });
+    Object.defineProperty(window, 'cancelIdleCallback', {
+      configurable: true,
+      value: () => undefined,
+    });
+  });
+  let releaseCatalog!: () => void;
+  const catalogAllowed = new Promise<void>((resolve) => {
+    releaseCatalog = resolve;
+  });
+  let attempts = 0;
+  await context.route('**/data/exercises.json', async (route) => {
+    attempts += 1;
+    if (attempts === 1) await catalogAllowed;
+    await route.fulfill({ status: 503, contentType: 'application/json', body: '[]' });
+  });
+  const pageErrors: string[] = [];
+  const coldPage = await context.newPage();
+  coldPage.on('pageerror', (error) => pageErrors.push(error.message));
+  try {
+    await coldPage.goto('/');
+    await putStoredRow(coldPage, 'customExercises', {
+      id: 'custom:offline-carry',
+      name: 'Offline carry',
+      muscleGroup: 'back',
+      updatedAt: 1,
+    });
+    await coldPage.reload();
+    await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
+
+    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await expect.poll(() => attempts).toBe(1);
+    await coldPage.getByRole('button', { name: 'Back', exact: true }).click();
+    await coldPage.getByRole('searchbox', { name: 'Search exercises' }).fill('Offline carry');
+    const customExercise = coldPage.getByRole('button', { name: 'Offline carry Back' });
+    await expect(customExercise).toBeVisible();
+    await expect(coldPage.getByText('No exercises found')).toHaveCount(0);
+
+    await customExercise.click();
+    await expect(
+      coldPage.getByRole('heading', { name: 'Latest working performance · kg' }),
+    ).toBeVisible();
+    await expect(coldPage.locator('.exercise-detail__loading')).toHaveCount(0);
+
+    releaseCatalog();
+    await expect.poll(() => attempts).toBe(2);
+    await expect(coldPage.getByRole('heading', { name: 'Offline carry' })).toBeVisible();
+    await expect(coldPage.getByRole('button', { name: 'Technique' })).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  } finally {
+    releaseCatalog();
+    await context.close();
+  }
+});
+
 test('cold empty screens defer the catalog until idle or first dependent use', async ({
   browser,
 }) => {

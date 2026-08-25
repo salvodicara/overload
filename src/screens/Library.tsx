@@ -106,7 +106,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   }, [group, query]);
 
   const results = useMemo(
-    () => (catalogReady ? searchExercises(query, group, i18n.language) : []),
+    () => searchExercises(query, group, i18n.language),
     [catalogReady, query, group, i18n.language],
   );
   const shown = results.slice(0, MAX_RESULTS);
@@ -241,7 +241,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
         </div>
       )}
 
-      {!catalogReady ? (
+      {!catalogReady && shown.length === 0 ? (
         <div className="library-loading" role="status" aria-label={t('library.loading')}>
           {Array.from({ length: 6 }, (_, index) => (
             <div key={index} className="library-result library-result--skeleton" aria-hidden="true">

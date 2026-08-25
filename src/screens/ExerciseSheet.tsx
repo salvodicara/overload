@@ -51,7 +51,7 @@ export function ExerciseSheet({ id }: { id: string }) {
     };
   }, [isIt]);
 
-  const ex = catalogReady ? getCatalog().get(id) : undefined;
+  const ex = getCatalog().get(id);
   const name = ex ? (isIt ? ex.nameIt : ex.nameEn) : exerciseName(id, i18n.language);
   const altName = ex ? (isIt ? ex.nameEn : ex.nameIt) : '';
   const note = notes.find((item) => item.id === id);
@@ -86,7 +86,7 @@ export function ExerciseSheet({ id }: { id: string }) {
     }
   }
 
-  if (!catalogReady) {
+  if (!catalogReady && !ex) {
     return (
       <div className="screen exercise-detail">
         <PageHeader
