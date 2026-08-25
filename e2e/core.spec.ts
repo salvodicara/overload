@@ -958,6 +958,33 @@ test('app shell exposes landmarks and skip navigation', async ({ page }) => {
 
   await page.keyboard.press('Enter');
   await expect(main).toBeFocused();
+  expect(
+    await main.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2;
+    }),
+  ).toBe(true);
+});
+
+test('browser chrome theme follows the app surface in light and dark modes', async ({ page }) => {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    expect(
+      await page.evaluate(() => {
+        const theme = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
+          .find((meta) => !meta.media || matchMedia(meta.media).matches)
+          ?.content.toLowerCase();
+        const surface = getComputedStyle(document.documentElement)
+          .getPropertyValue('--bg')
+          .trim()
+          .toLowerCase();
+        return { surface, theme };
+      }),
+    ).toEqual({
+      surface: colorScheme === 'light' ? '#f2f3f0' : '#0c0e10',
+      theme: colorScheme === 'light' ? '#f2f3f0' : '#0c0e10',
+    });
+  }
 });
 
 test('document language starts in Italian and follows the selected locale', async ({
@@ -1177,6 +1204,32 @@ test('routine preparation and exercise settings remain editable', async ({ page 
     'offsetHeight',
     48,
   );
+});
+
+test('routine editor formats journal dates and keeps labels readable on narrow screens', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openNeutralRoutineEditor(page);
+
+  await expect(page.getByText(/Journal 23 Aug · Legacy import/i)).toBeVisible();
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const labelSizes = await page
+      .locator('.card details label > span.mono.muted')
+      .evaluateAll((labels) =>
+        labels.map((label) => Number.parseFloat(getComputedStyle(label).fontSize)),
+      );
+    expect(labelSizes.length).toBeGreaterThan(0);
+    expect(
+      labelSizes.every((fontSize) => fontSize >= 12),
+      JSON.stringify(labelSizes),
+    ).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+  }
 });
 
 test('routine editor serializes rapid prescription edits before starting', async ({ page }) => {
@@ -1508,6 +1561,14 @@ test('active workout adapts rows without shifting working previous values', asyn
   const timed = blocks.nth(2);
 
   await expect(weighted.locator('.set-row')).toHaveCount(3);
+  const firstWorkingRow = weighted.getByRole('group', {
+    name: 'Set 2 for Barbell Squat',
+  });
+  await expect(firstWorkingRow).toBeVisible();
+  await expect(firstWorkingRow.locator('.set-previous')).toHaveAttribute(
+    'aria-label',
+    'Set 2 previous: 88.2 × 8',
+  );
   const warmupKind = weighted.locator('.set-kind-toggle').first();
   await expect(warmupKind).toHaveText('W');
   await expect(weighted.locator('.set-previous')).toHaveText(['—', '88.2 × 8', '99.2 × 6']);
@@ -2609,6 +2670,10 @@ test('exercise journal links summary working metrics to chronological history', 
   await squat.getByRole('button', { name: /^set 2$/i }).click();
   await page.getByRole('button', { name: /finish workout/i }).click();
 
+  await expect(page.locator('.route-fallback')).toHaveCount(0);
+  const summaryTitle = page.locator('.summary-pop').getByText('Done.', { exact: true });
+  await expect(summaryTitle).toHaveRole('heading');
+  await expect(summaryTitle).toHaveJSProperty('tagName', 'H1');
   await expect(page.locator('.summary-pop .mono.small.muted')).toContainText('1 working set');
   await expect(page.getByText('+579.5 lb vs your last Full Body A', { exact: true })).toBeVisible();
   await expect(page.getByText('800', { exact: true })).toBeVisible();

@@ -351,12 +351,17 @@ export function Workout() {
                   const isWarmup = set.kind === 'warmup';
                   const workingNumber = workingIndex + 1;
                   const previous = isWarmup ? undefined : priorWorkingSets[workingIndex];
+                  const previousValue = previous
+                    ? formatPreviousSet(previous, exercise.tracking, unit)
+                    : t('workout.noPrevious');
                   if (!isWarmup) workingIndex += 1;
                   const setNumber = setIndex + 1;
                   return (
                     <div
                       key={setIndex}
                       className={`set-grid set-row setrow${set.done ? ' done' : ''}`}
+                      role="group"
+                      aria-label={t('workout.setRow', { set: setNumber, exercise: name })}
                     >
                       <button
                         className="set-kind-toggle mono"
@@ -370,8 +375,14 @@ export function Workout() {
                       >
                         {isWarmup ? 'W' : workingNumber}
                       </button>
-                      <span className="set-previous mono">
-                        {previous ? formatPreviousSet(previous, exercise.tracking, unit) : '—'}
+                      <span
+                        className="set-previous mono"
+                        aria-label={t('workout.previousValue', {
+                          set: setNumber,
+                          value: previousValue,
+                        })}
+                      >
+                        {previous ? previousValue : '—'}
                       </span>
                       {exercise.tracking === 'weight_reps' && (
                         <input

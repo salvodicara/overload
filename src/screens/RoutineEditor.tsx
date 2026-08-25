@@ -5,6 +5,7 @@ import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
+import { fmtDate } from '../lib/format';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
 import {
@@ -31,7 +32,7 @@ function NumField({
 }) {
   return (
     <label className="stack" style={{ gap: 3 }}>
-      <span className="mono muted" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
+      <span className="mono muted" style={{ fontSize: 'var(--text-xs)', letterSpacing: '0.06em' }}>
         {label}
       </span>
       <input
@@ -276,7 +277,10 @@ export function RoutineEditor({ id }: { id: string }) {
                   {t('editor.settings')}
                 </summary>
                 <label className="stack" style={{ gap: 3 }}>
-                  <span className="mono muted" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
+                  <span
+                    className="mono muted"
+                    style={{ fontSize: 'var(--text-xs)', letterSpacing: '0.06em' }}
+                  >
                     {t('editor.tracking')}
                   </span>
                   <select
@@ -447,7 +451,7 @@ export function RoutineEditor({ id }: { id: string }) {
                   style={{ textAlign: 'left', padding: '2px 0', width: '100%', minHeight: 44 }}
                   onClick={() => nav({ view: 'exercise', id: rx.exerciseId })}
                 >
-                  {t('editor.journalLatest')} {note.entries.at(-1)?.date} ·{' '}
+                  {t('editor.journalLatest')} {fmtDate(note.entries.at(-1)!.date, i18n.language)} ·{' '}
                   {note.entries.at(-1)?.text}
                 </button>
               )}

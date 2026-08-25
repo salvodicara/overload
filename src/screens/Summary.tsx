@@ -41,9 +41,9 @@ export function Summary({ workoutId }: { workoutId: string }) {
   return (
     <div className="screen">
       <div className="summary-pop" style={{ textAlign: 'center', padding: '56px 0 8px' }}>
-        <div className="display" style={{ fontSize: 40 }}>
+        <h1 className="display" style={{ fontSize: 40 }}>
           {t('summary.title')}
-        </div>
+        </h1>
         <div
           className="display"
           style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}
