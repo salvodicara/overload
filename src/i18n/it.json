@@ -250,7 +250,11 @@
     "placeholder": "Nota per la prossima volta (sedile, presa, sensazioni)…",
     "save": "Salva nota",
     "title": "Note",
-    "history": "storico note ({{n}})"
+    "history": "storico note ({{n}})",
+    "technique": "Tecnica",
+    "techniquePlaceholder": "Indicazioni da mantenere in ogni allenamento…",
+    "session": "Questa sessione",
+    "sessionPlaceholder": "Com'è andato questo esercizio oggi…"
   },
   "body": {
     "weight": "Peso",

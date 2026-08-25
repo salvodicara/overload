@@ -250,7 +250,11 @@
     "placeholder": "Note for next time (seat, grip, cues)…",
     "save": "Save note",
     "title": "Notes",
-    "history": "note history ({{n}})"
+    "history": "note history ({{n}})",
+    "technique": "Technique",
+    "techniquePlaceholder": "Cues to keep for every workout…",
+    "session": "This session",
+    "sessionPlaceholder": "How this exercise felt today…"
   },
   "body": {
     "weight": "Weight",

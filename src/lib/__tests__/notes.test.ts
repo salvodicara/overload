@@ -11,6 +11,7 @@ import { db, saveNote, saveRoutine } from '../db';
 import { exerciseJournal, routineTechniqueMigrations } from '../notes';
 import type { ExerciseNote, Routine, Workout } from '../types';
 import { useStore } from '../../state/useStore';
+import workoutSource from '../../screens/Workout.tsx?raw';
 
 const routineWith = (exerciseId: string, note: string): Routine => ({
   id: crypto.randomUUID(),
@@ -201,7 +202,14 @@ describe('note persistence', () => {
   });
 
   it('stores only non-empty trimmed session notes on the finished workout', async () => {
+    const legacy: ExerciseNote = {
+      id: 'bench',
+      entries: [{ date: '2026-08-25', text: 'Imported legacy note' }],
+      updatedAt: 1,
+    };
+    await saveNote(legacy);
     useStore.setState({
+      notes: [legacy],
       active: {
         routineId: 'routine',
         startTs: 1,
@@ -210,7 +218,6 @@ describe('note persistence', () => {
             exerciseId: 'bench',
             tracking: 'weight_reps',
             hintKey: 'suggest.start',
-            sessionNote: '  Shoulder fine  ',
             sets: [
               {
                 weightKg: 60,
@@ -240,11 +247,25 @@ describe('note persistence', () => {
       },
     });
 
+    useStore.getState().updateSessionNote(0, '  Shoulder fine  ');
+
     const workout = await useStore.getState().finishWorkout();
 
     expect(workout?.exerciseNotes).toEqual([{ exerciseId: 'bench', text: 'Shoulder fine' }]);
     expect((await db.workouts.get(workout?.id ?? ''))?.exerciseNotes).toEqual([
       { exerciseId: 'bench', text: 'Shoulder fine' },
     ]);
+    expect(useStore.getState().notes).toEqual([legacy]);
+    expect(await db.notes.get('bench')).toEqual(legacy);
+  });
+});
+
+describe('active Workout note API contract', () => {
+  it('uses Technique and This session actions without the legacy dated-entry action', () => {
+    expect(workoutSource).not.toContain('addNoteEntry');
+    expect(workoutSource).toContain('saveTechniqueNote');
+    expect(workoutSource).toContain('updateSessionNote');
+    expect(workoutSource).toContain('note?.technique');
+    expect(workoutSource).toContain('e.sessionNote');
   });
 });
