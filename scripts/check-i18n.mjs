@@ -5,6 +5,21 @@ const keys = (obj, prefix = '') =>
   Object.entries(obj).flatMap(([k, v]) =>
     typeof v === 'object' && v !== null ? keys(v, `${prefix}${k}.`) : [`${prefix}${k}`],
   );
+const flatValues = (obj) =>
+  Object.values(obj).flatMap((value) =>
+    typeof value === 'object' && value !== null ? flatValues(value) : [String(value)],
+  );
+const forbidden = /\b(bulk|massa|surplus|whey)\b/i;
+for (const [locale, data] of [
+  ['it', load('it.json')],
+  ['en', load('en.json')],
+]) {
+  const bad = flatValues(data).filter((value) => forbidden.test(value));
+  if (bad.length) {
+    console.error(`Personal nutrition copy in ${locale}:`, bad.join(' | '));
+    process.exit(1);
+  }
+}
 
 const it = new Set(keys(load('it.json')));
 const en = new Set(keys(load('en.json')));

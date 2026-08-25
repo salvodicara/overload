@@ -133,15 +133,24 @@
   },
   "progress": {
     "title": "Progressi",
-    "pick": "Scegli un esercizio",
-    "best": "Best",
+    "tabsLabel": "Sezioni progressi",
+    "pick": "Esercizio",
+    "best": "Migliore",
     "last": "Ultimo",
     "sessions": "Sessioni",
-    "caption": "Peso del miglior set per sessione, storico importato incluso.",
+    "summary": "Riepilogo progressi di {{exercise}}",
+    "caption": {
+      "weight_reps": "Miglior carico completato nelle serie di lavoro per sessione.",
+      "reps": "Più ripetizioni completate nelle serie di lavoro per sessione.",
+      "duration": "Durata più lunga completata nelle serie di lavoro per sessione."
+    },
+    "chartSummary_one": "{{exercise}}. {{caption}} {{count}} sessione. Prima: {{first}}. Ultima: {{last}}.{{pr}}",
+    "chartSummary_other": "{{exercise}}. {{caption}} {{count}} sessioni. Prima: {{first}}. Ultima: {{last}}.{{pr}}",
+    "prValue": " Record: {{value}}.",
     "volumeWeek": "Volume settimanale",
     "seg.training": "Allenamento",
     "seg.body": "Corpo",
-    "seg.diet": "Dieta"
+    "seg.diet": "Nutrizione"
   },
   "library": {
     "title": "Esercizi",
@@ -320,24 +329,36 @@
     "thigh": "Coscia",
     "calf": "Polpaccio",
     "latest": "Ultimo",
-    "weeklyAvg": "Media settimana",
+    "weeklyAvg": "Media settimanale",
+    "metricGroup": "Tipo di misurazione",
+    "summary": "Riepilogo {{metric}}",
+    "trend": "Andamento {{metric}}",
+    "chartSummary_one": "Andamento {{metric}}. {{count}} misurazione. {{first}}.",
+    "chartSummary_other": "Andamento {{metric}}. {{count}} misurazioni. Prima: {{first}}. Ultima: {{last}}.",
+    "onePoint": "1 misurazione registrata",
+    "emptyMetric": "Nessuna misurazione di {{metric}}",
+    "valueLabel": "{{metric}} ({{unit}})",
+    "dateLabel": "Data della misurazione",
+    "delete": "Elimina la misurazione di {{metric}} del {{date}}",
+    "history": "Misurazioni recenti",
     "add": "Aggiungi misurazione",
-    "empty": "Nessuna misura ancora: la media settimanale del peso è la bussola della massa."
+    "saveError": "Impossibile aggiornare le misurazioni. Riprova."
   },
   "diet": {
     "today": "Oggi",
     "targets": "Obiettivi",
-    "kcalTarget": "kcal obiettivo",
-    "proteinTarget": "proteine obiettivo (g)",
-    "protein": "proteine (g)",
-    "hint": "Due numeri al giorno bastano: calorie e proteine. La barra diventa verde quando sei a bersaglio.",
-    "meals": "Esempi di pasti",
-    "meal1Title": "Colazione (~30g proteine)",
-    "meal1Body": "Yogurt greco o skyr con frutta e un misurino di whey; oppure albumi con pane e frutta.",
-    "meal2Title": "Post-workout (~350 kcal, 30g proteine)",
-    "meal2Body": "Shake di whey con banana e latte. Il modo più semplice di chiudere il surplus.",
-    "meal3Title": "Pasto tipo (~700 kcal, 40g proteine)",
-    "meal3Body": "150g di pasta o riso, 150-200g di pollo/pesce/carne, verdura e un cucchiaio d'olio."
+    "kcalTarget": "Obiettivo calorie (kcal)",
+    "proteinTarget": "Obiettivo proteine (g)",
+    "calories": "Calorie (kcal)",
+    "protein": "Proteine (g)",
+    "hint": "Registra calorie e proteine quando ti è utile. Gli obiettivi sono facoltativi.",
+    "noCalorieTarget": "Nessun obiettivo calorie",
+    "noProteinTarget": "Nessun obiettivo proteine",
+    "currentNoTarget": "{{current}} {{unit}}, nessun obiettivo",
+    "currentTarget": "{{current}} su {{target}} {{unit}}",
+    "empty": "Nessun dato nutrizionale",
+    "recent": "Giorni recenti",
+    "saveError": "Impossibile salvare i dati nutrizionali. Riprova."
   },
   "activeBar": {
     "resume": "Riprendi"

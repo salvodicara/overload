@@ -1,158 +1,220 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fmtDate, todayISO } from '../lib/format';
 import { useStore } from '../state/useStore';
 
-function Bar({ value, target }: { value: number | null; target?: number }) {
-  if (!target || value == null) return null;
-  const pct = Math.max(0, Math.min(100, (value / target) * 100));
-  const on = value >= target * 0.95 && value <= target * 1.15;
+function targetNumber(value: string): number | undefined {
+  const number = Number(value);
+  return value && Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function dailyNumber(value: string): number | null {
+  if (!value) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : null;
+}
+
+function Goal({
+  value,
+  target,
+  unit,
+  emptyKey,
+}: {
+  value: number | null;
+  target?: number;
+  unit: string;
+  emptyKey: 'diet.noCalorieTarget' | 'diet.noProteinTarget';
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+  const current = value?.toLocaleString(locale);
+  const text = target
+    ? t('diet.currentTarget', {
+        current: current ?? '0',
+        target: target.toLocaleString(locale),
+        unit,
+      })
+    : current !== undefined
+      ? t('diet.currentNoTarget', { current, unit })
+      : t(emptyKey);
+
   return (
-    <span
-      aria-hidden
-      style={{
-        display: 'block',
-        height: 4,
-        borderRadius: 2,
-        background: 'var(--surface2)',
-        overflow: 'hidden',
-        marginTop: 6,
-      }}
-    >
-      <span
-        style={{
-          display: 'block',
-          width: `${pct}%`,
-          height: '100%',
-          borderRadius: 2,
-          background: on ? 'var(--good)' : 'var(--accent)',
-          transition: 'width 0.25s ease',
-        }}
-      />
-    </span>
+    <>
+      <span className="small muted">{text}</span>
+      {target && value != null && (
+        <span className="nutrition-goal__track" aria-hidden="true">
+          <span
+            className="nutrition-goal__fill"
+            style={{ width: `${Math.min(100, (value / target) * 100)}%` }}
+          />
+        </span>
+      )}
+    </>
   );
 }
 
 export function ProgressDiet() {
   const { t, i18n } = useTranslation();
-  const { nutrition, settings } = useStore();
-  const saveNutritionDay = useStore((s) => s.saveNutritionDay);
-  const updateSettings = useStore((s) => s.updateSettings);
+  const nutrition = useStore((state) => state.nutrition);
+  const settings = useStore((state) => state.settings);
+  const saveNutritionDay = useStore((state) => state.saveNutritionDay);
+  const updateSettings = useStore((state) => state.updateSettings);
   const [editTargets, setEditTargets] = useState(false);
-  const [mealsOpen, setMealsOpen] = useState(false);
-
+  const [saveError, setSaveError] = useState(false);
+  const targetsId = useId();
   const today = todayISO();
-  const todayRow = nutrition.find((n) => n.id === today);
-  const days = nutrition
-    .slice()
-    .sort((a, b) => b.date.localeCompare(a.date))
+  const todayRow = nutrition.find((day) => day.id === today);
+  const recentDays = nutrition
+    .filter((day) => day.kcal != null || day.proteinG != null)
+    .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, 7);
+  const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+  const persist = (action: Promise<unknown>): void => {
+    setSaveError(false);
+    void action.catch(() => setSaveError(true));
+  };
 
   return (
-    <div className="stack" style={{ marginTop: 4 }}>
-      <div className="card card-pad stack" style={{ gap: 10 }}>
+    <div className="nutrition-progress">
+      <section className="nutrition-today card card-pad" aria-labelledby="nutrition-today-title">
         <div className="spread">
-          <strong>{t('diet.today')}</strong>
-          <button className="small" style={{ color: 'var(--accent-text)', fontWeight: 600, padding: 6 }} onClick={() => setEditTargets((v) => !v)}>
+          <h2 id="nutrition-today-title" className="progress-section-title">
+            {t('diet.today')}
+          </h2>
+          <button
+            className="nutrition-targets-toggle"
+            type="button"
+            aria-expanded={editTargets}
+            aria-controls={targetsId}
+            onClick={() => setEditTargets((open) => !open)}
+          >
             {t('diet.targets')}
           </button>
         </div>
+
         {editTargets && (
-          <div className="row">
-            <label className="stack" style={{ flex: 1, gap: 3 }}>
-              <span className="mono muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {t('diet.kcalTarget')}
-              </span>
+          <div id={targetsId} className="nutrition-fields nutrition-targets">
+            <label className="field">
+              <span className="field-label">{t('diet.kcalTarget')}</span>
               <input
+                name="calorie-target"
                 type="number"
                 inputMode="numeric"
-                min={0}
+                min={1}
+                autoComplete="off"
                 defaultValue={settings.kcalTarget ?? ''}
-                placeholder="2700"
-                aria-label={t('diet.kcalTarget')}
-                onChange={(e) => void updateSettings({ kcalTarget: e.target.value ? Number(e.target.value) : undefined })}
+                onBlur={(event) => {
+                  const kcalTarget = targetNumber(event.target.value);
+                  if (kcalTarget !== settings.kcalTarget) {
+                    persist(updateSettings({ kcalTarget }));
+                  }
+                }}
               />
             </label>
-            <label className="stack" style={{ flex: 1, gap: 3 }}>
-              <span className="mono muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {t('diet.proteinTarget')}
-              </span>
+            <label className="field">
+              <span className="field-label">{t('diet.proteinTarget')}</span>
               <input
+                name="protein-target"
                 type="number"
                 inputMode="numeric"
-                min={0}
+                min={1}
+                autoComplete="off"
                 defaultValue={settings.proteinTarget ?? ''}
-                placeholder="130"
-                aria-label={t('diet.proteinTarget')}
-                onChange={(e) => void updateSettings({ proteinTarget: e.target.value ? Number(e.target.value) : undefined })}
+                onBlur={(event) => {
+                  const proteinTarget = targetNumber(event.target.value);
+                  if (proteinTarget !== settings.proteinTarget) {
+                    persist(updateSettings({ proteinTarget }));
+                  }
+                }}
               />
             </label>
           </div>
         )}
-        <div className="row">
-          <label className="stack" style={{ flex: 1, gap: 3 }}>
-            <span className="mono muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              kcal
-            </span>
+
+        <div className="nutrition-fields">
+          <label className="field">
+            <span className="field-label">{t('diet.calories')}</span>
             <input
-              key={`k-${today}-${todayRow?.kcal ?? ''}`}
+              key={`kcal-${todayRow?.kcal ?? ''}`}
+              name="calories"
               type="number"
               inputMode="numeric"
               min={0}
+              autoComplete="off"
               defaultValue={todayRow?.kcal ?? ''}
-              placeholder="0"
-              aria-label="kcal"
-              onBlur={(e) => void saveNutritionDay(today, { kcal: e.target.value ? Number(e.target.value) : null })}
+              onBlur={(event) => {
+                const kcal = dailyNumber(event.target.value);
+                if (kcal !== (todayRow?.kcal ?? null)) {
+                  persist(saveNutritionDay(today, { kcal }));
+                }
+              }}
             />
-            <Bar value={todayRow?.kcal ?? null} target={settings.kcalTarget} />
+            <Goal
+              value={todayRow?.kcal ?? null}
+              target={settings.kcalTarget}
+              unit="kcal"
+              emptyKey="diet.noCalorieTarget"
+            />
           </label>
-          <label className="stack" style={{ flex: 1, gap: 3 }}>
-            <span className="mono muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {t('diet.protein')}
-            </span>
+          <label className="field">
+            <span className="field-label">{t('diet.protein')}</span>
             <input
-              key={`p-${today}-${todayRow?.proteinG ?? ''}`}
+              key={`protein-${todayRow?.proteinG ?? ''}`}
+              name="protein"
               type="number"
               inputMode="numeric"
               min={0}
+              autoComplete="off"
               defaultValue={todayRow?.proteinG ?? ''}
-              placeholder="0"
-              aria-label={t('diet.protein')}
-              onBlur={(e) => void saveNutritionDay(today, { proteinG: e.target.value ? Number(e.target.value) : null })}
+              onBlur={(event) => {
+                const proteinG = dailyNumber(event.target.value);
+                if (proteinG !== (todayRow?.proteinG ?? null)) {
+                  persist(saveNutritionDay(today, { proteinG }));
+                }
+              }}
             />
-            <Bar value={todayRow?.proteinG ?? null} target={settings.proteinTarget} />
+            <Goal
+              value={todayRow?.proteinG ?? null}
+              target={settings.proteinTarget}
+              unit="g"
+              emptyKey="diet.noProteinTarget"
+            />
           </label>
         </div>
-        <span className="muted small">{t('diet.hint')}</span>
-      </div>
+        <p className="small muted">{t('diet.hint')}</p>
+        {saveError && (
+          <div className="form-feedback form-feedback--error" role="alert">
+            {t('diet.saveError')}
+          </div>
+        )}
+      </section>
 
-      {days.length > 0 && (
-        <div className="card">
-          {days.map((n, i) => (
-            <div key={n.id} className="spread card-pad" style={{ borderTop: i ? '1px solid var(--line)' : 'none', paddingTop: 10, paddingBottom: 10 }}>
-              <span className="mono small muted">{fmtDate(n.date, i18n.language, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-              <span className="mono small">
-                {n.kcal != null ? `${n.kcal.toLocaleString(i18n.language)} kcal` : '-'}
-                {' · '}
-                {n.proteinG != null ? `${n.proteinG} g` : '-'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {recentDays.length === 0 && <p className="nutrition-state">{t('diet.empty')}</p>}
 
-      <button className="btn btn-ghost btn-block" aria-expanded={mealsOpen} onClick={() => setMealsOpen((v) => !v)}>
-        {t('diet.meals')}
-      </button>
-      {mealsOpen && (
-        <div className="card card-pad stack" style={{ gap: 12 }}>
-          {([1, 2, 3] as const).map((n) => (
-            <div key={n}>
-              <strong style={{ fontSize: 14 }}>{t(`diet.meal${n}Title`)}</strong>
-              <div className="muted small" style={{ marginTop: 2 }}>{t(`diet.meal${n}Body`)}</div>
-            </div>
-          ))}
-        </div>
+      {recentDays.length > 0 && (
+        <section className="nutrition-history" aria-labelledby="nutrition-history-title">
+          <h2 id="nutrition-history-title" className="progress-section-title">
+            {t('diet.recent')}
+          </h2>
+          <ul>
+            {recentDays.map((day) => (
+              <li key={day.id} className="spread">
+                <span className="mono small muted">
+                  {fmtDate(day.date, i18n.language, {
+                    weekday: 'short',
+                    day: 'numeric',
+                    month: 'short',
+                  })}
+                </span>
+                <span className="mono small">
+                  {day.kcal == null ? '−' : `${day.kcal.toLocaleString(locale)} kcal`}
+                  <span aria-hidden="true"> · </span>
+                  {day.proteinG == null ? '−' : `${day.proteinG.toLocaleString(locale)} g`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

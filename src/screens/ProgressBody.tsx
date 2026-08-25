@@ -1,159 +1,237 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconX } from '../components/Icons';
 import { LineChart } from '../components/LineChart';
-import { todayISO } from '../lib/format';
-import { continueAccountAction, useStore } from '../state/useStore';
+import { fmtDate, todayISO } from '../lib/format';
 import type { MeasureMetric } from '../lib/types';
+import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
+import { continueAccountAction, useStore } from '../state/useStore';
 
 const METRICS: MeasureMetric[] = ['weight', 'waist', 'chest', 'arm', 'thigh', 'calf'];
 
 export function ProgressBody() {
   const { t, i18n } = useTranslation();
-  const measurements = useStore((s) => s.measurements);
-  const addMeasurement = useStore((s) => s.addMeasurement);
-  const deleteMeasurement = useStore((s) => s.deleteMeasurement);
+  const measurements = useStore((state) => state.measurements);
+  const settings = useStore((state) => state.settings);
+  const addMeasurement = useStore((state) => state.addMeasurement);
+  const deleteMeasurement = useStore((state) => state.deleteMeasurement);
   const [metric, setMetric] = useState<MeasureMetric>('weight');
   const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   const [dateDraft, setDateDraft] = useState(todayISO());
+  const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+  const selectedUnit = settings.unit ?? 'kg';
+  const unit = metric === 'weight' ? weightLabel(selectedUnit) : 'cm';
+  const metricName = t(`body.${metric}`);
 
-  const rows = measurements.filter((m) => m.metric === metric);
+  const rows = measurements
+    .filter((measurement) => measurement.metric === metric)
+    .sort((left, right) => left.date.localeCompare(right.date));
   const latest = rows[rows.length - 1];
-  const unit = metric === 'weight' ? 'kg' : 'cm';
+  const displayValue = (value: number): number =>
+    metric === 'weight' ? displayWeight(value, selectedUnit) : value;
+  const formatValue = (value: number): string =>
+    `${displayValue(value).toLocaleString(locale)} ${unit}`;
 
-  // Weekly average for body weight: the number that actually matters on a bulk.
-  const weeklyAvg = (() => {
+  const weeklyAverage = (() => {
     if (metric !== 'weight' || rows.length === 0) return null;
     const start = new Date(`${todayISO()}T12:00:00`);
     start.setDate(start.getDate() - 6);
-    const cut = start.toLocaleDateString('sv');
-    const recent = rows.filter((m) => m.date >= cut);
-    if (recent.length === 0) return null;
-    return recent.reduce((a, m) => a + m.value, 0) / recent.length;
+    const recent = rows.filter((measurement) => measurement.date >= start.toLocaleDateString('sv'));
+    return recent.length
+      ? recent.reduce((sum, measurement) => sum + measurement.value, 0) / recent.length
+      : null;
   })();
 
+  const closeForm = (): void => {
+    setValueDraft('');
+    setSaveError(false);
+    setAdding(false);
+  };
+
+  const add = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    const value = Number(valueDraft);
+    if (saving || !Number.isFinite(value) || value <= 0) return;
+    const canonical = metric === 'weight' ? canonicalWeight(value, selectedUnit) : value;
+    setSaveError(false);
+    setSaving(true);
+    void continueAccountAction(addMeasurement(metric, canonical, dateDraft), closeForm)
+      .catch(() => setSaveError(true))
+      .finally(() => setSaving(false));
+  };
+
+  const trendTitleId = 'body-trend-title';
+  const chartLabel =
+    rows.length > 1
+      ? t('body.chartSummary', {
+          metric: metricName,
+          count: rows.length,
+          first: `${fmtDate(rows[0].date, i18n.language)} ${formatValue(rows[0].value)}`,
+          last: `${fmtDate(latest.date, i18n.language)} ${formatValue(latest.value)}`,
+        })
+      : '';
+
   return (
-    <div className="stack" style={{ marginTop: 4 }}>
-      <div className="row" style={{ gap: 6, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
-        {METRICS.map((m) => (
+    <div className="body-progress">
+      <div className="body-metrics library-filters" role="group" aria-label={t('body.metricGroup')}>
+        {METRICS.map((candidate) => (
           <button
-            key={m}
-            className={`chip${metric === m ? ' chip-accent' : ''}`}
-            style={{ padding: '7px 12px', fontSize: 12.5 }}
-            aria-pressed={metric === m}
-            onClick={() => setMetric(m)}
+            key={candidate}
+            className="library-filter"
+            aria-pressed={metric === candidate}
+            disabled={saving}
+            onClick={() => {
+              closeForm();
+              setMetric(candidate);
+            }}
           >
-            {t(`body.${m}`)}
+            {t(`body.${candidate}`)}
           </button>
         ))}
       </div>
 
-      <div className="row" style={{ gap: 10 }}>
-        <div className="card card-pad" style={{ flex: 1 }}>
-          <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            {t('body.latest')}
-          </div>
-          <div className="display" style={{ fontSize: 26 }}>
-            {latest ? latest.value.toLocaleString(i18n.language) : '-'}
-            <span className="small muted" style={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}> {unit}</span>
-          </div>
+      <dl
+        className="body-summary"
+        role="group"
+        aria-label={t('body.summary', { metric: metricName })}
+      >
+        <div>
+          <dt>{t('body.latest')}</dt>
+          <dd>{latest ? formatValue(latest.value) : '−'}</dd>
         </div>
-        {weeklyAvg !== null && (
-          <div className="card card-pad" style={{ flex: 1 }}>
-            <div className="mono muted" style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {t('body.weeklyAvg')}
-            </div>
-            <div className="display" style={{ fontSize: 26 }}>
-              {(Math.round(weeklyAvg * 10) / 10).toLocaleString(i18n.language)}
-              <span className="small muted" style={{ fontFamily: 'var(--font-body)', fontWeight: 600 }}> kg</span>
-            </div>
+        {metric === 'weight' && (
+          <div>
+            <dt>{t('body.weeklyAvg')}</dt>
+            <dd>{weeklyAverage === null ? '−' : formatValue(weeklyAverage)}</dd>
           </div>
         )}
-      </div>
+      </dl>
 
-      {rows.length > 1 && (
-        <div className="card" style={{ padding: 16 }}>
-          <LineChart points={rows.map((m) => ({ date: m.date, value: m.value }))} />
+      <section className="body-trend card card-pad" aria-labelledby={trendTitleId}>
+        <h2 id={trendTitleId} className="progress-section-title">
+          {t('body.trend', { metric: metricName })}
+        </h2>
+        {rows.length === 0 && (
+          <p className="progress-state">{t('body.emptyMetric', { metric: metricName })}</p>
+        )}
+        {rows.length === 1 && (
+          <p className="progress-state">
+            <strong className="mono">{formatValue(rows[0].value)}</strong>
+            <br />
+            <span className="small muted">{t('body.onePoint')}</span>
+          </p>
+        )}
+        {rows.length > 1 && (
+          <LineChart
+            points={rows.map((measurement) => ({
+              date: measurement.date,
+              value: measurement.value,
+            }))}
+            label={chartLabel}
+            formatValue={(value) => displayValue(value).toLocaleString(locale)}
+          />
+        )}
+      </section>
+
+      {saveError && (
+        <div className="form-feedback form-feedback--error" role="alert">
+          {t('body.saveError')}
         </div>
       )}
 
       {adding ? (
-        <div className="card card-pad stack">
-          <div className="row">
+        <form className="measurement-form card card-pad" onSubmit={add}>
+          <label className="field">
+            <span className="field-label">
+              {t('body.valueLabel', { metric: metricName, unit })}
+            </span>
             <input
+              name={`body-${metric}`}
               type="number"
               inputMode="decimal"
               step={0.1}
               min={0}
-              autoFocus
-              placeholder={unit}
-              aria-label={t(`body.${metric}`)}
+              autoComplete="off"
               value={valueDraft}
-              onChange={(e) => setValueDraft(e.target.value)}
+              onChange={(event) => setValueDraft(event.target.value)}
             />
+          </label>
+          <label className="field">
+            <span className="field-label">{t('body.dateLabel')}</span>
             <input
+              name="measurement-date"
               type="date"
-              aria-label={t('home.pickDate')}
+              autoComplete="off"
               value={dateDraft}
-              onChange={(e) => e.target.value && setDateDraft(e.target.value)}
+              onChange={(event) => event.target.value && setDateDraft(event.target.value)}
             />
-          </div>
-          <div className="row">
+          </label>
+          <div className="measurement-form__actions">
             <button
               className="btn btn-accent"
-              style={{ flex: 1 }}
-              disabled={!valueDraft || Number(valueDraft) <= 0}
-              onClick={() => {
-                void continueAccountAction(
-                  addMeasurement(metric, Number(valueDraft), dateDraft),
-                  () => {
-                    setValueDraft('');
-                    setAdding(false);
-                  },
-                );
-              }}
+              type="submit"
+              disabled={saving || !valueDraft || Number(valueDraft) <= 0}
             >
               {t('train.save')}
             </button>
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setAdding(false)}>
+            <button className="btn btn-ghost" type="button" disabled={saving} onClick={closeForm}>
               {t('workout.cancel')}
             </button>
           </div>
-        </div>
+        </form>
       ) : (
-        <button className="btn btn-ghost btn-block" onClick={() => { setDateDraft(todayISO()); setAdding(true); }}>
+        <button
+          className="btn btn-ghost btn-block"
+          onClick={() => {
+            setValueDraft('');
+            setSaveError(false);
+            setDateDraft(todayISO());
+            setAdding(true);
+          }}
+        >
           {t('body.add')}
         </button>
       )}
 
       {rows.length > 0 && (
-        <div className="card">
-          {rows
-            .slice()
-            .reverse()
-            .slice(0, 10)
-            .map((m, i) => (
-              <div key={m.id} className="spread card-pad" style={{ borderTop: i ? '1px solid var(--line)' : 'none', paddingTop: 10, paddingBottom: 10 }}>
-                <span className="mono small muted">{m.date}</span>
-                <span className="row" style={{ gap: 10 }}>
-                  <span className="mono" style={{ fontWeight: 600 }}>
-                    {m.value.toLocaleString(i18n.language)} {unit}
-                  </span>
-                  <button
-                    className="muted"
-                    aria-label={t('history.delete')}
-                    style={{ display: 'flex', padding: 6 }}
-                    onClick={() => void deleteMeasurement(m.id)}
-                  >
-                    <IconX width={13} height={13} />
-                  </button>
-                </span>
-              </div>
-            ))}
-        </div>
+        <section className="measurement-history" aria-labelledby="measurement-history-title">
+          <h2 id="measurement-history-title" className="visually-hidden">
+            {t('body.history')}
+          </h2>
+          <ul>
+            {rows
+              .slice()
+              .reverse()
+              .slice(0, 10)
+              .map((measurement) => {
+                const date = fmtDate(measurement.date, i18n.language, {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                });
+                return (
+                  <li key={measurement.id}>
+                    <span className="mono small muted">{date}</span>
+                    <span className="mono">{formatValue(measurement.value)}</span>
+                    <button
+                      className="iconbtn muted"
+                      aria-label={t('body.delete', { metric: metricName, date })}
+                      onClick={() => {
+                        setSaveError(false);
+                        void deleteMeasurement(measurement.id).catch(() => setSaveError(true));
+                      }}
+                    >
+                      <IconX />
+                    </button>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
       )}
-      {rows.length === 0 && <div className="empty">{t('body.empty')}</div>}
     </div>
   );
 }

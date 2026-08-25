@@ -3,6 +3,13 @@ import { useTranslation } from 'react-i18next';
 
 export type ChartPoint = { date: string; value: number; highlight?: boolean };
 
+type LineChartProps = {
+  points: ChartPoint[];
+  label: string;
+  height?: number;
+  formatValue?: (value: number) => string;
+};
+
 const PAD = { top: 14, right: 14, bottom: 20, left: 40 };
 const TICKS = 4;
 
@@ -21,11 +28,8 @@ function cssVar(el: Element, name: string, fallback: string): string {
   return v || fallback;
 }
 
-/**
- * Single-series line of top-set weight over time (dataviz skill: 2px line, hairline
- * solid grid, sparing direct labels, no legend for one series).
- */
-export function LineChart({ points, height = 180 }: { points: ChartPoint[]; height?: number }) {
+/** One visual series; the caller supplies the tracking-aware text alternative. */
+export function LineChart({ points, label, height = 180, formatValue }: LineChartProps) {
   const { i18n } = useTranslation();
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,7 +78,7 @@ export function LineChart({ points, height = 180 }: { points: ChartPoint[]; heig
         PAD.left + (points.length === 1 ? plotW / 2 : (plotW * i) / (points.length - 1));
       const y = (v: number): number => PAD.top + plotH - (plotH * (v - min)) / (max - min);
 
-      // gridlines + kg labels (hairline, solid, recessive)
+      // Gridlines and caller-formatted value labels.
       ctx.lineWidth = 1;
       ctx.strokeStyle = line;
       ctx.fillStyle = muted;
@@ -85,7 +89,7 @@ export function LineChart({ points, height = 180 }: { points: ChartPoint[]; heig
         ctx.moveTo(PAD.left, gy);
         ctx.lineTo(width - PAD.right, gy);
         ctx.stroke();
-        ctx.fillText(v.toLocaleString(locale), PAD.left - 8, gy);
+        ctx.fillText(formatValue ? formatValue(v) : v.toLocaleString(locale), PAD.left - 8, gy);
       }
 
       // series line
@@ -94,7 +98,9 @@ export function LineChart({ points, height = 180 }: { points: ChartPoint[]; heig
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.beginPath();
-      points.forEach((p, i) => (i === 0 ? ctx.moveTo(x(i), y(p.value)) : ctx.lineTo(x(i), y(p.value))));
+      points.forEach((p, i) =>
+        i === 0 ? ctx.moveTo(x(i), y(p.value)) : ctx.lineTo(x(i), y(p.value)),
+      );
       ctx.stroke();
 
       // PR dots, ringed in the surface color so they stay legible on the line
@@ -118,7 +124,11 @@ export function LineChart({ points, height = 180 }: { points: ChartPoint[]; heig
       ctx.fillStyle = ink;
       ctx.textAlign = 'right';
       const labelY = Math.max(PAD.top - 4, y(last.value) - 12);
-      ctx.fillText(last.value.toLocaleString(locale), width - PAD.right, labelY);
+      ctx.fillText(
+        formatValue ? formatValue(last.value) : last.value.toLocaleString(locale),
+        width - PAD.right,
+        labelY,
+      );
 
       // first / last date labels only
       const fmt = (iso: string): string =>
@@ -137,11 +147,11 @@ export function LineChart({ points, height = 180 }: { points: ChartPoint[]; heig
     const ro = new ResizeObserver(draw);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [points, height, locale]);
+  }, [points, height, locale, formatValue]);
 
   return (
-    <div ref={wrapRef}>
-      <canvas ref={canvasRef} />
+    <div ref={wrapRef} className="line-chart" role="img" aria-label={label}>
+      <canvas ref={canvasRef} aria-hidden="true" />
     </div>
   );
 }

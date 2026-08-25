@@ -1,233 +1,311 @@
-
-import { useMemo, useState } from 'react';
-import { ProgressBody } from './ProgressBody';
-import { ProgressDiet } from './ProgressDiet';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
+import { PageHeader } from '../components/PageHeader';
 import { exerciseName, getCatalog } from '../lib/exercises';
+import { displayVolume, displayWeight, weightLabel } from '../lib/units';
+import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
 import { useStore } from '../state/useStore';
-import type { Workout } from '../lib/types';
+import { ProgressBody } from './ProgressBody';
+import { ProgressDiet } from './ProgressDiet';
 
-/** Monday of the ISO week containing `iso`, as YYYY-MM-DD — the week bucket key. */
+/** Monday of the ISO week containing `iso`, as YYYY-MM-DD. */
 function isoWeekStart(iso: string): string {
-  const d = new Date(`${iso}T12:00:00`);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`;
+  const date = new Date(`${iso}T12:00:00`);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return date.toLocaleDateString('sv');
 }
 
 function weeklyVolume(workouts: Workout[]): { week: string; volumeKg: number }[] {
   const totals = new Map<string, number>();
-  for (const w of workouts) {
-    const key = isoWeekStart(w.date);
-    totals.set(key, (totals.get(key) ?? 0) + w.volumeKg);
+  for (const workout of workouts) {
+    const week = isoWeekStart(workout.date);
+    totals.set(week, (totals.get(week) ?? 0) + workout.volumeKg);
   }
   const weeks = [...totals.keys()].sort();
   if (weeks.length === 0) return [];
-  // Materialise empty weeks too: a layoff must read as a gap, not be collapsed.
+
   const filled: { week: string; volumeKg: number }[] = [];
   const cursor = new Date(`${weeks[0]}T12:00:00`);
   const last = weeks[weeks.length - 1];
-  for (let key = weeks[0]; key <= last; ) {
-    filled.push({ week: key, volumeKg: totals.get(key) ?? 0 });
+  for (let week = weeks[0]; week <= last;) {
+    filled.push({ week, volumeKg: totals.get(week) ?? 0 });
     cursor.setDate(cursor.getDate() + 7);
-    key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(
-      cursor.getDate(),
-    ).padStart(2, '0')}`;
+    week = cursor.toLocaleDateString('sv');
   }
   return filled.slice(-12);
 }
 
-/** Heaviest completed set of `exerciseId` per session, chronological. */
+type SessionTop = {
+  date: string;
+  set: SetLog;
+  value: number;
+  isPr: boolean;
+};
+
+function valueOf(set: SetLog, tracking: TrackingType): number {
+  if (tracking === 'duration') return set.durationSec ?? 0;
+  if (tracking === 'reps') return set.reps;
+  return set.weightKg;
+}
+
+function isBetter(set: SetLog, best: SetLog, tracking: TrackingType): boolean {
+  const value = valueOf(set, tracking);
+  const bestValue = valueOf(best, tracking);
+  return (
+    value > bestValue || (tracking === 'weight_reps' && value === bestValue && set.reps > best.reps)
+  );
+}
+
 function topSets(
   workouts: Workout[],
   exerciseId: string,
-): { date: string; weightKg: number; reps: number; isPr: boolean }[] {
-  const out: { date: string; weightKg: number; reps: number; isPr: boolean }[] = [];
-  for (const w of workouts) {
-    let best: { weightKg: number; reps: number } | null = null;
-    let isPr = false;
-    for (const s of w.sets) {
-      if (s.exerciseId !== exerciseId || !s.done) continue;
-      if (s.isPr) isPr = true;
-      if (!best || s.weightKg > best.weightKg || (s.weightKg === best.weightKg && s.reps > best.reps)) {
-        best = { weightKg: s.weightKg, reps: s.reps };
+): { tracking: TrackingType; sessions: SessionTop[] } | null {
+  const ordered = [...workouts].sort(
+    (left, right) => left.date.localeCompare(right.date) || left.startTs - right.startTs,
+  );
+  let current: TrackingType | null = null;
+  for (const workout of ordered) {
+    for (const set of workout.sets) {
+      if (set.exerciseId === exerciseId && set.done && kindOf(set.kind) === 'working') {
+        current = trackingOf(set.tracking);
       }
     }
-    if (best) out.push({ date: w.date, ...best, isPr });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  if (!current) return null;
+
+  const sessions: SessionTop[] = [];
+  for (const workout of ordered) {
+    const candidates = workout.sets.filter(
+      (set) =>
+        set.exerciseId === exerciseId &&
+        set.done &&
+        kindOf(set.kind) === 'working' &&
+        trackingOf(set.tracking) === current,
+    );
+    if (candidates.length === 0) continue;
+    const best = candidates.reduce((selected, set) =>
+      isBetter(set, selected, current) ? set : selected,
+    );
+    sessions.push({
+      date: workout.date,
+      set: best,
+      value: valueOf(best, current),
+      isPr: current === 'weight_reps' && Boolean(best.isPr),
+    });
+  }
+  return { tracking: current, sessions };
 }
 
 function TrainingSection() {
   const { t, i18n } = useTranslation();
-  const { workouts, catalogReady } = useStore();
+  const { workouts, catalogReady, settings } = useStore();
   const [picked, setPicked] = useState<string | null>(null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+  const unit = settings.unit ?? 'kg';
 
   const options = useMemo(() => {
     void catalogReady;
     const ids = new Set<string>();
-    for (const w of workouts) for (const s of w.sets) ids.add(s.exerciseId);
+    for (const workout of workouts) {
+      for (const set of workout.sets) {
+        if (set.done && kindOf(set.kind) === 'working') ids.add(set.exerciseId);
+      }
+    }
     return [...ids]
       .map((id) => ({ id, name: exerciseName(id, i18n.language), known: getCatalog().has(id) }))
-      .sort((a, b) => Number(b.known) - Number(a.known) || a.name.localeCompare(b.name));
+      .sort(
+        (left, right) =>
+          Number(right.known) - Number(left.known) || left.name.localeCompare(right.name),
+      );
   }, [workouts, catalogReady, i18n.language]);
 
-  const selected = picked && options.some((o) => o.id === picked) ? picked : options[0]?.id;
-  const sessions = useMemo(
-    () => (selected ? topSets(workouts, selected) : []),
+  const selected =
+    picked && options.some((option) => option.id === picked) ? picked : options[0]?.id;
+  const progress = useMemo(
+    () => (selected ? topSets(workouts, selected) : null),
     [workouts, selected],
   );
   const weeks = useMemo(() => weeklyVolume(workouts), [workouts]);
 
-  if (options.length === 0) {
-    return (
-      <div className="screen">
-        <div className="empty">{t('history.empty')}</div>
-    </div>
-  );
-}
+  if (!selected || !progress || progress.sessions.length === 0) {
+    return <div className="progress-empty">{t('history.empty')}</div>;
+  }
 
-  const points: ChartPoint[] = sessions.map((s) => ({
-    date: s.date,
-    value: s.weightKg,
-    highlight: s.isPr,
+  const { tracking, sessions } = progress;
+  const name = exerciseName(selected, i18n.language);
+  const formatAxisValue = (value: number): string =>
+    (tracking === 'weight_reps' ? displayWeight(value, unit) : value).toLocaleString(locale);
+  const formatSession = (session: SessionTop): string => {
+    if (tracking === 'duration') {
+      return `${session.value.toLocaleString(locale)} ${t('workout.seconds')}`;
+    }
+    if (tracking === 'reps') {
+      return `${session.value.toLocaleString(locale)} ${t('workout.reps')}`;
+    }
+    return `${displayWeight(session.set.weightKg, unit).toLocaleString(locale)} ${weightLabel(unit)} × ${session.set.reps.toLocaleString(locale)} ${t('workout.reps')}`;
+  };
+  const points: ChartPoint[] = sessions.map((session) => ({
+    date: session.date,
+    value: session.value,
+    highlight: session.isPr,
   }));
-  const best = sessions.reduce<(typeof sessions)[number] | null>(
-    (acc, s) => (!acc || s.weightKg > acc.weightKg ? s : acc),
-    null,
+  const best = sessions.reduce((selected, session) =>
+    isBetter(session.set, selected.set, tracking) ? session : selected,
   );
-  const last = sessions[sessions.length - 1] ?? null;
-  const kg = (n: number): string => n.toLocaleString(locale);
-  const maxWeek = Math.max(...weeks.map((w) => w.volumeKg), 1);
+  const last = sessions[sessions.length - 1];
+  const caption = t(`progress.caption.${tracking}`);
+  let pr: SessionTop | undefined;
+  for (const session of sessions) {
+    if (session.isPr) pr = session;
+  }
+  const chartLabel = t('progress.chartSummary', {
+    exercise: name,
+    caption,
+    count: sessions.length,
+    first: formatSession(sessions[0]),
+    last: formatSession(last),
+    pr: pr ? t('progress.prValue', { value: formatSession(pr) }) : '',
+  });
   const fmtWeek = (iso: string): string =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'numeric' });
+    new Date(`${iso}T12:00:00`).toLocaleDateString(locale, {
+      day: 'numeric',
+      month: 'short',
+    });
+  const formatWeeklyVolume = (volumeKg: number): string =>
+    `${displayVolume(volumeKg, unit).toLocaleString(locale)} ${weightLabel(unit)}`;
+  const maxWeek = Math.max(...weeks.map((week) => week.volumeKg), 1);
 
   return (
-    <div>
-      <label className="mono small muted" htmlFor="progress-exercise">
+    <div className="progress-training">
+      <label className="field-label" htmlFor="progress-exercise">
         {t('progress.pick')}
       </label>
       <select
         id="progress-exercise"
-        style={{ marginTop: 6 }}
+        name="exercise"
+        autoComplete="off"
         value={selected}
-        onChange={(e) => setPicked(e.target.value)}
+        onChange={(event) => setPicked(event.target.value)}
       >
-        {options.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
           </option>
         ))}
       </select>
 
-      <div className="card card-pad" style={{ marginTop: 12 }}>
-        <div
-          role="img"
-          aria-label={`${selected ? exerciseName(selected, i18n.language) : ''} - ${t('progress.caption')}`}
-        >
-          <LineChart points={points} />
-        </div>
-        <div className="small muted" style={{ marginTop: 6 }}>
-          {t('progress.caption')}
-        </div>
-      </div>
+      <section className="progress-chart card card-pad" aria-labelledby="progress-chart-title">
+        <h2 id="progress-chart-title" className="progress-section-title">
+          {name}
+        </h2>
+        <LineChart points={points} label={chartLabel} formatValue={formatAxisValue} />
+        <p className="small muted">{caption}</p>
+      </section>
 
-      <div className="row" style={{ marginTop: 12, alignItems: 'stretch' }}>
+      <dl
+        className="progress-metrics"
+        role="group"
+        aria-label={t('progress.summary', { exercise: name })}
+      >
         {[
-          {
-            key: 'progress.best',
-            value: best ? kg(best.weightKg) : '-',
-            sub: best ? `${t('workout.kg')} × ${best.reps}` : '',
-          },
-          {
-            key: 'progress.last',
-            value: last ? kg(last.weightKg) : '-',
-            sub: last ? `${t('workout.kg')} × ${last.reps}` : '',
-          },
-          { key: 'progress.sessions', value: sessions.length.toLocaleString(locale), sub: '' },
-        ].map((tile) => (
-          <div key={tile.key} className="card card-pad" style={{ flex: 1, minWidth: 0 }}>
-            <div
-              className="mono muted"
-              style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}
-            >
-              {t(tile.key)}
-            </div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>
-              {tile.value}
-            </div>
-            {tile.sub && <div className="mono small muted">{tile.sub}</div>}
+          [t('progress.best'), formatSession(best)],
+          [t('progress.last'), formatSession(last)],
+          [t('progress.sessions'), sessions.length.toLocaleString(locale)],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
           </div>
         ))}
-      </div>
+      </dl>
 
-      <div className="card card-pad" style={{ marginTop: 12 }}>
-        <div
-          className="mono muted"
-          style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}
-        >
+      <section className="progress-volume" aria-labelledby="progress-volume-title">
+        <h2 id="progress-volume-title" className="progress-section-title">
           {t('progress.volumeWeek')}
-        </div>
+        </h2>
         <div
-          className="row"
-          style={{ gap: 2, alignItems: 'flex-end', height: 96, marginTop: 12 }}
+          className="progress-volume__plot"
           role="img"
           aria-label={`${t('progress.volumeWeek')}: ${weeks
-            .map((w) => `${fmtWeek(w.week)} ${Math.round(w.volumeKg)} ${t('workout.kg')}`)
+            .map((week) => `${fmtWeek(week.week)} ${formatWeeklyVolume(week.volumeKg)}`)
             .join(', ')}`}
         >
-          {weeks.map((w) => (
-            <div
-              key={w.week}
-              title={`${fmtWeek(w.week)} · ${Math.round(w.volumeKg).toLocaleString(locale)} ${t('workout.kg')}`}
-              style={{
-                flex: 1,
-                maxWidth: 24,
-                height: `${Math.max(3, (w.volumeKg / maxWeek) * 100)}%`,
-                background: 'var(--accent)',
-                borderRadius: '4px 4px 0 0',
-              }}
+          {weeks.map((week) => (
+            <span
+              key={week.week}
+              title={`${fmtWeek(week.week)} · ${formatWeeklyVolume(week.volumeKg)}`}
+              style={{ height: `${Math.max(3, (week.volumeKg / maxWeek) * 100)}%` }}
             />
           ))}
         </div>
-        <div className="spread mono small muted" style={{ marginTop: 8 }}>
+        <div className="spread mono small muted">
           <span>{weeks.length ? fmtWeek(weeks[0].week) : ''}</span>
-          <span>
-            {weeks.length
-              ? `${Math.round(weeks[weeks.length - 1].volumeKg).toLocaleString(locale)} ${t('workout.kg')}`
-              : ''}
-          </span>
+          <span>{weeks.length ? formatWeeklyVolume(weeks[weeks.length - 1].volumeKg) : ''}</span>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
+const SEGMENTS = ['training', 'body', 'diet'] as const;
+type Segment = (typeof SEGMENTS)[number];
+
 export function Progress() {
   const { t } = useTranslation();
-  const [segment, setSegment] = useState<'training' | 'body' | 'diet'>('training');
+  const [segment, setSegment] = useState<Segment>('training');
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    const current = SEGMENTS.indexOf(event.currentTarget.dataset.segment as Segment);
+    let next = current;
+    if (event.key === 'ArrowRight') next = (current + 1) % SEGMENTS.length;
+    else if (event.key === 'ArrowLeft') next = (current - 1 + SEGMENTS.length) % SEGMENTS.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = SEGMENTS.length - 1;
+    else return;
+    event.preventDefault();
+    setSegment(SEGMENTS[next]);
+    event.currentTarget.parentElement
+      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [next]?.focus();
+  };
+
   return (
-    <div className="screen">
-      <div className="display screen-title">{t('progress.title')}</div>
-      <div className="row seg" role="tablist" style={{ marginBottom: 14 }}>
-        {(['training', 'body', 'diet'] as const).map((k) => (
+    <div className="screen progress-screen">
+      <PageHeader title={t('progress.title')} />
+      <div className="row seg progress-tabs" role="tablist" aria-label={t('progress.tabsLabel')}>
+        {SEGMENTS.map((key) => (
           <button
-            key={k}
+            key={key}
+            id={`progress-tab-${key}`}
+            data-segment={key}
             role="tab"
-            aria-selected={segment === k}
-            className={`seg-btn${segment === k ? ' on' : ''}`}
-            onClick={() => setSegment(k)}
+            aria-selected={segment === key}
+            aria-controls={`progress-panel-${key}`}
+            tabIndex={segment === key ? 0 : -1}
+            className={`seg-btn${segment === key ? ' on' : ''}`}
+            onClick={() => setSegment(key)}
+            onKeyDown={onTabKeyDown}
           >
-            {t(`progress.seg.${k}`)}
+            {t(`progress.seg.${key}`)}
           </button>
         ))}
       </div>
-      {segment === 'training' && <TrainingSection />}
-      {segment === 'body' && <ProgressBody />}
-      {segment === 'diet' && <ProgressDiet />}
+      {SEGMENTS.map((key) => (
+        <section
+          key={key}
+          id={`progress-panel-${key}`}
+          role="tabpanel"
+          aria-labelledby={`progress-tab-${key}`}
+          tabIndex={segment === key ? 0 : -1}
+          hidden={segment !== key}
+          className="progress-panel"
+        >
+          {segment === key && key === 'training' && <TrainingSection />}
+          {segment === key && key === 'body' && <ProgressBody />}
+          {segment === key && key === 'diet' && <ProgressDiet />}
+        </section>
+      ))}
     </div>
   );
 }

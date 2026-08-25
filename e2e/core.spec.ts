@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const NEUTRAL_ROUTINE = /full body a/i;
 const DOM_RECT_SUBPIXEL_EPSILON_PX = 0.01;
@@ -673,6 +673,113 @@ async function installCoreSurfaceFixture(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
+async function putStoredRow(page: Page, storeName: string, row: unknown): Promise<void> {
+  await page.evaluate(
+    async ({ name, value }) => {
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open('overload');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(name, 'readwrite');
+        transaction.objectStore(name).put(value);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => resolve();
+      });
+      database.close();
+    },
+    { name: storeName, value: row },
+  );
+}
+
+async function installProgressSurfaceFixture(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const set = (
+      exerciseId: string,
+      weightKg: number,
+      reps: number,
+      extra: Record<string, unknown> = {},
+    ) => ({ exerciseId, weightKg, reps, done: true, kind: 'working', ...extra });
+    const workout = (
+      id: string,
+      date: string,
+      startTs: number,
+      sets: Record<string, unknown>[],
+      volumeKg = 0,
+    ) => ({ id, date, startTs, sets, volumeKg });
+    const workouts = [
+      workout(
+        'm-old',
+        '2026-08-18',
+        100,
+        [
+          set('Barbell_Squat', 250, 1, { kind: 'warmup', isPr: true }),
+          set('Barbell_Squat', 50, 5),
+          set('Hanging_Leg_Raise', 0, 40, { kind: 'warmup', tracking: 'reps' }),
+          set('Hanging_Leg_Raise', 0, 10, { tracking: 'reps' }),
+          set('Plank', 300, 1),
+        ],
+        127.5,
+      ),
+      workout(
+        'z-early',
+        '2026-08-25',
+        100,
+        [
+          set('Barbell_Squat', 60, 4, { isPr: true }),
+          set('Barbell_Squat', 200, 20, { done: false }),
+          set('Hanging_Leg_Raise', 0, 14, { tracking: 'reps' }),
+          set('Plank', 0, 0, { durationSec: 35, tracking: 'duration' }),
+        ],
+        300,
+      ),
+      workout('a-late', '2026-08-25', 300, [
+        set('Barbell_Squat', 55, 8, { isPr: true }),
+        set('Plank', 0, 0, { durationSec: 45, tracking: 'duration' }),
+      ]),
+    ];
+    const measurements = [
+      { id: 'weight-old', date: '2026-08-24', metric: 'weight', value: 90, updatedAt: 100 },
+      { id: 'weight-new', date: '2026-08-25', metric: 'weight', value: 100, updatedAt: 200 },
+      { id: 'waist-one', date: '2026-08-25', metric: 'waist', value: 82, updatedAt: 200 },
+    ];
+
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(
+        ['settings', 'workouts', 'measurements', 'nutrition'],
+        'readwrite',
+      );
+      transaction
+        .objectStore('settings')
+        .put({ id: 'settings', locale: 'en', unit: 'lb', updatedAt: Date.now() });
+      for (const name of ['workouts', 'measurements', 'nutrition'])
+        transaction.objectStore(name).clear();
+      for (const row of workouts) transaction.objectStore('workouts').put(row);
+      for (const row of measurements) transaction.objectStore('measurements').put(row);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+    });
+    database.close();
+  });
+  await page.reload();
+}
+
+async function expectNarrowTouchTargets(page: Page, controls: Locator): Promise<void> {
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    const heights = await controls.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().height),
+    );
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+  }
+}
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {
@@ -2327,6 +2434,206 @@ test('mid-workout rest tweak can update the routine', async ({ page }) => {
   await expect(page.getByRole('button', { name: /2[’′]45|165/ }).first()).toBeVisible();
 });
 
+test('progress uses working sets, current tracking and complete keyboard tabs', async ({
+  page,
+}) => {
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+
+  const tablist = page.getByRole('tablist', { name: 'Progress sections' });
+  const training = tablist.getByRole('tab', { name: 'Training' });
+  const body = tablist.getByRole('tab', { name: 'Body' });
+  const nutrition = tablist.getByRole('tab', { name: 'Nutrition' });
+  await expect(training).toHaveAttribute('tabindex', '0');
+  await expect(body).toHaveAttribute('tabindex', '-1');
+  await expect(training).toHaveAttribute('aria-selected', 'true');
+  const panels: Locator[] = [];
+  for (const tab of [training, body, nutrition]) {
+    const panelId = await tab.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    const panel = page.locator(`#${panelId}`);
+    await expect(panel).toHaveRole('tabpanel');
+    panels.push(panel);
+  }
+  await expect(panels[1]).toBeHidden();
+  await training.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(body).toBeFocused();
+  await expect(body).toHaveAttribute('aria-selected', 'true');
+  await expect(panels[1]).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(nutrition).toBeFocused();
+  await expect(nutrition).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Home');
+  await expect(training).toBeFocused();
+  await expect(training).toHaveAttribute('aria-selected', 'true');
+
+  const exercise = page.getByLabel('Exercise');
+  const summary = (name: string) => page.getByRole('group', { name: `${name} progress summary` });
+  await expect(exercise).toHaveValue('Barbell_Squat');
+  await expect(summary('Barbell Squat')).toContainText(
+    /Best\s*132\.3 lb × 4 reps.*Last\s*121\.3 lb × 8 reps.*Sessions\s*3/,
+  );
+  const weightedChart = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i });
+  await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8 reps/);
+  await expect(weightedChart.locator('canvas')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.getByRole('img', { name: /Weekly volume/i })).toHaveAttribute(
+    'aria-label',
+    /281\.1 lb.*661\.4 lb/,
+  );
+
+  await exercise.selectOption({ label: 'Hanging Leg Raise' });
+  await expect(summary('Hanging Leg Raise')).toContainText(/14 reps.*Sessions\s*2/);
+  await exercise.selectOption({ label: 'Plank' });
+  await expect(summary('Plank')).toContainText(/45 seconds.*Sessions\s*2/);
+  await expect(summary('Plank')).not.toContainText('300');
+
+  await expectNarrowTouchTargets(page, tablist.getByRole('tab'));
+});
+
+test('body converts only weight and names empty, single and trend states', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.getByRole('tab', { name: 'Body' }).click();
+
+  const metrics = page.getByRole('group', { name: 'Measurement type' });
+  await expect(metrics.getByRole('button', { name: 'Weight' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('group', { name: 'Weight summary' })).toContainText(
+    /220\.5 lb.*209\.4 lb/,
+  );
+  await expect(page.getByRole('img', { name: /Weight trend.*2 measurements/i })).toBeVisible();
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const storeModule = (await import(modulePath)) as typeof import('../src/state/useStore');
+    const original = storeModule.useStore.getState().addMeasurement;
+    storeModule.useStore.setState({
+      addMeasurement: () => {
+        storeModule.useStore.setState({ addMeasurement: original });
+        return Promise.reject(new Error('expected measurement failure'));
+      },
+    });
+  });
+  await page.getByRole('button', { name: 'Add measurement' }).click();
+  await page.getByLabel('Weight (lb)').fill('123');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not update measurements');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Add measurement' }).click();
+  await expect(page.getByLabel('Weight (lb)')).toHaveValue('');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await metrics.getByRole('button', { name: 'Waist' }).click();
+  const waistTrend = page.getByRole('region', { name: 'Waist trend' });
+  await expect(waistTrend).toContainText('1 measurement recorded');
+  await expect(waistTrend.getByText('82 cm', { exact: true })).toBeVisible();
+  const remove = page.getByRole('button', {
+    name: /Delete Waist measurement from 25 Aug 2026/i,
+  });
+  expect((await remove.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect((await remove.boundingBox())?.width).toBeGreaterThanOrEqual(44);
+
+  await metrics.getByRole('button', { name: 'Calf' }).click();
+  await expect(page.getByRole('region', { name: 'Calf trend' })).toContainText(
+    'No Calf measurements yet',
+  );
+
+  for (const [metric, input, value] of [
+    ['Weight', 'Weight (lb)', '220.5'],
+    ['Calf', 'Calf (cm)', '33.3'],
+  ] as const) {
+    await metrics.getByRole('button', { name: metric }).click();
+    await page.getByRole('button', { name: 'Add measurement' }).click();
+    await page.getByLabel(input).fill(value);
+    await page.getByLabel('Measurement date').fill('2026-08-26');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('button', { name: 'Add measurement' })).toBeVisible();
+  }
+  await putStoredRow(page, 'settings', { id: 'settings', locale: 'en', unit: 'kg' });
+  await page.reload();
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.getByRole('tab', { name: 'Body' }).click();
+  await expect(page.getByRole('group', { name: 'Weight summary' })).toContainText('100 kg');
+  const savedWeight = page.getByRole('button', {
+    name: /Delete Weight measurement from 26 Aug 2026/i,
+  });
+  await expect(savedWeight.locator('..')).toContainText('100 kg');
+  await metrics.getByRole('button', { name: 'Calf' }).click();
+  await expect(page.getByRole('region', { name: 'Recent measurements' })).toContainText('33.3 cm');
+
+  await expectNarrowTouchTargets(page, metrics.getByRole('button'));
+});
+
+test('nutrition keeps optional targets and commits drafts on blur', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const storeModule = (await import(modulePath)) as typeof import('../src/state/useStore');
+    const original = storeModule.useStore.getState();
+    const counters = { nutrition: 0, settings: 0 };
+    document.documentElement.dataset.settingsWrites = '0';
+    document.documentElement.dataset.nutritionWrites = '0';
+    storeModule.useStore.setState({
+      updateSettings: (...args) => {
+        document.documentElement.dataset.settingsWrites = String(++counters.settings);
+        return original.updateSettings(...args);
+      },
+      saveNutritionDay: (...args) => {
+        document.documentElement.dataset.nutritionWrites = String(++counters.nutrition);
+        if (args[1].kcal === 999) return Promise.reject(new Error('expected nutrition failure'));
+        return original.saveNutritionDay(...args);
+      },
+    });
+  });
+  await page.getByRole('tab', { name: 'Nutrition' }).click();
+
+  await expect(page.getByText('No nutrition entries yet', { exact: true })).toBeVisible();
+  await expect(page.getByText(/meal examples/i)).toHaveCount(0);
+  const calories = page.getByLabel('Calories (kcal)');
+  const protein = page.getByLabel('Protein (g)');
+  await expect(page.getByText('No calorie target', { exact: true })).toBeVisible();
+  await expect(page.getByText('No protein target', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Targets' }).click();
+  const target = page.getByLabel('Calorie target (kcal)');
+  await expect(page.locator('.nutrition-today input[placeholder]')).toHaveCount(0);
+  await target.fill('2500');
+  await expect(page.locator('html')).toHaveAttribute('data-settings-writes', '0');
+  await protein.focus();
+  await expect(page.locator('html')).toHaveAttribute('data-settings-writes', '1');
+
+  await calories.fill('2100');
+  await expect(page.locator('html')).toHaveAttribute('data-nutrition-writes', '0');
+  await protein.focus();
+  await expect(page.locator('html')).toHaveAttribute('data-nutrition-writes', '1');
+  await calories.fill('999');
+  await protein.focus();
+  await expect(page.getByRole('alert')).toContainText('Could not save nutrition');
+  await calories.fill('0');
+  await protein.focus();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: 'Nutrition' }).click();
+  await expect(calories).toHaveValue('0');
+  await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
+  const recent = page.getByRole('region', { name: 'Recent days' });
+  await expect(recent.getByRole('listitem')).toHaveCount(1);
+
+  const prior = '2026-08-24';
+  await putStoredRow(page, 'nutrition', { id: prior, date: prior, kcal: 2000, proteinG: 120 });
+  await page.reload();
+  await page.getByRole('tab', { name: 'Nutrition' }).click();
+  await expect(recent.getByRole('listitem')).toHaveCount(2);
+
+  await expectNarrowTouchTargets(
+    page,
+    page.locator('input[name="calories"], input[name="protein"], .nutrition-targets-toggle'),
+  );
+});
 test('no horizontal overflow on any tab', async ({ page }) => {
   for (const tab of [
     /^home$/i,

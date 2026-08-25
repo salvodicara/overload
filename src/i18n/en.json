@@ -133,15 +133,24 @@
   },
   "progress": {
     "title": "Progress",
-    "pick": "Pick an exercise",
+    "tabsLabel": "Progress sections",
+    "pick": "Exercise",
     "best": "Best",
     "last": "Last",
     "sessions": "Sessions",
-    "caption": "Top-set weight per session, imported history included.",
+    "summary": "{{exercise}} progress summary",
+    "caption": {
+      "weight_reps": "Best completed working-set load per session.",
+      "reps": "Most completed working repetitions per session.",
+      "duration": "Longest completed working duration per session."
+    },
+    "chartSummary_one": "{{exercise}}. {{caption}} {{count}} session. First: {{first}}. Last: {{last}}.{{pr}}",
+    "chartSummary_other": "{{exercise}}. {{caption}} {{count}} sessions. First: {{first}}. Last: {{last}}.{{pr}}",
+    "prValue": " PR: {{value}}.",
     "volumeWeek": "Weekly volume",
     "seg.training": "Training",
     "seg.body": "Body",
-    "seg.diet": "Diet"
+    "seg.diet": "Nutrition"
   },
   "library": {
     "title": "Exercises",
@@ -321,23 +330,35 @@
     "calf": "Calf",
     "latest": "Latest",
     "weeklyAvg": "Weekly avg",
+    "metricGroup": "Measurement type",
+    "summary": "{{metric}} summary",
+    "trend": "{{metric}} trend",
+    "chartSummary_one": "{{metric}} trend. {{count}} measurement. {{first}}.",
+    "chartSummary_other": "{{metric}} trend. {{count}} measurements. First: {{first}}. Last: {{last}}.",
+    "onePoint": "1 measurement recorded",
+    "emptyMetric": "No {{metric}} measurements yet",
+    "valueLabel": "{{metric}} ({{unit}})",
+    "dateLabel": "Measurement date",
+    "delete": "Delete {{metric}} measurement from {{date}}",
+    "history": "Recent measurements",
     "add": "Add measurement",
-    "empty": "No measurements yet: weekly average body weight is the compass of a bulk."
+    "saveError": "Could not update measurements. Try again."
   },
   "diet": {
     "today": "Today",
     "targets": "Targets",
-    "kcalTarget": "kcal target",
-    "proteinTarget": "protein target (g)",
-    "protein": "protein (g)",
-    "hint": "Two numbers a day are enough: calories and protein. The bar turns green on target.",
-    "meals": "Meal examples",
-    "meal1Title": "Breakfast (~30g protein)",
-    "meal1Body": "Greek yogurt or skyr with fruit and a scoop of whey; or egg whites with bread and fruit.",
-    "meal2Title": "Post-workout (~350 kcal, 30g protein)",
-    "meal2Body": "Whey shake with a banana and milk. The simplest way to close the surplus.",
-    "meal3Title": "Typical meal (~700 kcal, 40g protein)",
-    "meal3Body": "150g pasta or rice, 150-200g chicken/fish/meat, vegetables and a spoon of olive oil."
+    "kcalTarget": "Calorie target (kcal)",
+    "proteinTarget": "Protein target (g)",
+    "calories": "Calories (kcal)",
+    "protein": "Protein (g)",
+    "hint": "Log calories and protein when useful. Targets are optional.",
+    "noCalorieTarget": "No calorie target",
+    "noProteinTarget": "No protein target",
+    "currentNoTarget": "{{current}} {{unit}}, no target",
+    "currentTarget": "{{current}} of {{target}} {{unit}}",
+    "empty": "No nutrition entries yet",
+    "recent": "Recent days",
+    "saveError": "Could not save nutrition. Try again."
   },
   "activeBar": {
     "resume": "Resume"
