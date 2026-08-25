@@ -52,19 +52,3 @@ export function formatPreviousSet(
   if (mode === 'reps') return String(set.reps);
   return `${displayWeight(set.weightKg, unit)} × ${set.reps}`;
 }
-
-/** Most recent done sets of an exercise, for "last time" lines and prefills. */
-export function lastTimeLine(
-  workouts: Workout[],
-  exerciseId: string,
-): { date: string; sets: string } | null {
-  const latest = latestWorkoutWith(workouts, exerciseId);
-  if (!latest) return null;
-  return {
-    date: latest.date,
-    sets: latest.sets
-      .filter((s) => s.exerciseId === exerciseId && s.done && kindOf(s.kind) === 'working')
-      .map((s) => `${s.weightKg}×${s.reps}`)
-      .join('  '),
-  };
-}

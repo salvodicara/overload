@@ -416,7 +416,6 @@ export type Store = {
   ): Promise<AccountActionResult>;
   queueTechniqueNote(exerciseId: string, text: string): void;
   saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
-  addNoteEntry(exerciseId: string, text: string): Promise<AccountActionResult>;
   importNotes(incoming: ExerciseNote[]): Promise<AccountActionResult<number>>;
   createCustomExercise(name: string, muscleGroup: string): Promise<AccountActionResult<string>>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<AccountActionResult>;
@@ -969,31 +968,6 @@ export const useStore = create<Store>((set, get) => ({
     });
     for (const routine of moved) debouncedPushRoutine(owner, routine.id);
     if (owns(owner)) await deleteRecord(owner.uid, 'folders', id);
-    return accountActionForOwner(owner, undefined);
-  },
-
-  async addNoteEntry(exerciseId, text) {
-    const owner = captureOwner();
-    if (!owner) return STALE_ACCOUNT_ACTION;
-    const trimmed = text.trim();
-    if (!trimmed) return appliedAccountAction(owner, undefined);
-    const date = todayISO();
-    const existing = get().notes.find((n) => n.id === exerciseId);
-    const next: ExerciseNote = existing
-      ? structuredClone(existing)
-      : { id: exerciseId, entries: [], updatedAt: 0 };
-    const today = next.entries.find((e) => e.date === date);
-    // Same-day additions update today's entry; past entries are never touched.
-    if (today) today.text = trimmed;
-    else next.entries.push({ date, text: trimmed });
-    next.updatedAt = Date.now();
-    const result = await withOwnedLocalWrite(owner, async () => {
-      await saveNote(next);
-      return next;
-    });
-    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    set({ notes: [...get().notes.filter((n) => n.id !== exerciseId), next] });
-    if (owns(owner)) await pushRecord(owner.uid, 'notes', next);
     return accountActionForOwner(owner, undefined);
   },
 
