@@ -1565,6 +1565,34 @@ test('custom exercise sheet closes from its scrim', async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
+test('custom creation failure clears its alert when the sheet is dismissed', async ({ page }) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const { useStore } = (await import(modulePath)) as typeof import('../src/state/useStore');
+    useStore.setState({
+      createCustomExercise: async () => {
+        throw new Error('local write failed');
+      },
+    });
+  });
+  await page
+    .getByRole('button', { name: /create custom exercise|crea esercizio personalizzato/i })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: /create custom exercise|crea esercizio personalizzato/i,
+  });
+  await dialog.getByLabel(/exercise name|nome esercizio/i).fill('Failed carry');
+  await dialog.getByRole('button', { name: /^(create|crea)$/i }).click();
+  await expect(dialog.getByRole('alert')).toContainText(
+    /could not create the exercise|impossibile creare l'esercizio/i,
+  );
+
+  await dialog.getByRole('button', { name: /^(cancel|annulla)$/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('library keeps labelled search, filters, and scroll context through hardware Back', async ({
   page,
 }) => {
@@ -2112,6 +2140,13 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
     expect(
       await page
+        .locator('.exercise-journal__topline')
+        .evaluateAll((elements) =>
+          elements.every((element) => Number.parseFloat(getComputedStyle(element).fontSize) >= 12),
+        ),
+    ).toBe(true);
+    expect(
+      await page
         .getByRole('button', { name: /Linked observation/ })
         .evaluate((button) => button.getBoundingClientRect().height),
     ).toBeGreaterThanOrEqual(44);
@@ -2176,9 +2211,15 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
 
   await openExerciseDetail(page, 'hanging leg raise', /hanging leg raise/i);
   await expect(page.getByRole('heading', { name: 'Hanging Leg Raise', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Latest working performance · Reps', exact: true }),
+  ).toBeVisible();
   await expect(page.getByText('12 reps', { exact: true })).toBeVisible();
   await openExerciseDetail(page, 'plank', /^plank core$/i);
   await expect(page.getByRole('heading', { name: 'Plank', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Latest working performance · Duration', exact: true }),
+  ).toBeVisible();
   await expect(page.getByText('35 seconds', { exact: true })).toBeVisible();
 });
 

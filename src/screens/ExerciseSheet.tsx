@@ -54,6 +54,11 @@ export function ExerciseSheet({ id }: { id: string }) {
   const altName = ex ? (isIt ? ex.nameEn : ex.nameIt) : '';
   const note = notes.find((item) => item.id === id);
   const latestWorkingSets = previousSets(workouts, id);
+  const latestTracking = trackingOf(latestWorkingSets[0]?.tracking);
+  const latestPerformanceContext =
+    latestTracking === 'weight_reps'
+      ? unit
+      : t(latestTracking === 'reps' ? 'editor.trackingReps' : 'editor.trackingDuration');
   const journal = exerciseJournal(workouts, note, id);
   const techniqueLabelId = 'exercise-technique-label';
   const techniqueContentId = 'exercise-technique-content';
@@ -123,7 +128,7 @@ export function ExerciseSheet({ id }: { id: string }) {
       </div>
 
       <section className="exercise-detail__section exercise-detail__performance">
-        <h2>{t('notes.latestPerformance', { unit })}</h2>
+        <h2>{t('notes.latestPerformance', { unit: latestPerformanceContext })}</h2>
         {latestWorkingSets.length > 0 ? (
           <ul className="exercise-performance-list">
             {latestWorkingSets.map((set, index) => (

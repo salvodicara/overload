@@ -143,6 +143,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   function dismissCreateSheet(): void {
     sheetGenerationRef.current += 1;
     submitGenerationRef.current = null;
+    setOperationError(null);
     setCreatePending(false);
     setCreating(false);
   }
