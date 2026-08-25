@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { lastTimeLine } from '../lib/format';
@@ -25,7 +25,7 @@ export function Workout() {
   const finish = useStore((s) => s.finishWorkout);
   const [confirming, setConfirming] = useState(false);
   const notes = useStore((s) => s.notes);
-  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
+  const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((st) => st.setRestOverride);
   const [editingRest, setEditingRest] = useState<number | null>(null);
@@ -33,14 +33,6 @@ export function Workout() {
     exerciseIndex: number;
     scope: 'technique' | 'session';
   } | null>(null);
-  const techniqueTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const queueTechnique = (exerciseId: string, text: string): void => {
-    clearTimeout(techniqueTimers.current.get(exerciseId));
-    techniqueTimers.current.set(
-      exerciseId,
-      setTimeout(() => void saveTechniqueNote(exerciseId, text), 500),
-    );
-  };
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -181,7 +173,7 @@ export function Workout() {
                             initial={note?.technique ?? ''}
                             placeholder={t('notes.techniquePlaceholder')}
                             ariaLabel={t('notes.technique')}
-                            onChangeText={(text) => queueTechnique(e.exerciseId, text)}
+                            onChangeText={(text) => queueTechniqueNote(e.exerciseId, text)}
                             onDone={() => setEditingNote(null)}
                           />
                         ) : (

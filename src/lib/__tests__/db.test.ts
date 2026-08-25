@@ -641,6 +641,43 @@ describe('backup restore store action', () => {
     ]);
   });
 
+  it('strictly publishes the final note record after restore creates a Technique migration', async () => {
+    await login('u1');
+    const existing = {
+      id: 'bench',
+      entries: [{ date: '2026-06-10', text: 'Same timestamp remotely' }],
+      updatedAt: 20,
+    };
+    const backup: BackupV2 = {
+      ...COMPLETE_BACKUP,
+      routines: [
+        {
+          id: 'r1',
+          name: 'Restore',
+          exercises: [
+            {
+              exerciseId: 'bench',
+              sets: 3,
+              repMin: 5,
+              repMax: 8,
+              restSec: 90,
+              note: 'Restored technique',
+            },
+          ],
+          updatedAt: 2,
+        },
+      ],
+      notes: [existing],
+    };
+
+    await useStore.getState().restoreBackup(backup);
+
+    expect(pushRecordStrictMock).toHaveBeenCalledWith('u1', 'notes', {
+      ...existing,
+      technique: 'Restored technique',
+    });
+  });
+
   it('rejects an authenticated restore when a required cloud write fails', async () => {
     await login('u1');
     pushRecordStrictMock.mockRejectedValueOnce(new Error('permission denied'));

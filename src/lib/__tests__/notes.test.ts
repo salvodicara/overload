@@ -17,6 +17,43 @@ import workoutSource from '../../screens/Workout.tsx?raw';
 
 const storage = new Map<string, string>();
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function fakeTechniqueTimer() {
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const techniqueTimer = 1234 as unknown as ReturnType<typeof setTimeout>;
+  let releaseTechniqueTimer!: () => void;
+  const cleared = vi.fn();
+  const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation((
+    (handler: TimerHandler, delay?: number, ...args: unknown[]) => {
+      if (delay === 500 && typeof handler === 'function') {
+        releaseTechniqueTimer = () => handler(...args);
+        return techniqueTimer;
+      }
+      return realSetTimeout(handler, delay, ...args);
+    }
+  ) as typeof setTimeout);
+  const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout').mockImplementation((timer) => {
+    if (timer === techniqueTimer) cleared();
+    else realClearTimeout(timer);
+  });
+  return {
+    cleared,
+    release: () => releaseTechniqueTimer(),
+    restore() {
+      clearTimeoutSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+    },
+  };
+}
+
 const routineWith = (exerciseId: string, note: string): Routine => ({
   id: crypto.randomUUID(),
   name: 'Routine',
@@ -192,16 +229,120 @@ describe('note persistence', () => {
   });
 
   it('pushes a migrated routine technique when authenticated', async () => {
+    const existing: ExerciseNote = {
+      id: 'bench',
+      entries: [{ date: '2026-08-20', text: 'Legacy import' }],
+      updatedAt: 20,
+    };
     await saveRoutine(routineWith('bench', 'Scapole ferme'));
+    await saveNote(existing);
 
     await useStore.getState().reload();
 
     expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
       id: 'bench',
       technique: 'Scapole ferme',
-      entries: [],
-      updatedAt: 0,
+      entries: existing.entries,
+      updatedAt: 20,
     });
+  });
+
+  it('publishes a boot migration after readiness without making init wait for the network', async () => {
+    useStore.getState().setUser(null);
+    await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
+    const existing: ExerciseNote = {
+      id: 'bench',
+      entries: [{ date: '2026-08-20', text: 'Same timestamp remotely' }],
+      updatedAt: 20,
+    };
+    await saveRoutine(routineWith('bench', 'Boot technique'));
+    await saveNote(existing);
+    pushRecord.mockClear();
+    const remote = deferred<void>();
+    pushRecord.mockReturnValueOnce(remote.promise);
+
+    useStore.getState().setUser({ uid: 'user-1', name: null });
+    const init = useStore.getState().init();
+    try {
+      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
+      await vi.waitFor(() => expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
+        ...existing,
+        technique: 'Boot technique',
+      }));
+      const settled = vi.fn();
+      void init.then(settled);
+      await vi.waitFor(() => expect(settled).toHaveBeenCalledOnce());
+    } finally {
+      remote.resolve();
+      await init;
+    }
+  });
+
+  it('publishes the final migration record created while importing workouts', async () => {
+    const existing: ExerciseNote = {
+      id: 'bench',
+      entries: [{ date: '2026-08-20', text: 'Same timestamp remotely' }],
+      updatedAt: 20,
+    };
+    await saveRoutine(routineWith('bench', 'Imported technique'));
+    await saveNote(existing);
+    useStore.setState({ routines: [], notes: [] });
+    pushRecord.mockClear();
+
+    await useStore.getState().importWorkouts([]);
+
+    expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
+      ...existing,
+      technique: 'Imported technique',
+    });
+  });
+
+  it('drops a queued Technique edit when its account is invalidated before the timer fires', async () => {
+    const timer = fakeTechniqueTimer();
+    try {
+      useStore.getState().queueTechniqueNote('bench', 'Account A text');
+
+      storage.set('overload_uid', 'user-1');
+      useStore.getState().setUser({ uid: 'user-2', name: null });
+      await useStore.getState().init();
+      expect(timer.cleared).toHaveBeenCalledOnce();
+      pushRecord.mockClear();
+      timer.release();
+      await Promise.resolve();
+
+      expect(useStore.getState().user?.uid).toBe('user-2');
+      expect(useStore.getState().notes).toEqual([]);
+      expect(await db.notes.get('bench')).toBeUndefined();
+      expect(pushRecord).not.toHaveBeenCalledWith(
+        'user-2',
+        'notes',
+        expect.objectContaining({ technique: 'Account A text' }),
+      );
+    } finally {
+      timer.restore();
+    }
+  });
+
+  it('saves a queued Technique edit for the same account after the debounce', async () => {
+    const timer = fakeTechniqueTimer();
+    try {
+      useStore.getState().queueTechniqueNote('bench', '  Same account text  ');
+      timer.release();
+      await vi.waitFor(() => expect(useStore.getState().notes).toEqual([
+        expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
+      ]));
+
+      expect(await db.notes.get('bench')).toEqual(
+        expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
+      );
+      expect(pushRecord).toHaveBeenCalledWith(
+        'user-1',
+        'notes',
+        expect.objectContaining({ id: 'bench', technique: 'Same account text' }),
+      );
+    } finally {
+      timer.restore();
+    }
   });
 
   it('pushes a saved technique when authenticated', async () => {
@@ -278,7 +419,7 @@ describe('note persistence', () => {
 describe('active Workout note API contract', () => {
   it('uses Technique and This session actions without the legacy dated-entry action', () => {
     expect(workoutSource).not.toContain('addNoteEntry');
-    expect(workoutSource).toContain('saveTechniqueNote');
+    expect(workoutSource).toContain('queueTechniqueNote');
     expect(workoutSource).toContain('updateSessionNote');
     expect(workoutSource).toContain('note?.technique');
     expect(workoutSource).toContain('e.sessionNote');
