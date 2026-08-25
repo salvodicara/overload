@@ -25,7 +25,12 @@ import {
 } from '../lib/db';
 import { deleteRecord, pushRecord, startSync, type SyncState } from '../lib/sync';
 import { computeVolume, flagPrs } from '../lib/volume';
-import { suggest } from '../lib/progression';
+import {
+  buildActiveExercise,
+  completedSets,
+  type ActiveExercise,
+  type ActiveSet,
+} from '../lib/session';
 import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
@@ -49,11 +54,11 @@ export type Route =
 
 export type AppUser = { uid: string; name: string | null };
 
-export type ActiveSet = { weightKg: number | null; reps: number | null; done: boolean };
+export type { ActiveSet };
 export type ActiveSession = {
   routineId: string;
   startTs: number;
-  ex: { exerciseId: string; sets: ActiveSet[]; hintKey: string; restOverride?: number }[];
+  ex: ActiveExercise[];
   /** Persisted so a running rest timer survives reloads and PWA eviction. */
   restUntil?: number | null;
   restExerciseId?: string | null;
@@ -167,6 +172,8 @@ export type Store = {
   updateSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<void>;
   startWorkout(routineId: string): void;
   updateSet(ei: number, si: number, patch: Partial<ActiveSet>): void;
+  updateSessionNote(ei: number, text: string): void;
+  toggleSetKind(ei: number, si: number): void;
   toggleDone(ei: number, si: number): void;
   setRestOverride(ei: number, sec: number): void;
   addSet(ei: number): void;
@@ -316,14 +323,7 @@ export const useStore = create<Store>((set, get) => ({
     const active: ActiveSession = {
       routineId,
       startTs: Date.now(),
-      ex: routine.exercises.map((rx) => {
-        const s = suggest(rx, history);
-        return {
-          exerciseId: rx.exerciseId,
-          hintKey: s.hintKey,
-          sets: s.weights.map((w) => ({ weightKg: w, reps: null, done: false })),
-        };
-      }),
+      ex: routine.exercises.map((rx) => buildActiveExercise(rx, history)),
     };
     persistActive(active);
     set({ active, route: { view: 'workout' } });
@@ -334,6 +334,25 @@ export const useStore = create<Store>((set, get) => ({
     if (!active) return;
     const next = structuredClone(active);
     Object.assign(next.ex[ei].sets[si], patch);
+    persistActive(next);
+    set({ active: next });
+  },
+
+  updateSessionNote(ei, text) {
+    const active = get().active;
+    if (!active) return;
+    const next = structuredClone(active);
+    next.ex[ei].sessionNote = text;
+    persistActive(next);
+    set({ active: next });
+  },
+
+  toggleSetKind(ei, si) {
+    const active = get().active;
+    if (!active) return;
+    const next = structuredClone(active);
+    const activeSet = next.ex[ei].sets[si];
+    activeSet.kind = activeSet.kind === 'warmup' ? 'working' : 'warmup';
     persistActive(next);
     set({ active: next });
   },
@@ -349,7 +368,9 @@ export const useStore = create<Store>((set, get) => ({
     // edited/reordered while this session was in progress.
     const routine = get().routines.find((r) => r.id === active.routineId);
     const rx = routine?.exercises.find((x) => x.exerciseId === exerciseId);
-    if (s.done && s.reps == null) s.reps = rx?.repMin ?? null;
+    if (s.done && next.ex[ei].tracking !== 'duration' && s.reps == null) {
+      s.reps = rx?.repMin ?? null;
+    }
     persistActive(next);
     set({ active: next });
     if (s.done) get().startRest(next.ex[ei].restOverride ?? rx?.restSec ?? 90, exerciseId);
@@ -368,9 +389,16 @@ export const useStore = create<Store>((set, get) => ({
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
-    const sets = next.ex[ei].sets;
+    const exercise = next.ex[ei];
+    const sets = exercise.sets;
     const last = sets[sets.length - 1];
-    sets.push({ weightKg: last?.weightKg ?? null, reps: null, done: false });
+    sets.push({
+      weightKg: exercise.tracking === 'weight_reps' ? (last?.weightKg ?? null) : null,
+      reps: exercise.tracking === 'reps' ? (last?.reps ?? null) : null,
+      durationSec: exercise.tracking === 'duration' ? (last?.durationSec ?? null) : null,
+      kind: 'working',
+      done: false,
+    });
     persistActive(next);
     set({ active: next });
   },
@@ -396,16 +424,7 @@ export const useStore = create<Store>((set, get) => ({
     const routine = get().routines.find((r) => r.id === active.routineId);
     const date = todayISO();
     const dayLabel = routine?.name;
-    const doneSets = active.ex.flatMap((e) =>
-      e.sets
-        .filter((s) => s.done)
-        .map((s) => ({
-          exerciseId: e.exerciseId,
-          weightKg: s.weightKg ?? 0,
-          reps: s.reps ?? 0,
-          done: true,
-        })),
-    );
+    const doneSets = active.ex.flatMap(completedSets);
     if (doneSets.length === 0) {
       // Hevy behavior: an accidental session with nothing logged is discarded,
       // not recorded and not nagged about.
@@ -437,7 +456,7 @@ export const useStore = create<Store>((set, get) => ({
         if (!rx) continue;
         const change: { exerciseId: string; restSec?: number; sets?: number } = { exerciseId: e.exerciseId };
         if (e.restOverride !== undefined && e.restOverride !== rx.restSec) change.restSec = e.restOverride;
-        const doneCount = e.sets.filter((x) => x.done).length;
+        const doneCount = e.sets.filter((set) => set.done && set.kind === 'working').length;
         if (doneCount > 0 && doneCount !== rx.sets) change.sets = doneCount;
         if (change.restSec !== undefined || change.sets !== undefined) items.push(change);
       }
