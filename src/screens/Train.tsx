@@ -81,6 +81,7 @@ export function Train() {
   const [sheet, setSheet] = useState<SheetState>(null);
   const [nameDraft, setNameDraft] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
   const ungrouped = routines.filter(
     (r) => !r.folderId || !folders.some((f) => f.id === r.folderId),
@@ -245,8 +246,8 @@ export function Train() {
         <BottomSheet
           open
           title={sheetTitle}
-          initialFocusRef={nameInputRef}
-          closeOnScrim
+          initialFocusRef={sheet.kind === 'deleteProgram' ? cancelDeleteRef : nameInputRef}
+          closeOnScrim={sheet.kind !== 'deleteProgram'}
           onClose={() => setSheet(null)}
         >
           {sheet.kind === 'create' && (
@@ -349,7 +350,11 @@ export function Train() {
               >
                 {t('history.deleteConfirm')}
               </button>
-              <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+              <button
+                ref={cancelDeleteRef}
+                className="btn btn-ghost btn-block"
+                onClick={() => setSheet(null)}
+              >
                 {t('workout.cancel')}
               </button>
             </>

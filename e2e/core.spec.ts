@@ -1057,6 +1057,15 @@ test('create sheet contains focus and restores its trigger and scroll position',
   await trigger.evaluate((button) => button.focus({ preventScroll: true }));
   await page.evaluate(() => window.scrollTo(0, 24));
   const scrollBefore = await page.evaluate(() => window.scrollY);
+  const layoutBefore = await page.locator('.screen').evaluate((screen) => {
+    const rect = screen.getBoundingClientRect();
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+    };
+  });
   expect(scrollBefore).toBeGreaterThan(0);
 
   await trigger.evaluate((button: HTMLButtonElement) => button.click());
@@ -1072,10 +1081,31 @@ test('create sheet contains focus and restores its trigger and scroll position',
   await expect(newRoutine).toBeFocused();
   expect(
     await page.evaluate(() => ({
+      htmlOverflow: document.documentElement.style.overflow,
       overflow: document.body.style.overflow,
       position: document.body.style.position,
     })),
-  ).toEqual({ overflow: 'hidden', position: 'fixed' });
+  ).toEqual({ htmlOverflow: 'hidden', overflow: 'hidden', position: '' });
+  expect(
+    await page.locator('.screen').evaluate((screen) => {
+      const rect = screen.getBoundingClientRect();
+      return {
+        clientWidth: document.documentElement.clientWidth,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+      };
+    }),
+  ).toEqual(layoutBefore);
+  await page.mouse.move(4, 4);
+  await page.mouse.wheel(0, 500);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore);
 
   await page.keyboard.press('Shift+Tab');
   await expect(newProgram).toBeFocused();
@@ -1106,10 +1136,83 @@ test('create sheet contains focus and restores its trigger and scroll position',
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollBefore);
   expect(
     await page.evaluate(() => ({
+      htmlOverflow: document.documentElement.style.overflow,
       overflow: document.body.style.overflow,
       position: document.body.style.position,
     })),
-  ).toEqual({ overflow: '', position: '' });
+  ).toEqual({ htmlOverflow: '', overflow: '', position: '' });
+});
+
+test('routine creation preserves Train scroll memory while the editor starts at the top', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 400 });
+  const create = page.getByRole('button', { name: /^\+ (create|crea)$/i });
+  await create.evaluate((button) => button.focus({ preventScroll: true }));
+  await page.evaluate(() => window.scrollTo(0, 130));
+  const trainScroll = await page.evaluate(() => window.scrollY);
+  expect(trainScroll).toBe(130);
+
+  await create.evaluate((button: HTMLButtonElement) => button.click());
+  await page
+    .getByRole('dialog', { name: /^\+ (create|crea)$/i })
+    .getByRole('button', { name: /^(new routine|nuova scheda)$/i })
+    .click();
+  await page.getByRole('textbox', { name: /routine name|nome scheda/i }).fill('Scroll memory');
+  await page.getByRole('button', { name: /^(create|crea)$/i }).click();
+
+  await expect(page.getByRole('heading', { name: /edit routine|modifica scheda/i })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page
+    .getByRole('button', { name: /back|indietro/i })
+    .first()
+    .click();
+  await expect(create).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(trainScroll);
+});
+
+test('sheet focus wrap skips negative, disabled, hidden, and inert descendants', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^\+ (create|crea)$/i }).click();
+  const dialog = page.getByRole('dialog', { name: /^\+ (create|crea)$/i });
+  const first = dialog.getByRole('button', { name: /^(new routine|nuova scheda)$/i });
+  const last = dialog.getByRole('button', { name: /^(new program|nuovo programma)$/i });
+
+  await dialog.evaluate((element) => {
+    const body = element.querySelector('.sheet__body');
+    if (!(body instanceof HTMLElement)) throw new Error('sheet body missing');
+
+    const negative = document.createElement('button');
+    negative.textContent = 'Negative tabindex fixture';
+    negative.tabIndex = -2;
+    body.append(negative);
+
+    const fieldset = document.createElement('fieldset');
+    fieldset.disabled = true;
+    const disabled = document.createElement('button');
+    disabled.textContent = 'Disabled fieldset fixture';
+    fieldset.append(disabled);
+    body.append(fieldset);
+
+    const hiddenParent = document.createElement('div');
+    hiddenParent.hidden = true;
+    const hidden = document.createElement('button');
+    hidden.textContent = 'Hidden fixture';
+    hiddenParent.append(hidden);
+    body.append(hiddenParent);
+
+    const inertParent = document.createElement('div');
+    inertParent.inert = true;
+    const inert = document.createElement('button');
+    inert.textContent = 'Inert fixture';
+    inertParent.append(inert);
+    body.append(inertParent);
+  });
+
+  await last.focus();
+  await page.keyboard.press('Tab');
+  await expect(first).toBeFocused();
 });
 
 test('destructive routine sheet ignores its scrim and restores focus on Escape', async ({
@@ -1142,6 +1245,54 @@ test('custom exercise sheet closes from its scrim', async ({ page }) => {
   await dialog.click({ position: { x: 4, y: 4 } });
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test('program delete confirmation ignores its scrim without replacing the dialog', async ({
+  page,
+}) => {
+  await page
+    .getByRole('button', { name: /(program options|opzioni programma)/i })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog');
+  const dialogElement = await dialog.elementHandle();
+
+  await dialog.getByRole('button', { name: /delete program|elimina programma/i }).click();
+  await expect(dialog).toHaveAccessibleName(/delete program|elimina programma/i);
+  expect(
+    await dialogElement?.evaluate(
+      (element) => element.isConnected && element === document.querySelector('dialog[open]'),
+    ),
+  ).toBe(true);
+
+  await dialog.click({ position: { x: 4, y: 4 } });
+  await expect(dialog).toBeVisible();
+});
+
+test('program delete confirmation focuses Cancel and keeps focus wrapped in the same dialog', async ({
+  page,
+}) => {
+  await page
+    .getByRole('button', { name: /(program options|opzioni programma)/i })
+    .first()
+    .click();
+  const dialog = page.getByRole('dialog');
+  const dialogElement = await dialog.elementHandle();
+
+  await dialog.getByRole('button', { name: /delete program|elimina programma/i }).click();
+  const confirm = dialog.getByRole('button', { name: /^(delete|elimina)$/i });
+  const cancel = dialog.getByRole('button', { name: /^(cancel|annulla)$/i });
+  expect(
+    await dialogElement?.evaluate(
+      (element) => element.isConnected && element === document.querySelector('dialog[open]'),
+    ),
+  ).toBe(true);
+  await expect(cancel).toBeFocused();
+
+  await page.keyboard.press('Tab');
+  await expect(confirm).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(cancel).toBeFocused();
 });
 
 test('routines are fully editable and deletable', async ({ page }) => {

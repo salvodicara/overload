@@ -35,8 +35,10 @@ type SavedStyle = {
 };
 
 type ScrollLock = {
+  root: HTMLElement;
   body: HTMLElement;
-  savedStyles: SavedStyle[];
+  savedRootStyles: SavedStyle[];
+  savedBodyStyles: SavedStyle[];
   scrollX: number;
   scrollY: number;
   trigger: HTMLElement | null;
@@ -46,26 +48,28 @@ function visibleFocusable(dialog: HTMLDialogElement): HTMLElement[] {
   return [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => {
     const style = getComputedStyle(element);
     return (
+      element.tabIndex >= 0 &&
+      !element.matches(':disabled') &&
       element.getClientRects().length > 0 &&
       style.display !== 'none' &&
       style.visibility !== 'hidden' &&
-      !element.closest('[aria-hidden="true"]')
+      !element.closest('[hidden], [inert], [aria-hidden="true"]')
     );
   });
 }
 
-function saveBodyStyle(body: HTMLElement, property: string): SavedStyle {
+function saveInlineStyle(element: HTMLElement, property: string): SavedStyle {
   return {
     property,
-    priority: body.style.getPropertyPriority(property),
-    value: body.style.getPropertyValue(property),
+    priority: element.style.getPropertyPriority(property),
+    value: element.style.getPropertyValue(property),
   };
 }
 
-function restoreBodyStyles(body: HTMLElement, saved: SavedStyle[]): void {
+function restoreInlineStyles(element: HTMLElement, saved: SavedStyle[]): void {
   for (const { property, priority, value } of saved) {
-    if (value) body.style.setProperty(property, value, priority);
-    else body.style.removeProperty(property);
+    if (value) element.style.setProperty(property, value, priority);
+    else element.style.removeProperty(property);
   }
 }
 
@@ -97,11 +101,16 @@ export function BottomSheet({
     }
     if (!scrollLockRef.current) {
       const active = document.activeElement;
+      const root = document.documentElement;
       const body = document.body;
       scrollLockRef.current = {
+        root,
         body,
-        savedStyles: ['overflow', 'position', 'top', 'left', 'right', 'width', 'padding-right'].map(
-          (property) => saveBodyStyle(body, property),
+        savedRootStyles: ['overflow', 'overflow-anchor'].map((property) =>
+          saveInlineStyle(root, property),
+        ),
+        savedBodyStyles: ['overflow', 'padding-right'].map((property) =>
+          saveInlineStyle(body, property),
         ),
         scrollX: window.scrollX,
         scrollY: window.scrollY,
@@ -109,27 +118,23 @@ export function BottomSheet({
       };
     }
     const lock = scrollLockRef.current;
-    const { body, savedStyles, scrollX, scrollY, trigger } = lock;
+    const { root, body, savedRootStyles, savedBodyStyles, scrollX, scrollY, trigger } = lock;
     const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
 
+    root.style.overflow = 'hidden';
+    root.style.setProperty('overflow-anchor', 'none');
     body.style.overflow = 'hidden';
-    body.style.position = 'fixed';
-    body.style.top = `${-scrollY}px`;
-    body.style.left = `${-scrollX}px`;
-    body.style.right = '0';
-    body.style.width = '100%';
-    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+    if (scrollbarWidth > 0) {
+      const paddingRight = Number.parseFloat(getComputedStyle(body).paddingRight) || 0;
+      body.style.paddingRight = `${paddingRight + scrollbarWidth}px`;
+    }
 
     dialog.showModal();
-    const requested = initialFocusRef?.current;
-    const focusable = visibleFocusable(dialog);
-    const target =
-      requested && focusable.includes(requested) ? requested : (focusable[0] ?? dialog);
-    target.focus({ preventScroll: true });
 
     return () => {
       if (dialog.open) dialog.close();
-      restoreBodyStyles(body, savedStyles);
+      restoreInlineStyles(root, savedRootStyles);
+      restoreInlineStyles(body, savedBodyStyles);
       if (!trigger?.isConnected) {
         scrollLockRef.current = null;
         return;
@@ -149,6 +154,16 @@ export function BottomSheet({
         scrollLockRef.current = null;
       });
     };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog?.open || !open) return;
+    const requested = initialFocusRef?.current;
+    const focusable = visibleFocusable(dialog);
+    const target =
+      requested && focusable.includes(requested) ? requested : (focusable[0] ?? dialog);
+    target.focus({ preventScroll: true });
   }, [initialFocusRef, open]);
 
   function requestClose(): void {
