@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { IconForward } from '../components/Icons';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
+import { lastCompletedFor, nextRoutine } from '../lib/routines';
 import {
   isAccountActionCurrent,
   STALE_ACCOUNT_ACTION,
@@ -31,7 +32,7 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
   const nav = useStore((s) => s.nav);
   const startWorkout = useStore((s) => s.startWorkout);
   const workouts = useStore((s) => s.workouts);
-  const last = workouts.find((w) => w.routineId === routine.id || w.dayLabel === routine.name);
+  const last = lastCompletedFor(routine, workouts);
   return (
     <div className="card card-pad row">
       <button
@@ -84,23 +85,7 @@ export function Train() {
     (p) => !p.routines.every((r) => routines.some((x) => x.id === r.id)),
   );
 
-  // Within a program, suggest the routine trained least recently:
-  // did A, C, D this week -> B is up.
-  function suggestedIn(group: Routine[]): string | null {
-    if (group.length < 2) return null;
-    let pick: string | null = null;
-    let oldest = Infinity;
-    for (const r of group) {
-      if (r.exercises.length === 0) continue;
-      const last = workouts.find((w) => w.routineId === r.id || w.dayLabel === r.name);
-      const ts = last ? new Date(`${last.date}T12:00:00`).getTime() : 0;
-      if (ts < oldest) {
-        oldest = ts;
-        pick = r.id;
-      }
-    }
-    return pick;
-  }
+  const suggestedId = nextRoutine(routines, folders, workouts)?.id;
 
   async function createRoutine(name: string, folderId?: string): Promise<void> {
     const routine: Routine = {
@@ -174,7 +159,7 @@ export function Train() {
           </div>
         )}
         {ungrouped.map((r) => (
-          <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedIn(ungrouped)} />
+          <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedId} />
         ))}
 
         {folders.map((f) => {
@@ -193,7 +178,7 @@ export function Train() {
                 <span className="muted"><IconForward width={15} height={15} aria-hidden /></span>
               </button>
               {inFolder.map((r) => (
-                <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedIn(inFolder)} />
+                <RoutineCard key={r.id} routine={r} suggested={r.id === suggestedId} />
               ))}
               {inFolder.length === 0 && (
                 <button className="card card-pad small muted" style={{ width: '100%', textAlign: 'left' }} onClick={() => { setNameDraft(''); setSheet({ kind: 'newRoutine', folderId: f.id }); }}>
