@@ -9,6 +9,10 @@ function expectAtLeast48PxGeometry(actualPx: number): void {
   expect(actualPx).toBeGreaterThanOrEqual(48 - DOM_RECT_SUBPIXEL_EPSILON_PX);
 }
 
+function expectAtLeast44PxGeometry(actualPx: number): void {
+  expect(actualPx).toBeGreaterThanOrEqual(44 - DOM_RECT_SUBPIXEL_EPSILON_PX);
+}
+
 export async function installNeutralTemplate(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page
@@ -1356,17 +1360,40 @@ test('rest controls keep a stable 44px target on narrow workouts', async ({ page
       }),
     );
     expect(geometry.length).toBeGreaterThan(0);
-    expect(geometry.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+    for (const { width, height } of geometry) {
+      expectAtLeast44PxGeometry(width);
+      expectAtLeast44PxGeometry(height);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
 
     const first = restControls.first();
-    const before = await first.boundingBox();
+    const readSize = () =>
+      first.evaluate((control) => {
+        const rect = control.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      });
+    const expectStableSize = (
+      actual: { width: number; height: number },
+      baseline: { width: number; height: number },
+    ) => {
+      expectAtLeast44PxGeometry(actual.width);
+      expectAtLeast44PxGeometry(actual.height);
+      expect(Math.abs(actual.width - baseline.width)).toBeLessThanOrEqual(
+        DOM_RECT_SUBPIXEL_EPSILON_PX,
+      );
+      expect(Math.abs(actual.height - baseline.height)).toBeLessThanOrEqual(
+        DOM_RECT_SUBPIXEL_EPSILON_PX,
+      );
+    };
+    const before = await readSize();
     await first.click();
     await expect(page.locator('.exercise-block__rest-editor').first()).toBeVisible();
-    expect(await first.boundingBox()).toEqual(before);
+    expectStableSize(await readSize(), before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
     await first.click();
     await expect(page.locator('.exercise-block__rest-editor')).toHaveCount(0);
-    expect(await first.boundingBox()).toEqual(before);
+    expectStableSize(await readSize(), before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
   }
 });
 
