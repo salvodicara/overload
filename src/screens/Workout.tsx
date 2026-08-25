@@ -31,6 +31,12 @@ function tableMode(tracking: TrackingType): string {
   return tracking.replace('_', '-');
 }
 
+type PendingSetRemoval = {
+  exercise: string;
+  exerciseIndex: number;
+  setNumber: number;
+};
+
 export function Workout() {
   const { t, i18n } = useTranslation();
   useCatalog();
@@ -49,11 +55,14 @@ export function Workout() {
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((s) => s.setRestOverride);
   const [confirming, setConfirming] = useState(false);
+  const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [committingNotes, setCommittingNotes] = useState<Record<string, boolean>>({});
   const committingNoteKeys = useRef(new Set<string>());
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
+  const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
+  const setRemovalCommittedRef = useRef(false);
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -459,7 +468,14 @@ export function Workout() {
                 {exercise.sets.length > 1 && (
                   <button
                     className="addset exercise-block__remove-set"
-                    onClick={() => removeSet(exerciseIndex)}
+                    onClick={() => {
+                      setRemovalCommittedRef.current = false;
+                      setPendingSetRemoval({
+                        exercise: name,
+                        exerciseIndex,
+                        setNumber: exercise.sets.length,
+                      });
+                    }}
                     aria-label={t('workout.removeSet')}
                   >
                     <IconMinus />
@@ -477,6 +493,39 @@ export function Workout() {
           {t('workout.abandonConfirm')}
         </button>
       </details>
+
+      {pendingSetRemoval && (
+        <BottomSheet
+          open
+          title={t('workout.removeSetTitle', {
+            set: pendingSetRemoval.setNumber,
+            exercise: pendingSetRemoval.exercise,
+          })}
+          initialFocusRef={cancelSetRemovalRef}
+          onClose={() => setPendingSetRemoval(null)}
+        >
+          <span className="muted small">{t('workout.removeSetBody')}</span>
+          <button
+            className="btn btn-danger btn-block"
+            onClick={() => {
+              if (setRemovalCommittedRef.current) return;
+              setRemovalCommittedRef.current = true;
+              const exerciseIndex = pendingSetRemoval.exerciseIndex;
+              setPendingSetRemoval(null);
+              removeSet(exerciseIndex);
+            }}
+          >
+            {t('workout.removeSet')}
+          </button>
+          <button
+            ref={cancelSetRemovalRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setPendingSetRemoval(null)}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
+      )}
 
       {confirming && (
         <BottomSheet

@@ -1317,6 +1317,10 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
   await firstExercise
     .getByRole('button', { name: /remove warm-up set|rimuovi serie di riscaldamento/i })
     .click();
+  await page
+    .getByRole('dialog', { name: /remove this warm-up set|rimuovere questa serie/i })
+    .getByRole('button', { name: /^(remove|rimuovi)$/i })
+    .click();
   await expect(firstExercise.getByLabel(/load|carico/i)).toHaveCount(0);
   await firstExercise
     .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
@@ -1395,6 +1399,64 @@ test('active workout keeps finish and previous values in reach', async ({ page }
   await expect(page.getByRole('timer')).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+test('active workout preserves a typed set until one confirmed keyboard removal', async ({
+  page,
+}) => {
+  await startNeutralWorkout(page);
+  const exercise = page.locator('.exercise-block').first();
+  const rows = exercise.locator('.set-row');
+  const initialCount = await rows.count();
+  const lastLoad = exercise.getByLabel(new RegExp(`set ${initialCount} load`, 'i'));
+  const lastReps = exercise.getByLabel(new RegExp(`set ${initialCount} reps`, 'i'));
+  await lastLoad.fill('77.5');
+  await lastReps.fill('9');
+
+  const trigger = exercise.getByRole('button', { name: /remove last set/i });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  let dialog = page.getByRole('dialog', {
+    name: new RegExp(`remove set ${initialCount} from barbell squat`, 'i'),
+  });
+  const cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  await expect(cancel).toBeFocused();
+  for (const viewport of [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const bounds = await dialog.locator('.sheet').boundingBox();
+    expect(bounds).not.toBeNull();
+    expect((bounds?.x ?? viewport.width) + (bounds?.width ?? 0)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+  }
+  await cancel.click();
+  await expect(rows).toHaveCount(initialCount);
+  await expect(lastLoad).toHaveValue('77.5');
+  await expect(lastReps).toHaveValue('9');
+
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  dialog = page.getByRole('dialog', {
+    name: new RegExp(`remove set ${initialCount} from barbell squat`, 'i'),
+  });
+  await dialog.getByRole('button', { name: /remove last set/i }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement)) throw new Error('remove-set button missing');
+    button.click();
+    button.click();
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(rows).toHaveCount(initialCount - 1);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('overload_active') ?? 'null').ex[0].sets.length,
+      ),
+    )
+    .toBe(initialCount - 1);
 });
 
 test('rest controls keep a stable 44px target on narrow workouts', async ({ page }) => {
@@ -1980,6 +2042,63 @@ test('destructive routine sheet ignores its scrim and restores focus on Escape',
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test('routine exercise and warm-up removals require one confirmed action', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  const exerciseCards = page.locator('.screen.page > .stack > .card');
+  const initialExerciseCount = await exerciseCards.count();
+  const firstExercise = exerciseCards.first();
+
+  const removeExercise = firstExercise.getByRole('button', { name: /^remove exercise$/i });
+  await removeExercise.focus();
+  await page.keyboard.press('Enter');
+  let dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
+  let cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(exerciseCards).toHaveCount(initialExerciseCount);
+
+  await firstExercise.getByRole('button', { name: /add warm-up set/i }).click();
+  const warmupRemovals = firstExercise.getByRole('button', { name: /remove warm-up set/i });
+  const initialWarmupCount = await warmupRemovals.count();
+  const removeWarmup = warmupRemovals.last();
+  await removeWarmup.focus();
+  await page.keyboard.press('Enter');
+  dialog = page.getByRole('dialog', { name: /remove this warm-up set/i });
+  cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(warmupRemovals).toHaveCount(initialWarmupCount);
+
+  await removeWarmup.click();
+  dialog = page.getByRole('dialog', { name: /remove this warm-up set/i });
+  await dialog.getByRole('button', { name: /^remove$/i }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement)) throw new Error('remove-warm-up button missing');
+    button.click();
+    button.click();
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(warmupRemovals).toHaveCount(initialWarmupCount - 1);
+
+  await removeExercise.click();
+  dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
+  await dialog.getByRole('button', { name: /^remove$/i }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement)) throw new Error('remove-exercise button missing');
+    button.click();
+    button.click();
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(exerciseCards).toHaveCount(initialExerciseCount - 1);
+
+  await page
+    .getByRole('button', { name: /^back$/i })
+    .first()
+    .click();
+  await openNeutralRoutineEditor(page);
+  await expect(
+    page.locator('.screen.page > .stack > .card').filter({ hasText: /^Barbell Squat/ }),
+  ).toHaveCount(0);
 });
 
 test('custom exercise sheet closes from its scrim', async ({ page }) => {
@@ -3001,6 +3120,65 @@ test('body converts only weight and names empty, single and trend states', async
   await expect(page.getByRole('region', { name: 'Recent measurements' })).toContainText('33.3 cm');
 
   await expectNarrowTouchTargets(page, metrics.getByRole('button'));
+});
+
+test('measurement deletion requires confirmation and ignores stale or double activation', async ({
+  page,
+}) => {
+  await installProgressSurfaceFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.getByRole('tab', { name: 'Body' }).click();
+  await page
+    .getByRole('group', { name: 'Measurement type' })
+    .getByRole('button', {
+      name: 'Waist',
+    })
+    .click();
+
+  const trigger = page.getByRole('button', {
+    name: /Delete Waist measurement from 25 Aug 2026/i,
+  });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  let dialog = page.getByRole('dialog', { name: /delete waist measurement/i });
+  await expect(dialog).toContainText('25 Aug 2026 · 82 cm will be permanently removed.');
+  let cancel = dialog.getByRole('button', { name: /^cancel$/i });
+  await expect(cancel).toBeFocused();
+  await cancel.click();
+  await expect(trigger).toBeVisible();
+
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const { useStore } = (await import(modulePath)) as typeof import('../src/state/useStore');
+    const original = useStore.getState().deleteMeasurement;
+    let attempts = 0;
+    document.documentElement.dataset.measurementDeleteAttempts = '0';
+    useStore.setState({
+      deleteMeasurement: async (...args) => {
+        attempts += 1;
+        document.documentElement.dataset.measurementDeleteAttempts = String(attempts);
+        if (attempts === 1) return { status: 'stale' as const };
+        return original(...args);
+      },
+    });
+  });
+
+  await trigger.click();
+  dialog = page.getByRole('dialog', { name: /delete waist measurement/i });
+  await dialog.getByRole('button', { name: /^delete$/i }).evaluate((button) => {
+    if (!(button instanceof HTMLButtonElement))
+      throw new Error('delete-measurement button missing');
+    button.click();
+    button.click();
+  });
+  await expect(page.locator('html')).toHaveAttribute('data-measurement-delete-attempts', '1');
+  await expect(dialog).toBeVisible();
+  await expect(trigger).toBeVisible();
+
+  await dialog.getByRole('button', { name: /^delete$/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('data-measurement-delete-attempts', '2');
 });
 
 test('nutrition keeps optional targets and commits drafts on blur', async ({ page }) => {

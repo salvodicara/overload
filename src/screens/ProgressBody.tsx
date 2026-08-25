@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BottomSheet } from '../components/BottomSheet';
 import { IconX } from '../components/Icons';
 import { LineChart } from '../components/LineChart';
 import { fmtDate, todayISO } from '../lib/format';
@@ -8,6 +9,13 @@ import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { continueAccountAction, useStore } from '../state/useStore';
 
 const METRICS: MeasureMetric[] = ['weight', 'waist', 'chest', 'arm', 'thigh', 'calf'];
+
+type PendingMeasurementRemoval = {
+  id: string;
+  date: string;
+  metric: string;
+  value: string;
+};
 
 export function ProgressBody() {
   const { t, i18n } = useTranslation();
@@ -21,6 +29,10 @@ export function ProgressBody() {
   const [saveError, setSaveError] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
   const [dateDraft, setDateDraft] = useState(todayISO());
+  const [pendingRemoval, setPendingRemoval] = useState<PendingMeasurementRemoval | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const selectedUnit = settings.unit ?? 'kg';
   const unit = metric === 'weight' ? weightLabel(selectedUnit) : 'cm';
@@ -61,6 +73,23 @@ export function ProgressBody() {
     void continueAccountAction(addMeasurement(metric, canonical, dateDraft), closeForm)
       .catch(() => setSaveError(true))
       .finally(() => setSaving(false));
+  };
+
+  const closeDelete = (): void => {
+    if (!deletingRef.current) setPendingRemoval(null);
+  };
+
+  const confirmDelete = (): void => {
+    if (!pendingRemoval || deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    setSaveError(false);
+    void continueAccountAction(deleteMeasurement(pendingRemoval.id), () => setPendingRemoval(null))
+      .catch(() => setSaveError(true))
+      .finally(() => {
+        deletingRef.current = false;
+        setDeleting(false);
+      });
   };
 
   const trendTitleId = 'body-trend-title';
@@ -219,10 +248,14 @@ export function ProgressBody() {
                     <button
                       className="iconbtn muted"
                       aria-label={t('body.delete', { metric: metricName, date })}
-                      onClick={() => {
-                        setSaveError(false);
-                        void deleteMeasurement(measurement.id).catch(() => setSaveError(true));
-                      }}
+                      onClick={() =>
+                        setPendingRemoval({
+                          id: measurement.id,
+                          date,
+                          metric: metricName,
+                          value: formatValue(measurement.value),
+                        })
+                      }
                     >
                       <IconX />
                     </button>
@@ -231,6 +264,33 @@ export function ProgressBody() {
               })}
           </ul>
         </section>
+      )}
+
+      {pendingRemoval && (
+        <BottomSheet
+          open
+          title={t('body.deleteTitle', { metric: pendingRemoval.metric })}
+          initialFocusRef={cancelDeleteRef}
+          onClose={closeDelete}
+        >
+          <span className="muted small">
+            {t('body.deleteBody', {
+              date: pendingRemoval.date,
+              value: pendingRemoval.value,
+            })}
+          </span>
+          <button className="btn btn-danger btn-block" disabled={deleting} onClick={confirmDelete}>
+            {t('history.deleteConfirm')}
+          </button>
+          <button
+            ref={cancelDeleteRef}
+            className="btn btn-ghost btn-block"
+            disabled={deleting}
+            onClick={closeDelete}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
       )}
     </div>
   );

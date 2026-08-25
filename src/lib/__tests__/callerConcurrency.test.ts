@@ -243,13 +243,17 @@ describe('account-owned screen workflows', () => {
     expect(nav).not.toHaveBeenCalled();
   });
 
-  it('does not navigate an editor after a stale delete', async () => {
+  it('returns stale without running destructive caller UI after a stale delete', async () => {
     const nav = vi.fn();
 
-    await continueAccountAction(Promise.resolve({ status: 'stale' as const }), () => {
-      nav({ view: 'train' });
-    });
+    const result = await continueAccountAction(
+      Promise.resolve({ status: 'stale' as const }),
+      () => {
+        nav({ view: 'train' });
+      },
+    );
 
+    expect(result).toEqual({ status: 'stale' });
     expect(nav).not.toHaveBeenCalled();
   });
 

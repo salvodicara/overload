@@ -17,6 +17,10 @@ import {
 
 const ICON = { width: 44, height: 44 } as const;
 
+type PendingRoutineRemoval =
+  | { kind: 'exercise'; exerciseIndex: number; exercise: string }
+  | { kind: 'warmup'; exerciseIndex: number; warmupIndex: number };
+
 function NumField({
   label,
   value,
@@ -76,9 +80,12 @@ export function RoutineEditor({ id }: { id: string }) {
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRoutineRemoval | null>(null);
   const draftRef = useRef<Routine | null>(null);
   const latestSaveRef = useRef<Promise<AccountActionResult> | null>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const cancelRemovalRef = useRef<HTMLButtonElement>(null);
+  const removalCommittedRef = useRef(false);
 
   if (storedRoutine && draftRef.current?.id !== id)
     draftRef.current = structuredClone(storedRoutine);
@@ -115,6 +122,27 @@ export function RoutineEditor({ id }: { id: string }) {
       warmups[warmupIndex] = { ...warmups[warmupIndex], ...patch };
       draft.exercises[exerciseIndex].warmupSets = warmups;
     });
+  }
+
+  function requestRemoval(removal: PendingRoutineRemoval): void {
+    removalCommittedRef.current = false;
+    setPendingRemoval(removal);
+  }
+
+  function confirmRemoval(): void {
+    if (!pendingRemoval || removalCommittedRef.current) return;
+    removalCommittedRef.current = true;
+    const removal = pendingRemoval;
+    setPendingRemoval(null);
+    if (removal.kind === 'exercise') {
+      commit((draft) => void draft.exercises.splice(removal.exerciseIndex, 1), true);
+      return;
+    }
+    commit(
+      (draft) =>
+        void draft.exercises[removal.exerciseIndex].warmupSets?.splice(removal.warmupIndex, 1),
+      true,
+    );
   }
 
   if (!storedRoutine || !routine)
@@ -259,7 +287,13 @@ export function RoutineEditor({ id }: { id: string }) {
                   className="iconbtn"
                   style={ICON}
                   aria-label={t('editor.removeExercise')}
-                  onClick={() => commit((r) => void r.exercises.splice(xi, 1), true)}
+                  onClick={() =>
+                    requestRemoval({
+                      kind: 'exercise',
+                      exerciseIndex: xi,
+                      exercise: exerciseName(rx.exerciseId, i18n.language),
+                    })
+                  }
                 >
                   <IconX width={16} height={16} />
                 </button>
@@ -406,7 +440,7 @@ export function RoutineEditor({ id }: { id: string }) {
                         style={ICON}
                         aria-label={t('editor.removeWarmupSet')}
                         onClick={() =>
-                          commit((r) => void r.exercises[xi].warmupSets?.splice(wi, 1), true)
+                          requestRemoval({ kind: 'warmup', exerciseIndex: xi, warmupIndex: wi })
                         }
                       >
                         <IconX width={16} height={16} />
@@ -474,6 +508,36 @@ export function RoutineEditor({ id }: { id: string }) {
       >
         {t('editor.deleteRoutine')}
       </button>
+      {pendingRemoval && (
+        <BottomSheet
+          open
+          title={
+            pendingRemoval.kind === 'exercise'
+              ? t('editor.removeExerciseTitle', { exercise: pendingRemoval.exercise })
+              : t('editor.removeWarmupTitle')
+          }
+          initialFocusRef={cancelRemovalRef}
+          onClose={() => setPendingRemoval(null)}
+        >
+          <span className="muted small">
+            {t(
+              pendingRemoval.kind === 'exercise'
+                ? 'editor.removeExerciseBody'
+                : 'editor.removeWarmupBody',
+            )}
+          </span>
+          <button className="btn btn-danger btn-block" onClick={confirmRemoval}>
+            {t('editor.removeConfirm')}
+          </button>
+          <button
+            ref={cancelRemovalRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setPendingRemoval(null)}
+          >
+            {t('workout.cancel')}
+          </button>
+        </BottomSheet>
+      )}
       {confirming && (
         <BottomSheet
           open
