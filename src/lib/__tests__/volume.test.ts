@@ -112,7 +112,7 @@ describe('flagPrs', () => {
   });
 
   it('does not treat warm-up rows as personal records', () => {
-    const warmup = [{ ...set('bench', 60, 3), kind: 'warmup' }];
+    const warmup: SetLog[] = [{ ...set('bench', 60, 3), kind: 'warmup' }];
 
     expect(flagPrs(warmup, history, '2026-06-08')[0].isPr).toBeUndefined();
   });

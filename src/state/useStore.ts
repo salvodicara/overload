@@ -25,7 +25,7 @@ import {
 } from '../lib/db';
 import { deleteRecord, pushRecord, startSync, type SyncState } from '../lib/sync';
 import { computeVolume, flagPrs } from '../lib/volume';
-import { getPhase, suggest, type Phase } from '../lib/progression';
+import { suggest } from '../lib/progression';
 import { workoutId } from '../lib/ids';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
@@ -165,8 +165,6 @@ export type Store = {
   init(): Promise<void>;
   reload(): Promise<void>;
   updateSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<void>;
-  phase(): Phase | null;
-
   startWorkout(routineId: string): void;
   updateSet(ei: number, si: number, patch: Partial<ActiveSet>): void;
   toggleDone(ei: number, si: number): void;
@@ -308,23 +306,18 @@ export const useStore = create<Store>((set, get) => ({
     if (uid) void pushRecord(uid, 'settings', settings);
   },
 
-  phase() {
-    return getPhase(get().settings.programStartDate, todayISO());
-  },
-
   startWorkout(routineId) {
     const routine = get().routines.find((r) => r.id === routineId);
     if (!routine || routine.exercises.length === 0) return;
     unlockAudio();
     requestNotifyPermission();
     acquireWakeLock();
-    const phase = get().phase();
     const history = get().workouts;
     const active: ActiveSession = {
       routineId,
       startTs: Date.now(),
       ex: routine.exercises.map((rx) => {
-        const s = suggest(rx, history, phase);
+        const s = suggest(rx, history);
         return {
           exerciseId: rx.exerciseId,
           hintKey: s.hintKey,
