@@ -292,7 +292,9 @@
     "technique": "Tecnica",
     "techniquePlaceholder": "Indicazioni da mantenere in ogni allenamento…",
     "session": "Questa sessione",
-    "sessionPlaceholder": "Com'è andato questo esercizio oggi…"
+    "sessionPlaceholder": "Com'è andato questo esercizio oggi…",
+    "done": "Fatto",
+    "previousSession": "Sessione precedente · {{date}}"
   },
   "body": {
     "weight": "Peso",

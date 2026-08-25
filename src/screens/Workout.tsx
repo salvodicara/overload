@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
 import { exerciseName } from '../lib/exercises';
-import { formatPreviousSet, previousSets } from '../lib/format';
+import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
+import { exerciseJournal } from '../lib/notes';
 import type { TrackingType } from '../lib/types';
 import { canonicalWeight, displayWeight, formatWeight, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
@@ -44,10 +45,7 @@ export function Workout() {
   const setRestOverride = useStore((s) => s.setRestOverride);
   const [confirming, setConfirming] = useState(false);
   const [editingRest, setEditingRest] = useState<number | null>(null);
-  const [editingNote, setEditingNote] = useState<{
-    exerciseIndex: number;
-    scope: 'technique' | 'session';
-  } | null>(null);
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [, tick] = useState(0);
 
   useEffect(() => {
@@ -189,101 +187,105 @@ export function Workout() {
 
                 {(() => {
                   const note = notes.find((item) => item.id === exercise.exerciseId);
-                  const editingTechnique =
-                    editingNote?.exerciseIndex === exerciseIndex &&
-                    editingNote.scope === 'technique';
-                  const editingSession =
-                    editingNote?.exerciseIndex === exerciseIndex && editingNote.scope === 'session';
+                  const techniqueKey = `${exerciseIndex}:technique`;
+                  const sessionKey = `${exerciseIndex}:session`;
+                  const techniqueExpanded = expandedNotes[techniqueKey] ?? false;
+                  const sessionExpanded = expandedNotes[sessionKey] ?? false;
+                  const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
+                  const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
+                  const techniqueContentId = `workout-note-${exerciseIndex}-technique-content`;
+                  const sessionContentId = `workout-note-${exerciseIndex}-session-content`;
+                  const previousSession = exerciseJournal(workouts, note, exercise.exerciseId).find(
+                    (entry) => entry.id.startsWith('workout:'),
+                  );
+                  const toggleNote = (key: string) =>
+                    setExpandedNotes((current) => ({ ...current, [key]: !current[key] }));
                   return (
-                    <div className="stack" style={{ marginTop: 8, gap: 6 }}>
-                      <div>
-                        {editingTechnique ? (
-                          <NoteEditor
-                            key={`technique:${exerciseIndex}`}
-                            initial={note?.technique ?? ''}
-                            placeholder={t('notes.techniquePlaceholder')}
-                            ariaLabel={t('notes.technique')}
-                            onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
-                            onDone={() => setEditingNote(null)}
-                          />
-                        ) : (
-                          <button
-                            className="row small"
-                            style={{
-                              gap: 6,
-                              alignItems: 'flex-start',
-                              color: note?.technique ? 'var(--warn)' : 'var(--muted)',
-                              minHeight: 32,
-                              textAlign: 'left',
-                              width: '100%',
-                            }}
-                            onClick={() => setEditingNote({ exerciseIndex, scope: 'technique' })}
-                          >
-                            <IconNote
-                              width={14}
-                              height={14}
-                              aria-hidden
-                              style={{ flex: 'none', marginTop: 2 }}
-                            />
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <b>{t('notes.technique')}</b>
-                              <span
-                                style={{
-                                  display: 'block',
-                                  whiteSpace: 'pre-wrap',
-                                  overflowWrap: 'anywhere',
-                                }}
-                              >
-                                {note?.technique || t('notes.techniquePlaceholder')}
-                              </span>
+                    <div className="workout-notes">
+                      <section className="workout-note">
+                        <button
+                          type="button"
+                          className="workout-note__trigger"
+                          aria-expanded={techniqueExpanded}
+                          aria-controls={techniqueContentId}
+                          onClick={() => toggleNote(techniqueKey)}
+                        >
+                          <IconNote width={16} height={16} aria-hidden />
+                          <span className="workout-note__copy">
+                            <span id={techniqueLabelId} className="workout-note__scope">
+                              {t('notes.technique')}
                             </span>
-                          </button>
-                        )}
-                      </div>
-                      <div>
-                        {editingSession ? (
-                          <NoteEditor
-                            key={`session:${exerciseIndex}`}
-                            initial={exercise.sessionNote ?? ''}
-                            placeholder={t('notes.sessionPlaceholder')}
-                            ariaLabel={t('notes.session')}
-                            onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
-                            onDone={() => setEditingNote(null)}
-                          />
-                        ) : (
-                          <button
-                            className="row small"
-                            style={{
-                              gap: 6,
-                              alignItems: 'flex-start',
-                              color: exercise.sessionNote ? 'var(--warn)' : 'var(--muted)',
-                              minHeight: 32,
-                              textAlign: 'left',
-                              width: '100%',
-                            }}
-                            onClick={() => setEditingNote({ exerciseIndex, scope: 'session' })}
-                          >
-                            <IconNote
-                              width={14}
-                              height={14}
-                              aria-hidden
-                              style={{ flex: 'none', marginTop: 2 }}
-                            />
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <b>{t('notes.session')}</b>
-                              <span
-                                style={{
-                                  display: 'block',
-                                  whiteSpace: 'pre-wrap',
-                                  overflowWrap: 'anywhere',
-                                }}
-                              >
-                                {exercise.sessionNote || t('notes.sessionPlaceholder')}
-                              </span>
+                            <span className="workout-note__summary">
+                              {note?.technique || t('notes.techniquePlaceholder')}
                             </span>
-                          </button>
+                          </span>
+                          <span className="workout-note__chevron" aria-hidden="true">
+                            ▾
+                          </span>
+                        </button>
+                        {techniqueExpanded && (
+                          <div
+                            id={techniqueContentId}
+                            className="workout-note__content"
+                            role="group"
+                          >
+                            <NoteEditor
+                              key={`technique:${exerciseIndex}`}
+                              initial={note?.technique ?? ''}
+                              placeholder={t('notes.techniquePlaceholder')}
+                              labelledBy={techniqueLabelId}
+                              doneLabel={t('notes.done')}
+                              onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
+                              onDone={() => toggleNote(techniqueKey)}
+                            />
+                          </div>
                         )}
-                      </div>
+                      </section>
+                      <section className="workout-note">
+                        <button
+                          type="button"
+                          className="workout-note__trigger"
+                          aria-expanded={sessionExpanded}
+                          aria-controls={sessionContentId}
+                          onClick={() => toggleNote(sessionKey)}
+                        >
+                          <IconNote width={16} height={16} aria-hidden />
+                          <span className="workout-note__copy">
+                            <span id={sessionLabelId} className="workout-note__scope">
+                              {t('notes.session')}
+                            </span>
+                            <span className="workout-note__summary">
+                              {exercise.sessionNote || t('notes.sessionPlaceholder')}
+                            </span>
+                          </span>
+                          <span className="workout-note__chevron" aria-hidden="true">
+                            ▾
+                          </span>
+                        </button>
+                        {sessionExpanded && (
+                          <div id={sessionContentId} className="workout-note__content" role="group">
+                            {previousSession && (
+                              <p className="workout-note__context">
+                                <span>
+                                  {t('notes.previousSession', {
+                                    date: fmtDate(previousSession.date, i18n.language),
+                                  })}
+                                </span>
+                                <span>{previousSession.text}</span>
+                              </p>
+                            )}
+                            <NoteEditor
+                              key={`session:${exerciseIndex}`}
+                              initial={exercise.sessionNote ?? ''}
+                              placeholder={t('notes.sessionPlaceholder')}
+                              labelledBy={sessionLabelId}
+                              doneLabel={t('notes.done')}
+                              onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
+                              onDone={() => toggleNote(sessionKey)}
+                            />
+                          </div>
+                        )}
+                      </section>
                     </div>
                   );
                 })()}

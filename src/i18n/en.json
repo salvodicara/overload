@@ -292,7 +292,9 @@
     "technique": "Technique",
     "techniquePlaceholder": "Cues to keep for every workout…",
     "session": "This session",
-    "sessionPlaceholder": "How this exercise felt today…"
+    "sessionPlaceholder": "How this exercise felt today…",
+    "done": "Done",
+    "previousSession": "Previous session · {{date}}"
   },
   "body": {
     "weight": "Weight",

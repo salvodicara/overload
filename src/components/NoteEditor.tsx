@@ -8,13 +8,15 @@ import { useEffect, useRef } from 'react';
 export function NoteEditor({
   initial,
   placeholder,
-  ariaLabel,
+  labelledBy,
+  doneLabel,
   onChangeText,
   onDone,
 }: {
   initial: string;
   placeholder: string;
-  ariaLabel: string;
+  labelledBy: string;
+  doneLabel: string;
   onChangeText: (text: string) => void;
   onDone: () => void;
 }) {
@@ -30,31 +32,24 @@ export function NoteEditor({
   }, []);
 
   return (
-    <textarea
-      ref={ref}
-      rows={2}
-      defaultValue={initial}
-      placeholder={placeholder}
-      aria-label={ariaLabel}
-      style={{
-        width: '100%',
-        fontFamily: 'inherit',
-        fontSize: 14,
-        background: 'var(--surface2)',
-        border: '1px solid var(--accent-text)',
-        borderRadius: 'var(--r-control)',
-        padding: 10,
-        color: 'var(--ink)',
-        resize: 'none',
-        overflow: 'hidden',
-      }}
-      onInput={(e) => {
-        const el = e.currentTarget;
-        el.style.height = 'auto';
-        el.style.height = `${el.scrollHeight}px`;
-        onChangeText(el.value);
-      }}
-      onBlur={onDone}
-    />
+    <div className="note-editor">
+      <textarea
+        ref={ref}
+        className="note-editor__field"
+        rows={2}
+        defaultValue={initial}
+        placeholder={placeholder}
+        aria-labelledby={labelledBy}
+        onInput={(e) => {
+          const el = e.currentTarget;
+          el.style.height = 'auto';
+          el.style.height = `${el.scrollHeight}px`;
+          onChangeText(el.value);
+        }}
+      />
+      <button type="button" className="btn btn-ghost note-editor__done" onClick={onDone}>
+        {doneLabel}
+      </button>
+    </div>
   );
 }

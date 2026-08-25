@@ -765,27 +765,79 @@ test('programs group routines and are manageable', async ({ page }) => {
   await expect(page.getByText(/day x/i)).toBeVisible();
 });
 
-test('technique and session notes persist across distinct workouts', async ({ page }) => {
+test('technique persists globally and session notes stay on their workouts', async ({ page }) => {
   await startNeutralWorkout(page);
-  await page
-    .getByRole('button', { name: /cues to keep|indicazioni da mantenere/i })
-    .first()
-    .click();
+
+  const technique = page.getByRole('button', { name: /^technique|^tecnica/i }).first();
+  const session = page.getByRole('button', { name: /^this session|^questa sessione/i }).first();
+  await expect(technique).toHaveAttribute('aria-expanded', 'false');
+  await expect(session).toHaveAttribute('aria-expanded', 'false');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(
+      await page
+        .locator('.workout-note__trigger')
+        .evaluateAll((triggers) =>
+          triggers.every((trigger) => trigger.getBoundingClientRect().height >= 44),
+        ),
+    ).toBe(true);
+  }
+
+  await technique.click();
+  await expect(technique).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel(/^technique|^tecnica/i).fill('Seat at 4');
-  await page.locator('.setrow input').first().click();
-  await page
-    .getByRole('button', { name: /how this exercise felt|com'è andato/i })
-    .first()
-    .click();
+  const done = page.getByRole('button', { name: /^done|^fatto/i });
+  expect(
+    await done.evaluate((button) => button.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(44);
+  await done.click();
+
+  await session.click();
+  await expect(session).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel(/^this session|^questa sessione/i).fill('First session');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('overload_active') ?? 'null')?.ex[0]?.sessionNote,
+      ),
+    )
+    .toBe('First session');
+
+  await page.getByRole('button', { name: /minimize|riduci/i }).click();
+  await page.locator('.active-bar').click();
+  await expect(session).toContainText('First session');
+  await expect(page.locator('.workout-note__context')).toHaveCount(0);
+
   await completeAndFinishOneSet(page);
 
+  const firstWorkoutNotes = await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const records = await new Promise<Array<{ exerciseNotes?: { text: string }[] }>>(
+      (resolve, reject) => {
+        const request = database
+          .transaction('workouts', 'readonly')
+          .objectStore('workouts')
+          .getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      },
+    );
+    database.close();
+    return records.flatMap((record) => record.exerciseNotes?.map((note) => note.text) ?? []);
+  });
+  expect(firstWorkoutNotes).toContain('First session');
+
   await startNeutralWorkout(page);
-  await expect(page.getByText(/seat at 4/i).first()).toBeVisible();
-  await page
-    .getByRole('button', { name: /how this exercise felt|com'è andato/i })
-    .first()
-    .click();
+  await expect(technique).toContainText('Seat at 4');
+  await expect(session).toContainText(/how this exercise felt|com'è andato/i);
+  await session.click();
+  await expect(page.getByLabel(/^this session|^questa sessione/i)).toHaveValue('');
+  await expect(page.locator('.workout-note__context')).toContainText('First session');
   await page.getByLabel(/^this session|^questa sessione/i).fill('Second session');
   await completeAndFinishOneSet(page);
 
@@ -809,6 +861,9 @@ test('technique and session notes persist across distinct workouts', async ({ pa
     return records.flatMap((record) => record.exerciseNotes?.map((note) => note.text) ?? []);
   });
   expect(sessionNotes).toEqual(expect.arrayContaining(['First session', 'Second session']));
+  expect(
+    sessionNotes.filter((text) => text === 'First session' || text === 'Second session'),
+  ).toHaveLength(2);
 });
 
 test('mid-workout rest tweak can update the routine', async ({ page }) => {

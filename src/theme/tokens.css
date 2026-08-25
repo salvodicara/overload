@@ -138,7 +138,9 @@ body {
 }
 
 button.card {
-  transition: transform 0.1s ease, border-color 0.15s ease;
+  transition:
+    transform 0.1s ease,
+    border-color 0.15s ease;
 }
 
 button.card:active {
@@ -234,7 +236,9 @@ button {
   width: 44px;
   height: 44px;
   flex: none;
-  transition: transform 0.1s ease, border-color 0.15s ease;
+  transition:
+    transform 0.1s ease,
+    border-color 0.15s ease;
 }
 
 .iconbtn:active {
@@ -406,7 +410,9 @@ input[type='number']::-webkit-inner-spin-button {
   border-radius: 2px;
   background: transparent;
   transform: scaleX(0.3);
-  transition: transform 0.18s ease, background 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
 }
 
 /* ---------- segmented control ---------- */
@@ -425,7 +431,9 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--muted);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .seg-btn.on {
@@ -622,6 +630,109 @@ input[type='number']::-webkit-inner-spin-button {
   text-align: center;
 }
 
+.workout-notes {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.workout-note {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface2);
+}
+
+.workout-note__trigger {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.workout-note__trigger > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.workout-note__copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.workout-note__scope {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workout-note__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.workout-note__chevron {
+  flex: none;
+  margin-top: 2px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.workout-note__trigger[aria-expanded='true'] .workout-note__chevron {
+  transform: rotate(180deg);
+}
+
+.workout-note__content {
+  padding: 0 10px 10px;
+}
+
+.workout-note__context {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.note-editor {
+  display: grid;
+  gap: 8px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+.note-editor__field {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px;
+  overflow: hidden;
+  resize: none;
+  border: 1px solid var(--accent-text);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.note-editor__done {
+  min-height: 44px;
+  justify-self: end;
+  padding: 8px 16px;
+}
+
 .set-table {
   min-width: 0;
   border-top: 1px solid var(--line);
@@ -708,7 +819,9 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--muted);
   font-size: 16px;
   font-weight: 700;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .set-row.done .setcheck {
