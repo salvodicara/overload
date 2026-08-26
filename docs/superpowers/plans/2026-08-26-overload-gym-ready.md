@@ -11,6 +11,7 @@
 ## Task 1: Dynamic localization and weekday regression
 
 **Files:**
+
 - Modify: `src/screens/Home.tsx`
 - Modify: `src/lib/exercises.ts`
 - Modify: `src/screens/Library.tsx`
@@ -28,6 +29,7 @@
 ## Task 2: Complete progressive library and bilingual fuzzy search
 
 **Files:**
+
 - Modify: `src/lib/exercises.ts`
 - Modify: `src/screens/Library.tsx`
 - Modify: `src/theme/tokens.css`
@@ -45,6 +47,7 @@
 ## Task 3: Compact media motion control
 
 **Files:**
+
 - Modify: `src/components/ExerciseMedia.tsx`
 - Modify: `src/components/Icons.tsx`
 - Test: `e2e/core.spec.ts`
@@ -56,6 +59,7 @@
 ## Task 4: Routine-specific prescriptions and recommendations
 
 **Files:**
+
 - Modify: `src/lib/types.ts`
 - Modify: `src/lib/progression.ts`
 - Modify: `src/lib/session.ts`
@@ -80,6 +84,7 @@
 ## Task 5: Hevy-like program accordion and Explore programs
 
 **Files:**
+
 - Modify: `src/screens/Train.tsx`
 - Modify: `src/theme/tokens.css`
 - Modify: `src/i18n/en.json`
@@ -97,6 +102,7 @@
 ## Task 6: Reconstruct and import private historical programs
 
 **Files:**
+
 - Create ignored private payload: `data/personal/historical-programs.json`
 - Create ignored migration runner: `data/personal/import-historical-programs.mjs`
 - Test public importer helpers where reusable: `src/lib/__tests__/importer.test.ts`
@@ -111,6 +117,7 @@
 ## Task 7: Constitutional localization and regression audit
 
 **Files:**
+
 - Modify: `scripts/check-i18n.mjs`
 - Modify: `e2e/core.spec.ts`
 - Modify any surfaced UI files/string maps
