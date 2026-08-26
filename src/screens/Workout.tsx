@@ -160,7 +160,7 @@ export function Workout() {
                   {name}
                 </button>
                 <div className="exercise-block__meta">
-                  {target && <span>{target}</span>}
+                  {target && <span className="exercise-block__target">{target}</span>}
                   {prescription && (
                     <button
                       className="exercise-block__rest"
@@ -175,7 +175,7 @@ export function Workout() {
                       ▾
                     </button>
                   )}
-                  <span>{progression}</span>
+                  <span className="exercise-block__progression">{progression}</span>
                 </div>
 
                 {editingRest === exerciseIndex && prescription && (
@@ -217,13 +217,6 @@ export function Workout() {
                   </div>
                 )}
 
-                {prescription?.note && (
-                  <aside className="workout-coach-note">
-                    <span className="mono small">{t('notes.coach')}</span>
-                    <p>{prescription.note}</p>
-                  </aside>
-                )}
-
                 {(() => {
                   const note = notes.find((item) => item.id === exercise.exerciseId);
                   const sessionKey = `${exerciseIndex}:session`;
@@ -251,7 +244,10 @@ export function Workout() {
                               {t('notes.session')}
                             </span>
                             <span className="workout-note__summary">
-                              {exercise.sessionNote || t('notes.sessionPlaceholder')}
+                              {exercise.sessionNote ||
+                                (prescription?.note
+                                  ? t('notes.techniqueAvailable')
+                                  : t('notes.sessionPlaceholder'))}
                             </span>
                           </span>
                           <span className="workout-note__chevron" aria-hidden="true">
@@ -266,6 +262,12 @@ export function Workout() {
                         >
                           {sessionExpanded && (
                             <>
+                              {prescription?.note && (
+                                <aside className="workout-coach-note">
+                                  <span className="mono small">{t('notes.coach')}</span>
+                                  <p>{prescription.note}</p>
+                                </aside>
+                              )}
                               {previousSession && (
                                 <p className="workout-note__context">
                                   <span>
@@ -356,6 +358,7 @@ export function Workout() {
                             set: setNumber,
                             unit: weightLabel(unit),
                           })}
+                          placeholder="—"
                           value={set.weightKg === null ? '' : displayWeight(set.weightKg, unit)}
                           onFocus={selectNumericValue}
                           onChange={(event) =>
@@ -375,6 +378,7 @@ export function Workout() {
                           step={1}
                           min={0}
                           aria-label={t('workout.repsInput', { set: setNumber })}
+                          placeholder="—"
                           value={set.reps ?? ''}
                           onFocus={selectNumericValue}
                           onChange={(event) =>
@@ -391,6 +395,7 @@ export function Workout() {
                           step={1}
                           min={0}
                           aria-label={t('workout.secondsInput', { set: setNumber })}
+                          placeholder="—"
                           value={set.durationSec ?? ''}
                           onFocus={selectNumericValue}
                           onChange={(event) =>

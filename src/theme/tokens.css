@@ -1675,23 +1675,24 @@ textarea:disabled {
 }
 
 .workout-exercises {
-  gap: 16px;
+  gap: 10px;
 }
 
 .exercise-block {
   min-width: 0;
+  border-radius: 12px;
 }
 
 .exercise-block__header {
-  padding-bottom: 10px;
+  padding: 8px 12px 6px;
 }
 
 .exercise-block__name {
   display: block;
   width: 100%;
   min-height: 44px;
-  padding: 8px 0;
-  font-size: 18px;
+  padding: 4px 0;
+  font-size: 17px;
   font-weight: 750;
   text-align: left;
 }
@@ -1703,6 +1704,19 @@ textarea:disabled {
   gap: 4px 10px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.exercise-block__target {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 650;
+}
+
+.exercise-block__progression {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .exercise-block__rest {
@@ -1742,14 +1756,14 @@ textarea:disabled {
 .workout-notes {
   display: grid;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .workout-coach-note {
   display: grid;
   gap: var(--space-1);
-  margin-top: var(--space-3);
-  padding: var(--space-3);
+  margin: 0 0 var(--space-2);
+  padding: 10px;
   background: var(--surface2);
   color: var(--ink);
 }
@@ -1767,9 +1781,7 @@ textarea:disabled {
 
 .workout-note {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-control);
-  background: var(--surface2);
+  border-top: 1px solid var(--line);
 }
 
 .workout-note__trigger {
@@ -1778,7 +1790,7 @@ textarea:disabled {
   gap: 8px;
   width: 100%;
   min-height: 44px;
-  padding: 8px 10px;
+  padding: 6px 2px;
   text-align: left;
 }
 
@@ -1823,7 +1835,7 @@ textarea:disabled {
 }
 
 .workout-note__content {
-  padding: 0 10px 10px;
+  padding: 2px 2px 8px;
 }
 
 .workout-note__context {
@@ -1872,7 +1884,7 @@ textarea:disabled {
   align-items: center;
   gap: 3px;
   min-width: 0;
-  padding: 7px 4px;
+  padding: 3px 4px;
 }
 
 .set-table--weight-reps .set-grid {
@@ -1885,8 +1897,8 @@ textarea:disabled {
 }
 
 .set-table__header {
-  min-height: 36px;
-  padding-block: 6px 2px;
+  min-height: 30px;
+  padding-block: 4px 2px;
   font-size: var(--text-xs);
   letter-spacing: -0.05em;
   line-height: 1.1;
@@ -1902,13 +1914,26 @@ textarea:disabled {
 
 .set-row {
   border-top: 1px solid var(--line);
+  transition: background-color 120ms ease;
 }
 
 .set-row input {
   min-width: 0;
   height: 48px;
   padding: 6px 2px;
+  border-color: transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface2) 62%, transparent);
   text-align: center;
+}
+
+.set-row input:focus {
+  border-color: var(--accent-text);
+  background: var(--surface2);
+}
+
+.set-row.done {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .set-row.done input {
@@ -1918,9 +1943,9 @@ textarea:disabled {
 .set-kind-toggle {
   width: 48px;
   height: 48px;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--r-control);
-  background: var(--surface2);
+  background: transparent;
   color: var(--muted);
   font-weight: 700;
 }
@@ -1944,8 +1969,8 @@ textarea:disabled {
   width: 48px;
   height: 48px;
   border-radius: var(--r-control);
-  border: 1px solid var(--line);
-  background: var(--surface2);
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--muted);
   font-size: 16px;
   font-weight: 700;
@@ -1967,7 +1992,7 @@ textarea:disabled {
 
 .addset {
   flex: 1;
-  min-height: 48px;
+  min-height: 44px;
   text-align: center;
   padding: 10px 14px;
   font-size: 13px;
@@ -3063,23 +3088,66 @@ dialog.sheet-scrim::backdrop {
 
 .routine-exercise__body {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-3) calc(38px + var(--space-2));
 }
 
-.routine-prescription-grid {
+.routine-prescription-primary {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(54px, 0.7fr) minmax(112px, 1.5fr) minmax(84px, 1fr);
   gap: var(--space-2);
+  align-items: end;
 }
 
-.routine-prescription-grid label > span,
+.routine-prescription-primary label > span,
+.routine-range-field > span,
 .routine-warmup-fields label > span {
-  min-height: 2.5em;
   display: flex;
   align-items: end;
   font-size: 12px !important;
   line-height: 1.25;
+}
+
+.routine-prescription-primary label > span,
+.routine-range-field > span {
+  min-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routine-num-field input,
+.routine-rest-field select,
+.routine-range-field input {
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-rest-field select {
+  padding: 6px 24px 6px 6px;
+  text-align: center;
+}
+
+.routine-range-field__control {
+  display: grid;
+  grid-template-columns: minmax(38px, 1fr) 12px minmax(38px, 1fr);
+  align-items: center;
+  gap: 2px;
+}
+
+.routine-range-field__control > span {
+  color: var(--muted);
+  text-align: center;
+}
+
+.routine-range-field input {
+  min-width: 0;
+  padding: 6px 2px;
+  text-align: center;
+}
+
+.routine-progression__body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .routine-disclosure {
@@ -3216,6 +3284,11 @@ dialog.sheet-scrim::backdrop {
 @media (max-width: 359px) {
   .routine-exercise__body {
     padding-left: var(--space-3);
+  }
+
+  .routine-prescription-primary {
+    grid-template-columns: minmax(50px, 0.65fr) minmax(106px, 1.45fr) minmax(80px, 1fr);
+    gap: 6px;
   }
 }
 

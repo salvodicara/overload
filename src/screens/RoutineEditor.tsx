@@ -23,6 +23,7 @@ import {
 } from '../state/useStore';
 
 const ICON = { width: 44, height: 44 } as const;
+const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 
 type PendingRoutineRemoval =
   | { kind: 'exercise'; exerciseIndex: number; exercise: string }
@@ -30,21 +31,23 @@ type PendingRoutineRemoval =
 
 function NumField({
   label,
+  displayLabel,
   value,
   step,
   fieldKey,
   onCommit,
 }: {
   label: string;
+  displayLabel?: string;
   value: number | null | undefined;
   step: number;
   fieldKey: string;
   onCommit: (n: number | null) => void;
 }) {
   return (
-    <label className="stack" style={{ gap: 3 }}>
+    <label className="stack routine-num-field" style={{ gap: 3 }}>
       <span className="mono muted" style={{ fontSize: 'var(--text-xs)', letterSpacing: '0.06em' }}>
-        {label}
+        {displayLabel ?? label}
       </span>
       <input
         key={fieldKey}
@@ -55,9 +58,100 @@ function NumField({
         min={0}
         aria-label={label}
         defaultValue={value ?? ''}
-        style={{ minHeight: 48, padding: '8px', textAlign: 'center' }}
+        style={{ padding: '6px', textAlign: 'center' }}
         onChange={(e) => onCommit(e.target.value === '' ? null : Number(e.target.value))}
       />
+    </label>
+  );
+}
+
+function RangeField({
+  label,
+  minLabel,
+  maxLabel,
+  min,
+  max,
+  fieldKey,
+  onMinCommit,
+  onMaxCommit,
+}: {
+  label: string;
+  minLabel: string;
+  maxLabel: string;
+  min: number;
+  max: number | null;
+  fieldKey: string;
+  onMinCommit: (value: number | null) => void;
+  onMaxCommit: (value: number | null) => void;
+}) {
+  return (
+    <div className="stack routine-range-field" style={{ gap: 3 }}>
+      <span className="mono muted">{label}</span>
+      <div className="routine-range-field__control">
+        <input
+          key={`${fieldKey}-min`}
+          className="mono"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          aria-label={minLabel}
+          defaultValue={min}
+          onChange={(event) =>
+            onMinCommit(event.target.value === '' ? null : Number(event.target.value))
+          }
+        />
+        <span aria-hidden="true">–</span>
+        <input
+          key={`${fieldKey}-max`}
+          className="mono"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          aria-label={maxLabel}
+          defaultValue={max ?? ''}
+          onChange={(event) =>
+            onMaxCommit(event.target.value === '' ? null : Number(event.target.value))
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function RestField({
+  label,
+  displayLabel,
+  value,
+  fieldKey,
+  onCommit,
+}: {
+  label: string;
+  displayLabel?: string;
+  value: number;
+  fieldKey: string;
+  onCommit: (value: number) => void;
+}) {
+  const options = REST_OPTIONS.includes(value)
+    ? REST_OPTIONS
+    : [...REST_OPTIONS, value].sort((left, right) => left - right);
+  return (
+    <label className="stack routine-rest-field" style={{ gap: 3 }}>
+      <span className="mono muted">{displayLabel ?? label}</span>
+      <select
+        key={fieldKey}
+        className="mono"
+        aria-label={label}
+        defaultValue={value}
+        onChange={(event) => onCommit(Number(event.target.value))}
+      >
+        {options.map((seconds) => (
+          <option key={seconds} value={seconds}>
+            {seconds === 0 ? '—' : restSummary(seconds)}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -394,9 +488,10 @@ export function RoutineEditor({ id }: { id: string }) {
 
               {expanded && (
                 <div id={`routine-exercise-${xi}`} className="routine-exercise__body">
-                  <div className="routine-prescription-grid">
+                  <div className="routine-prescription-primary">
                     <NumField
                       label={t('editor.workingSets')}
+                      displayLabel={t('editor.setsShort')}
                       value={rx.sets}
                       step={1}
                       fieldKey={`sets-${xi}-${rev}`}
@@ -407,39 +502,50 @@ export function RoutineEditor({ id }: { id: string }) {
                         })
                       }
                     />
-                    <NumField
-                      label={t('editor.restSeconds')}
-                      value={rx.restSec}
-                      step={5}
-                      fieldKey={`rest-${xi}-${rev}`}
-                      onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))}
-                    />
-                    <NumField
-                      label={minLabel}
-                      value={rx.repMin}
-                      step={1}
-                      fieldKey={`min-${xi}-${rev}`}
-                      onCommit={(n) =>
+                    <RangeField
+                      label={tracking === 'duration' ? t('editor.seconds') : t('editor.reps')}
+                      minLabel={minLabel}
+                      maxLabel={maxLabel}
+                      min={rx.repMin}
+                      max={rx.repMax}
+                      fieldKey={`range-${xi}-${rev}`}
+                      onMinCommit={(n) =>
                         commit((r) => {
                           r.exercises[xi].repMin = n ?? 1;
                           delete r.exercises[xi].setTargets;
                         })
                       }
-                    />
-                    <NumField
-                      label={maxLabel}
-                      value={rx.repMax}
-                      step={1}
-                      fieldKey={`max-${xi}-${rev}`}
-                      onCommit={(n) =>
+                      onMaxCommit={(n) =>
                         commit((r) => {
                           r.exercises[xi].repMax = n;
                           delete r.exercises[xi].setTargets;
                         })
                       }
                     />
-                    {tracking === 'weight_reps' && (
-                      <>
+                    <RestField
+                      label={t('editor.restSeconds')}
+                      displayLabel={t('editor.restShort')}
+                      value={rx.restSec}
+                      fieldKey={`rest-${xi}-${rev}`}
+                      onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n))}
+                    />
+                  </div>
+
+                  {tracking === 'weight_reps' && (
+                    <details className="routine-disclosure routine-progression">
+                      <summary>
+                        <span>{t('editor.progressionSettings')}</span>
+                        <span className="routine-disclosure__meta">
+                          {rx.startWeightKg == null
+                            ? '—'
+                            : `${displayWeight(rx.startWeightKg, unit)} ${weightLabel(unit)}`}
+                          {' · '}
+                          {rx.incrementKg == null
+                            ? '—'
+                            : `+${displayWeight(rx.incrementKg, unit)} ${weightLabel(unit)}`}
+                        </span>
+                      </summary>
+                      <div className="routine-disclosure__body routine-progression__body">
                         <NumField
                           label={t('editor.startWeight', { unit: weightLabel(unit) })}
                           value={display(rx.startWeightKg, unit)}
@@ -466,9 +572,9 @@ export function RoutineEditor({ id }: { id: string }) {
                             )
                           }
                         />
-                      </>
-                    )}
-                  </div>
+                      </div>
+                    </details>
+                  )}
 
                   <details className="routine-disclosure" open={warmups.length > 0}>
                     <summary ref={warmupSummaryRef}>

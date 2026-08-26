@@ -30,9 +30,7 @@ export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
     return {
       iso: day.toLocaleDateString('sv'),
       label: day
-        .toLocaleDateString(locale, { weekday: 'short' })
-        .replace('.', '')
-        .slice(0, 2)
+        .toLocaleDateString(locale, { weekday: 'narrow' })
         .toLocaleUpperCase(locale),
     };
   });

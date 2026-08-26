@@ -103,6 +103,9 @@ test('the same exercise keeps a different technique note in each routine', async
 
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /start full body a|inizia full body a/i }).click();
+  await expect(page.locator('.workout-coach-note').first()).toBeHidden();
+  await page.getByRole('button', { name: /^this session|^questa sessione/i }).first().click();
+  await expect(page.locator('.workout-coach-note').first()).toBeVisible();
   await expect(page.locator('.workout-coach-note').first()).toContainText(
     'Cue specifica del Giorno A',
   );
@@ -116,6 +119,8 @@ test('the same exercise keeps a different technique note in each routine', async
     .click();
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /start full body b|inizia full body b/i }).click();
+  await expect(page.locator('.workout-coach-note').first()).toBeHidden();
+  await page.getByRole('button', { name: /^this session|^questa sessione/i }).first().click();
   await expect(page.locator('.workout-coach-note').first()).toContainText(
     'Cue specifica del Giorno B',
   );
@@ -1479,7 +1484,7 @@ test('routine preparation and exercise settings remain editable', async ({ page 
   await page.setViewportSize({ width: 320, height: 700 });
   await expect(page.getByLabel(/working sets|serie di lavoro/i).first()).toHaveJSProperty(
     'offsetHeight',
-    48,
+    44,
   );
   await expect(firstExercise.locator('.routine-exercise__summary')).toHaveJSProperty(
     'offsetHeight',
@@ -1507,6 +1512,30 @@ test('routine editor keeps one compact exercise open and hides tracking jargon',
   await exercises.nth(1).locator('.routine-exercise__summary').click();
   await expect(exercises.nth(0).getByLabel(/working sets|serie di lavoro/i)).toHaveCount(0);
   await expect(exercises.nth(1).getByLabel(/working sets|serie di lavoro/i)).toBeVisible();
+});
+
+test('routine editor keeps the primary prescription on one dense row', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const exercise = page.locator('.routine-exercise').first();
+  const primary = exercise.locator('.routine-prescription-primary');
+  await expect(primary).toBeVisible();
+  const geometry = await primary.evaluate((row) => {
+    const controls = [...row.querySelectorAll<HTMLElement>('input, select')];
+    return {
+      height: row.getBoundingClientRect().height,
+      tops: controls.map((control) => Math.round(control.getBoundingClientRect().top)),
+    };
+  });
+  expect(geometry.height).toBeLessThanOrEqual(78);
+  expect(new Set(geometry.tops).size).toBe(1);
+
+  const progression = exercise.locator('.routine-progression');
+  await expect(progression).not.toHaveAttribute('open', '');
+  await expect(exercise.getByLabel(/start weight|peso iniziale/i)).toBeHidden();
+  await progression.locator('summary').click();
+  await expect(exercise.getByLabel(/start weight|peso iniziale/i)).toBeVisible();
 });
 
 test('routine editor moves goal type and reorder fallbacks into exercise options', async ({
@@ -1667,6 +1696,7 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
     .locator('.routine-exercise')
     .filter({ hasText: /barbell squat|squat con bilanciere/i })
     .first();
+  await firstExercise.locator('.routine-progression > summary').click();
   await firstExercise.getByLabel(/start weight|peso iniziale/i).fill('220.5');
   await firstExercise.getByLabel(/progression|progressione/i).fill('');
   await firstExercise.getByLabel(/^max$/i).fill('');
@@ -1704,6 +1734,7 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
     .locator('.routine-exercise')
     .filter({ hasText: /barbell squat|squat con bilanciere/i })
     .first();
+  await reopenedFirstExercise.locator('.routine-progression > summary').click();
   await expect(reopenedFirstExercise.getByLabel(/start weight|peso iniziale/i)).toHaveValue(
     '220.5',
   );
@@ -1770,6 +1801,15 @@ test('active workout keeps finish and previous values in reach', async ({ page }
   await expect(page.getByRole('timer')).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+test('active workout keeps exercise context compact before the set table', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const header = page.locator('.exercise-block__header').first();
+  const height = await header.evaluate((element) => element.getBoundingClientRect().height);
+  expect(height).toBeLessThanOrEqual(160);
+  await expect(header.locator('.workout-note__trigger')).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('active workout preserves a typed set until one confirmed keyboard removal', async ({
