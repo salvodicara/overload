@@ -43,6 +43,13 @@ import {
 } from '../lib/session';
 import { workoutId } from '../lib/ids';
 import { routeMotion, transitionRoute } from '../lib/navigationMotion';
+import {
+  ensureHistoryEnvelope,
+  newHistoryEnvelope,
+  readEntryScroll,
+  readHistoryEnvelope,
+  writeEntryScroll,
+} from '../lib/navigationState';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
@@ -226,7 +233,6 @@ async function withOwnedLocalWrite<T>(
 
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
-const scrollMemory = new Map<string, number>();
 const RESTORE_SCROLL = new Set<Route['view']>([
   'home',
   'history',
@@ -239,8 +245,8 @@ const RESTORE_SCROLL = new Set<Route['view']>([
 const ROUTE_KEY = 'overload_route';
 const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile']);
 
-function applyScroll(view: Route['view']): void {
-  const y = RESTORE_SCROLL.has(view) ? (scrollMemory.get(view) ?? 0) : 0;
+function applyScroll(view: Route['view'], entryKey?: string): void {
+  const y = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
   requestAnimationFrame(() => window.scrollTo(0, y));
 }
 
@@ -426,7 +432,8 @@ export const useStore = create<Store>((set, get) => ({
 
   nav(route) {
     const previous = get().route;
-    scrollMemory.set(previous.view, window.scrollY);
+    const previousEnvelope = readHistoryEnvelope();
+    writeEntryScroll(previous.view, window.scrollY, previousEnvelope?.entryKey);
     if (TAB_VIEWS.has(route.view)) {
       try {
         localStorage.setItem(ROUTE_KEY, route.view);
@@ -437,15 +444,16 @@ export const useStore = create<Store>((set, get) => ({
     // Hardware/browser back works everywhere: detail screens stack on the
     // history, switching tabs replaces the entry (Android convention).
     const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view);
+    const nextEnvelope = newHistoryEnvelope(route, previousEnvelope?.surfaces);
     try {
-      if (replace) history.replaceState({ route }, '');
-      else history.pushState({ route }, '');
+      if (replace) history.replaceState(nextEnvelope, '');
+      else history.pushState(nextEnvelope, '');
     } catch {
       /* history unavailable */
     }
     transitionRoute(routeMotion(previous, route), () => {
       set({ route });
-      applyScroll(route.view);
+      applyScroll(route.view, nextEnvelope.entryKey);
     });
   },
 
@@ -1151,16 +1159,30 @@ export const useStore = create<Store>((set, get) => ({
 
 if (typeof window !== 'undefined') {
   try {
-    history.replaceState({ route: useStore.getState().route }, '');
+    history.replaceState(
+      ensureHistoryEnvelope(useStore.getState().route, history.state),
+      '',
+    );
   } catch {
     /* history unavailable */
   }
   window.addEventListener('popstate', (event) => {
     const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
-    scrollMemory.set(useStore.getState().route.view, window.scrollY);
+    const currentEnvelope = readHistoryEnvelope();
+    writeEntryScroll(
+      useStore.getState().route.view,
+      window.scrollY,
+      currentEnvelope?.entryKey,
+    );
+    const targetEnvelope = ensureHistoryEnvelope(route, event.state);
     transitionRoute('back', () => {
+      try {
+        history.replaceState(targetEnvelope, '');
+      } catch {
+        /* history unavailable */
+      }
       useStore.setState({ route });
-      applyScroll(route.view);
+      applyScroll(route.view, targetEnvelope.entryKey);
     });
   });
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSurfaceState } from '../hooks/useSurfaceState';
 import { LineChart } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
@@ -10,8 +11,6 @@ import {
   periodBuckets,
   periodSummary,
   shiftPeriod,
-  type PeriodUnit,
-  type TrainingMetrics,
 } from '../lib/trainingPeriods';
 import { kindOf, type Workout } from '../lib/types';
 import { displayVolume } from '../lib/units';
@@ -57,9 +56,16 @@ export function Home() {
   const nav = useStore((state) => state.nav);
   const startWorkout = useStore((state) => state.startWorkout);
   const ensureCatalog = useStore((state) => state.ensureCatalog);
-  const [periodAnchor, setPeriodAnchor] = useState(() => new Date());
-  const [periodUnit, setPeriodUnit] = useState<PeriodUnit>('week');
-  const [chartMetric, setChartMetric] = useState<keyof TrainingMetrics>('volume');
+  const todayAnchor = new Date().toLocaleDateString('sv');
+  const [surface, setSurface] = useSurfaceState('home', {
+    periodAnchor: todayAnchor,
+    periodUnit: 'week',
+    chartMetric: 'volume',
+    selectedDay: null,
+  });
+  const periodUnit = surface.periodUnit ?? 'week';
+  const chartMetric = surface.chartMetric ?? 'volume';
+  const periodAnchor = new Date(`${surface.periodAnchor ?? todayAnchor}T12:00:00`);
   const [dragX, setDragX] = useState(0);
   const [periodMotion, setPeriodMotion] = useState<PeriodMotion>('idle');
   const swipeStartX = useRef<number | null>(null);
@@ -150,7 +156,10 @@ export function Home() {
     if (amount > 0 && isCurrentPeriod) return;
     if (amount < 0 && isEarliestPeriod) return;
     setPeriodMotion(amount < 0 ? 'previous' : 'next');
-    setPeriodAnchor((anchor) => shiftPeriod(anchor, periodUnit, amount));
+    setSurface((current) => ({
+      ...current,
+      periodAnchor: shiftPeriod(periodAnchor, periodUnit, amount).toLocaleDateString('sv'),
+    }));
   }
 
   function trackSwipe(clientX: number): number {
@@ -273,8 +282,12 @@ export function Home() {
                 role="tab"
                 aria-selected={periodUnit === unitName}
                 onClick={() => {
-                  setPeriodUnit(unitName);
-                  setPeriodAnchor(new Date());
+                  setSurface((current) => ({
+                    ...current,
+                    periodUnit: unitName,
+                    periodAnchor: todayAnchor,
+                    selectedDay: null,
+                  }));
                   setPeriodMotion('today');
                 }}
               >
@@ -308,7 +321,11 @@ export function Home() {
                     className="home-period-today"
                     onClick={() => {
                       setPeriodMotion('today');
-                      setPeriodAnchor(new Date());
+                      setSurface((current) => ({
+                        ...current,
+                        periodAnchor: todayAnchor,
+                        selectedDay: null,
+                      }));
                     }}
                   >
                     {t('home.today')}
@@ -513,7 +530,9 @@ export function Home() {
                       key={metric}
                       type="button"
                       aria-pressed={chartMetric === metric}
-                      onClick={() => setChartMetric(metric)}
+                      onClick={() =>
+                        setSurface((current) => ({ ...current, chartMetric: metric }))
+                      }
                     >
                       {t(`home.metric.${metric}`)}
                     </button>

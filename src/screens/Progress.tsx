@@ -1,8 +1,9 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useMemo, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
+import { useSurfaceState } from '../hooks/useSurfaceState';
 import { exerciseName, getCatalog } from '../lib/exercises';
 import { displayVolume, formatWeight, weightLabel } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
@@ -98,11 +99,16 @@ function topSets(
   return { tracking: current, sessions };
 }
 
-function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) {
+function TrainingSection({
+  picked,
+  onPick,
+}: {
+  picked: string | null;
+  onPick(id: string): void;
+}) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
   useCatalog(workouts.length > 0);
-  const [picked, setPicked] = useState<string | null>(initialExerciseId ?? null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const unit = settings.unit ?? 'kg';
 
@@ -190,7 +196,7 @@ function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) 
         name="exercise"
         autoComplete="off"
         value={selected}
-        onChange={(event) => setPicked(event.target.value)}
+        onChange={(event) => onPick(event.target.value)}
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>
@@ -271,7 +277,15 @@ export function Progress() {
   const { t } = useTranslation();
   const route = useStore((state) => state.route);
   const initialExerciseId = route.view === 'progress' ? route.exerciseId : undefined;
-  const [segment, setSegment] = useState<Segment>('training');
+  const [surface, setSurface] = useSurfaceState('progress', {
+    section: 'training',
+    exerciseId: initialExerciseId,
+  });
+  const segment = SEGMENTS.includes(surface.section as Segment)
+    ? (surface.section as Segment)
+    : 'training';
+  const setSegment = (section: Segment): void =>
+    setSurface((current) => ({ ...current, section }));
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     const current = SEGMENTS.indexOf(event.currentTarget.dataset.segment as Segment);
@@ -320,7 +334,10 @@ export function Progress() {
           className="progress-panel"
         >
           {segment === key && key === 'training' && (
-            <TrainingSection initialExerciseId={initialExerciseId} />
+            <TrainingSection
+              picked={surface.exerciseId ?? initialExerciseId ?? null}
+              onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
+            />
           )}
           {segment === key && key === 'body' && <ProgressBody />}
           {segment === key && key === 'diet' && <ProgressDiet />}

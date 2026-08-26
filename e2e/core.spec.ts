@@ -1338,6 +1338,28 @@ test('Home switches training periods and swipes the overview to an earlier perio
   await expect(page.locator('.line-chart')).toBeVisible();
 });
 
+test('back restores the exact Home month after opening an old workout', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  const periods = page.getByRole('tablist', { name: /training period|periodo di allenamento/i });
+  const monthTab = periods.getByRole('tab', { name: /month|mese/i });
+  await monthTab.click();
+  const pager = page.locator('.home-period-pager');
+  await pager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
+  const oldMonth = await page.locator('.home-period-label').textContent();
+  await expect(page.getByRole('button', { name: /five exercises/i })).toBeVisible();
+
+  await page.getByRole('button', { name: /five exercises/i }).click();
+  await expect(page.getByRole('heading', { name: /five exercises/i })).toBeVisible();
+  await page.goBack();
+
+  await expect(monthTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.home-period-label')).toHaveText(oldMonth ?? '');
+  await expect(page.getByRole('button', { name: /five exercises/i })).toBeVisible();
+});
+
 test('Home stops at the first meaningful workout period', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();

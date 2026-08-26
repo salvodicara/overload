@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconDown, IconForward, IconMore } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
+import { useSurfaceState } from '../hooks/useSurfaceState';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
 import { lastCompletedFor, nextRoutine } from '../lib/routines';
@@ -91,9 +92,12 @@ export function Train() {
 
   const suggestedId = nextRoutine(routines, folders, workouts, settings.programStartDate)?.id;
   const suggestedFolderId = routines.find((routine) => routine.id === suggestedId)?.folderId;
-  const [openProgramId, setOpenProgramId] = useState<string | null>(
-    suggestedFolderId ?? folders[0]?.id ?? null,
-  );
+  const [surface, setSurface] = useSurfaceState('train', {
+    openProgramId: suggestedFolderId ?? folders[0]?.id ?? null,
+  });
+  const openProgramId = surface.openProgramId ?? null;
+  const setOpenProgramId = (openProgramId: string | null): void =>
+    setSurface((current) => ({ ...current, openProgramId }));
   const sheetTitle = !sheet
     ? ''
     : sheet.kind === 'create'

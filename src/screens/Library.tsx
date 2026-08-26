@@ -5,6 +5,7 @@ import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
+import { useSurfaceState } from '../hooks/useSurfaceState';
 import {
   equipmentLabelKey,
   muscleGroup,
@@ -24,23 +25,6 @@ const GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms', 'co
 
 /** Long lists stay responsive on phones without a virtualiser. */
 const MAX_RESULTS = 60;
-const visibleCountMemory = new Map<string, number>();
-
-function resultPageKey(query: string, group: MuscleGroup | null, language: string): string {
-  return `${language}\0${group ?? ''}\0${query}`;
-}
-
-type LibraryHistoryState = {
-  library?: { query?: unknown; group?: unknown };
-};
-
-function readLibraryHistory(): { query: string; group: MuscleGroup | null } {
-  if (typeof history === 'undefined') return { query: '', group: null };
-  const saved = (history.state as LibraryHistoryState | null)?.library;
-  const query = typeof saved?.query === 'string' ? saved.query : '';
-  const group = GROUPS.includes(saved?.group as MuscleGroup) ? (saved?.group as MuscleGroup) : null;
-  return { query, group };
-}
 
 export async function createCustomExerciseFlow(
   input: {
@@ -83,20 +67,23 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
   const createCustomExercise = useStore((s) => s.createCustomExercise);
-  const initialHistory = useRef(readLibraryHistory()).current;
+  const [surface, setSurface] = useSurfaceState('library', {
+    query: '',
+    group: null,
+    visibleCount: MAX_RESULTS,
+  });
+  const query = surface.query ?? '';
+  const group = GROUPS.includes(surface.group as MuscleGroup)
+    ? (surface.group as MuscleGroup)
+    : null;
+  const visibleCount = surface.visibleCount ?? MAX_RESULTS;
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newGroup, setNewGroup] = useState<MuscleGroup>('chest');
   const [newTracking, setNewTracking] = useState<TrackingType>('weight_reps');
-  const [query, setQuery] = useState(initialHistory.query);
-  const [group, setGroup] = useState<MuscleGroup | null>(initialHistory.group);
   const [pendingPick, setPendingPick] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const initialPageKey = resultPageKey(initialHistory.query, initialHistory.group, i18n.language);
-  const [visibleCount, setVisibleCount] = useState(
-    () => visibleCountMemory.get(initialPageKey) ?? MAX_RESULTS,
-  );
   const nameInputRef = useRef<HTMLInputElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(true);
@@ -115,29 +102,17 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
     };
   }, []);
 
-  useEffect(() => {
-    const current = (history.state ?? {}) as Record<string, unknown>;
-    history.replaceState({ ...current, library: { query, group } }, '');
-  }, [group, query]);
-
   const results = useMemo(
     () => searchExercises(query, group, i18n.language),
     [catalogReady, query, group, i18n.language],
   );
   const shown = results.slice(0, visibleCount);
   const hasMore = shown.length < results.length;
-  const pageKey = resultPageKey(query, group, i18n.language);
-
-  useEffect(() => {
-    setVisibleCount(visibleCountMemory.get(pageKey) ?? MAX_RESULTS);
-  }, [pageKey]);
-
   function revealMore(): void {
-    setVisibleCount((count) => {
-      const next = Math.min(count + MAX_RESULTS, results.length);
-      visibleCountMemory.set(pageKey, next);
-      return next;
-    });
+    setSurface((current) => ({
+      ...current,
+      visibleCount: Math.min((current.visibleCount ?? MAX_RESULTS) + MAX_RESULTS, results.length),
+    }));
   }
 
   useEffect(() => {
@@ -153,7 +128,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, pageKey, results.length, shown.length]);
+  }, [hasMore, query, group, results.length, shown.length]);
 
   async function pick(id: string): Promise<void> {
     if (pendingPick) return;
@@ -254,14 +229,22 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
           type="search"
           value={query}
           placeholder={t('library.search')}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) =>
+            setSurface((current) => ({
+              ...current,
+              query: event.target.value,
+              visibleCount: MAX_RESULTS,
+            }))
+          }
         />
         <div className="library-filters" role="group" aria-label={t('library.muscleGroup')}>
           <button
             type="button"
             className="library-filter"
             aria-pressed={group === null}
-            onClick={() => setGroup(null)}
+            onClick={() =>
+              setSurface((current) => ({ ...current, group: null, visibleCount: MAX_RESULTS }))
+            }
           >
             {t('library.all')}
           </button>
@@ -271,7 +254,13 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
               type="button"
               className="library-filter"
               aria-pressed={group === muscle}
-              onClick={() => setGroup(muscle)}
+              onClick={() =>
+                setSurface((current) => ({
+                  ...current,
+                  group: muscle,
+                  visibleCount: MAX_RESULTS,
+                }))
+              }
             >
               {t(`library.muscle.${muscle}`)}
             </button>
