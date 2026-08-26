@@ -62,7 +62,7 @@ export type Routine = {
   updatedAt: number;
 };
 
-/** Per-exercise training notes: dated entries that accumulate, never overwrite. */
+/** Per-exercise journal entries. `technique` is retained only for old backups. */
 export type ExerciseNote = {
   /** exerciseId */
   id: string;

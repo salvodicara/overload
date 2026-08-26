@@ -348,16 +348,13 @@
   "notes": {
     "coach": "Routine technique note",
     "coachPlaceholder": "Technique cues for this exercise in this routine…",
-    "technique": "Technique",
-    "techniquePlaceholder": "Cues to keep for every workout…",
     "session": "This session",
     "sessionPlaceholder": "How this exercise felt today…",
     "done": "Done",
     "previousSession": "Previous session · {{date}}",
     "latestPerformance": "Latest working performance · {{unit}}",
     "journal": "Journal",
-    "importedJournal": "Imported note",
-    "techniqueSaveError": "Could not save your technique note. Try again."
+    "importedJournal": "Imported note"
   },
   "body": {
     "weight": "Weight",

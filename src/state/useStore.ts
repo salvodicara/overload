@@ -203,10 +203,6 @@ function owns(owner: Owner): boolean {
   );
 }
 
-function sameOwner(left: Owner, right: Owner): boolean {
-  return left.uid === right.uid && left.generation === right.generation;
-}
-
 function generationIsCurrent(owner: Owner): boolean {
   return authGeneration === owner.generation;
 }
@@ -259,92 +255,9 @@ function savedRoute(): Route {
 
 // Editor keystrokes save on every change; batch the remote writes per routine.
 const routinePushTimers = new Map<string, ReturnType<typeof setTimeout>>();
-type PendingTechniqueSave = {
-  owner: Owner;
-  text: string;
-  timer: ReturnType<typeof setTimeout>;
-};
-type TechniqueSaveSequence = {
-  remoteTail: Promise<void>;
-  reservations: number;
-};
-const techniqueSaveTimers = new Map<string, PendingTechniqueSave>();
-const techniqueSaveSequences = new Map<string, TechniqueSaveSequence>();
 function clearRoutinePushTimers(): void {
   for (const timer of routinePushTimers.values()) clearTimeout(timer);
   routinePushTimers.clear();
-}
-
-function clearTechniqueSaveTimers(): void {
-  for (const pending of techniqueSaveTimers.values()) clearTimeout(pending.timer);
-  techniqueSaveTimers.clear();
-  techniqueSaveSequences.clear();
-}
-
-function techniqueSequenceKey(owner: Owner, exerciseId: string): string {
-  return `${owner.uid}:${owner.generation}:${exerciseId}`;
-}
-
-function queueTechniqueSave(
-  owner: Owner,
-  exerciseId: string,
-  text: string,
-  getNotes: () => ExerciseNote[],
-  setNotes: (notes: ExerciseNote[]) => void,
-): Promise<AccountActionResult> {
-  const key = techniqueSequenceKey(owner, exerciseId);
-  let sequence = techniqueSaveSequences.get(key);
-  if (!sequence) {
-    sequence = { remoteTail: Promise.resolve(), reservations: 0 };
-    techniqueSaveSequences.set(key, sequence);
-  }
-  const current = sequence;
-  const reservation = ++current.reservations;
-  const admitted = owns(owner);
-  const local = withLocalWriteBarrier(async () => {
-    if (!admitted) return null;
-    const existing = getNotes().find((note) => note.id === exerciseId);
-    const next: ExerciseNote = {
-      ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
-      technique: text.trim(),
-      updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1),
-    };
-    await saveNote(next);
-    return next;
-  });
-  const saving = local.then((next) => {
-    if (!next) return STALE_ACCOUNT_ACTION;
-    if (owns(owner)) setNotes([...getNotes().filter((note) => note.id !== exerciseId), next]);
-    const handoff = current.remoteTail.then(() => pushRecord(owner.uid, 'notes', next));
-    const remoteTail = handoff.then(
-      () => undefined,
-      () => undefined,
-    );
-    current.remoteTail = remoteTail;
-    void remoteTail.then(() => {
-      if (
-        techniqueSaveSequences.get(key) === current &&
-        current.reservations === reservation &&
-        current.remoteTail === remoteTail
-      ) {
-        techniqueSaveSequences.delete(key);
-      }
-    });
-    return accountActionForOwner(owner, undefined);
-  });
-  void saving.catch(() => {
-    const remoteTail = current.remoteTail;
-    void remoteTail.then(() => {
-      if (
-        techniqueSaveSequences.get(key) === current &&
-        current.reservations === reservation &&
-        current.remoteTail === remoteTail
-      ) {
-        techniqueSaveSequences.delete(key);
-      }
-    });
-  });
-  return saving;
 }
 
 function debouncedPushRoutine(owner: Owner, routineId: string): void {
@@ -413,8 +326,6 @@ export type Store = {
     exerciseId: string,
     tracking?: TrackingType,
   ): Promise<AccountActionResult>;
-  queueTechniqueNote(exerciseId: string, text: string): void;
-  saveTechniqueNote(exerciseId: string, text: string): Promise<AccountActionResult>;
   importNotes(incoming: ExerciseNote[]): Promise<AccountActionResult<number>>;
   createCustomExercise(name: string, muscleGroup: string): Promise<AccountActionResult<string>>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<AccountActionResult>;
@@ -558,7 +469,6 @@ export const useStore = create<Store>((set, get) => ({
     currentOwner = null;
     syncController = null;
     clearRoutinePushTimers();
-    clearTechniqueSaveTimers();
     registerCustomExercises([]);
     if (!user || previousOwner) releaseWakeLock();
     set({ user: undefined, authState: 'loading', syncState: 'offline', catalogReady: false });
@@ -1119,45 +1029,6 @@ export const useStore = create<Store>((set, get) => ({
     });
     debouncedPushRoutine(owner, next.id);
     return appliedAccountAction(owner, undefined);
-  },
-
-  async saveTechniqueNote(exerciseId, text) {
-    const owner = captureOwner();
-    if (!owner) return STALE_ACCOUNT_ACTION;
-    const pending = techniqueSaveTimers.get(exerciseId);
-    if (pending) {
-      clearTimeout(pending.timer);
-      techniqueSaveTimers.delete(exerciseId);
-      if (!sameOwner(pending.owner, owner)) return STALE_ACCOUNT_ACTION;
-    }
-    return queueTechniqueSave(
-      owner,
-      exerciseId,
-      text,
-      () => get().notes,
-      (notes) => set({ notes }),
-    );
-  },
-
-  queueTechniqueNote(exerciseId, text) {
-    const owner = captureOwner();
-    if (!owner) return;
-    const existing = techniqueSaveTimers.get(exerciseId);
-    if (existing) clearTimeout(existing.timer);
-    const pending = { owner, text, timer: undefined as unknown as ReturnType<typeof setTimeout> };
-    pending.timer = setTimeout(() => {
-      if (techniqueSaveTimers.get(exerciseId) !== pending) return;
-      techniqueSaveTimers.delete(exerciseId);
-      if (!owns(owner)) return;
-      void queueTechniqueSave(
-        owner,
-        exerciseId,
-        text,
-        () => get().notes,
-        (notes) => set({ notes }),
-      ).catch(() => {});
-    }, 500);
-    techniqueSaveTimers.set(exerciseId, pending);
   },
 
   async deleteWorkout(id) {

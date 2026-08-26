@@ -348,16 +348,13 @@
   "notes": {
     "coach": "Nota tecnica della scheda",
     "coachPlaceholder": "Indicazioni tecniche per questo esercizio in questa scheda…",
-    "technique": "Tecnica",
-    "techniquePlaceholder": "Indicazioni da mantenere in ogni allenamento…",
     "session": "Questa sessione",
     "sessionPlaceholder": "Com'è andato questo esercizio oggi…",
     "done": "Fatto",
     "previousSession": "Sessione precedente · {{date}}",
     "latestPerformance": "Ultima prestazione di lavoro · {{unit}}",
     "journal": "Diario",
-    "importedJournal": "Nota importata",
-    "techniqueSaveError": "Impossibile salvare la nota tecnica. Riprova."
+    "importedJournal": "Nota importata"
   },
   "body": {
     "weight": "Peso",
