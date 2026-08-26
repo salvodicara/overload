@@ -1232,6 +1232,32 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   }
 });
 
+test('route motion keeps its hierarchy when native view transitions are unavailable', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-route-motion', 'peer');
+  await expect(page.locator('html')).not.toHaveAttribute('data-route-motion', { timeout: 600 });
+});
+
+test('rapid navigation interrupts motion without an unhandled rejection', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await page.waitForTimeout(350);
+
+  expect(errors).toEqual([]);
+});
+
 test('Home week navigator browses earlier progress and opens a completed day', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
@@ -1242,6 +1268,14 @@ test('Home week navigator browses earlier progress and opens a completed day', a
 
   const overview = page.locator('.home-period-overview');
   await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await overview.dispatchEvent('pointermove', { clientX: 150, pointerId: 1 });
+  await expect
+    .poll(() =>
+      overview
+        .locator('.home-period-page')
+        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
+    )
+    .toBeGreaterThan(50);
   await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
   await expect(page.getByText(/17.*23.*aug|17.*23.*ago/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /today|oggi/i })).toBeVisible();
@@ -1249,6 +1283,7 @@ test('Home week navigator browses earlier progress and opens a completed day', a
   await expect(page.locator('.week-metric__delta')).toHaveCount(4);
   await page.getByRole('button', { name: /today|oggi/i }).click();
   await expect(page.getByRole('button', { name: /today|oggi/i })).toHaveCount(0);
+  await expect(overview.locator('.home-period-page')).toHaveAttribute('data-motion', 'today');
 });
 
 test('Home switches training periods and swipes the overview to an earlier period', async ({
@@ -2441,6 +2476,8 @@ test('custom creation failure clears its alert when the sheet is dismissed', asy
 test('library keeps labelled search, filters, and scroll context through hardware Back', async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
   const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
   const searchId = await search.getAttribute('id');
@@ -2477,6 +2514,8 @@ test('library keeps labelled search, filters, and scroll context through hardwar
   await expect(search).toHaveValue('barbell');
   await expect(legs).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.waitForTimeout(350);
+  expect(pageErrors).toEqual([]);
 });
 
 test('library progressively reveals the complete catalog and tolerates an Italian typo', async ({
@@ -2979,9 +3018,9 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
   await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Last time', exact: true })).toBeVisible();
   await expect(
-    page.locator('.exercise-performance-list').getByText('110.2 × 8', { exact: true }),
+    page.locator('.exercise-performance-list').getByText('110.2 lb × 8', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('44.1 × 5', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('44.1 lb × 5', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Journal', exact: true })).toBeVisible();
   await page.getByRole('button', { name: /journal.*entries/i }).click();
   await expect(page.getByRole('button', { name: /Linked observation/ })).toBeVisible();
@@ -3230,11 +3269,12 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
   const summary = (name: string) => page.getByRole('group', { name: `${name} progress summary` });
   await expect(exercise).toHaveValue('Barbell_Squat');
   await expect(summary('Barbell Squat')).toContainText(
-    /Best\s*132\.3 lb × 4 reps.*Last\s*121\.3 lb × 8 reps.*Sessions\s*3/,
+    /Best\s*132\.3 lb × 4.*Last\s*121\.3 lb × 8.*Sessions\s*3/,
   );
+  await expect(summary('Barbell Squat')).not.toContainText('reps');
   const weightedChart = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i });
   const weightedCanvas = weightedChart.locator('canvas');
-  await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8 reps/);
+  await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8/);
   await expect(weightedCanvas).toHaveAttribute('aria-hidden', 'true');
   expect(
     await weightedCanvas.evaluate((node) =>
@@ -3242,7 +3282,7 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
     ),
   ).toBeGreaterThanOrEqual(12);
   const latestPr = page.getByText(/^Latest PR ·/);
-  await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8 reps');
+  await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8');
   await expect(page.getByRole('img', { name: /Weekly volume/i })).toHaveAttribute(
     'aria-label',
     /281\.1 lb.*661\.4 lb/,

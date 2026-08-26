@@ -1,5 +1,5 @@
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from './types';
-import { displayWeight, type WeightUnit } from './units';
+import { displayWeight, weightLabel, type WeightUnit } from './units';
 
 /** Local-time YYYY-MM-DD (the 'sv' locale formats exactly this way). */
 export function todayISO(): string {
@@ -57,9 +57,11 @@ export function formatPreviousSet(
   set: SetLog,
   tracking: TrackingType | undefined,
   unit: WeightUnit,
+  includeUnit = true,
 ): string {
   const mode = trackingOf(tracking ?? set.tracking);
   if (mode === 'duration') return `${set.durationSec ?? 0}s`;
   if (mode === 'reps') return String(set.reps);
-  return `${displayWeight(set.weightKg, unit)} × ${set.reps}`;
+  const weight = `${displayWeight(set.weightKg, unit)}${includeUnit ? ` ${weightLabel(unit)}` : ''}`;
+  return `${weight} × ${set.reps}`;
 }

@@ -42,6 +42,7 @@ import {
   type PersistedActiveSession,
 } from '../lib/session';
 import { workoutId } from '../lib/ids';
+import { routeMotion, transitionRoute } from '../lib/navigationMotion';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
@@ -424,7 +425,8 @@ export const useStore = create<Store>((set, get) => ({
   catalogReady: false,
 
   nav(route) {
-    scrollMemory.set(get().route.view, window.scrollY);
+    const previous = get().route;
+    scrollMemory.set(previous.view, window.scrollY);
     if (TAB_VIEWS.has(route.view)) {
       try {
         localStorage.setItem(ROUTE_KEY, route.view);
@@ -434,15 +436,17 @@ export const useStore = create<Store>((set, get) => ({
     }
     // Hardware/browser back works everywhere: detail screens stack on the
     // history, switching tabs replaces the entry (Android convention).
-    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(get().route.view);
+    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view);
     try {
       if (replace) history.replaceState({ route }, '');
       else history.pushState({ route }, '');
     } catch {
       /* history unavailable */
     }
-    set({ route });
-    applyScroll(route.view);
+    transitionRoute(routeMotion(previous, route), () => {
+      set({ route });
+      applyScroll(route.view);
+    });
   },
 
   async ensureCatalog() {
@@ -1150,7 +1154,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('popstate', (event) => {
     const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
     scrollMemory.set(useStore.getState().route.view, window.scrollY);
-    useStore.setState({ route });
-    applyScroll(route.view);
+    transitionRoute('back', () => {
+      useStore.setState({ route });
+      applyScroll(route.view);
+    });
   });
 }

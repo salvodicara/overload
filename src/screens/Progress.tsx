@@ -4,7 +4,7 @@ import { LineChart, type ChartPoint } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName, getCatalog } from '../lib/exercises';
-import { displayVolume, displayWeight, weightLabel } from '../lib/units';
+import { displayVolume, formatWeight, weightLabel } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
 import { useStore } from '../state/useStore';
 import { ProgressBody } from './ProgressBody';
@@ -137,7 +137,9 @@ function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) 
   const { tracking, sessions } = progress;
   const name = exerciseName(selected, i18n.language);
   const formatAxisValue = (value: number): string =>
-    (tracking === 'weight_reps' ? displayWeight(value, unit) : value).toLocaleString(locale);
+    tracking === 'weight_reps'
+      ? formatWeight(value, unit, i18n.language)
+      : value.toLocaleString(locale);
   const formatSession = (session: SessionTop): string => {
     if (tracking === 'duration') {
       return `${session.value.toLocaleString(locale)} ${t('workout.seconds')}`;
@@ -145,7 +147,7 @@ function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) 
     if (tracking === 'reps') {
       return `${session.value.toLocaleString(locale)} ${t('workout.reps')}`;
     }
-    return `${displayWeight(session.set.weightKg, unit).toLocaleString(locale)} ${weightLabel(unit)} × ${session.set.reps.toLocaleString(locale)} ${t('workout.reps')}`;
+    return `${formatWeight(session.set.weightKg, unit, i18n.language)} × ${session.set.reps.toLocaleString(locale)}`;
   };
   const points: ChartPoint[] = sessions.map((session) => ({
     date: session.date,

@@ -397,7 +397,52 @@ body {
 }
 
 .home-period-overview {
+  overflow: clip;
   touch-action: pan-y;
+}
+
+.home-period-page {
+  transform: translate3d(var(--period-drag, 0), 0, 0);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.home-period-page[data-dragging='true'] {
+  transition: none;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-period-page[data-motion='previous'] {
+    animation: period-from-previous 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .home-period-page[data-motion='next'] {
+    animation: period-from-next 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .home-period-page[data-motion='today'] {
+    animation: period-today 180ms ease-out;
+  }
+
+  @keyframes period-from-previous {
+    from {
+      opacity: 0.65;
+      transform: translate3d(-18%, 0, 0);
+    }
+  }
+
+  @keyframes period-from-next {
+    from {
+      opacity: 0.65;
+      transform: translate3d(18%, 0, 0);
+    }
+  }
+
+  @keyframes period-today {
+    from {
+      opacity: 0;
+    }
+  }
 }
 
 .home-period-overview:focus-visible {
@@ -1705,7 +1750,6 @@ textarea:disabled {
   gap: var(--space-1);
   margin-top: var(--space-3);
   padding: var(--space-3);
-  border-left: 3px solid var(--accent);
   background: var(--surface2);
   color: var(--ink);
 }
@@ -2490,8 +2534,20 @@ dialog.sheet-scrim::backdrop {
 /* ---------- motion ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
-  .screen {
+  html:not([data-route-motion]) .screen {
     animation: screen-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  html[data-route-motion='peer'] .screen {
+    animation: route-peer-in 150ms ease-out 70ms both;
+  }
+
+  html[data-route-motion='forward'] .screen {
+    animation: route-forward-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  html[data-route-motion='back'] .screen {
+    animation: route-back-in 230ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes screen-in {
@@ -2502,6 +2558,26 @@ dialog.sheet-scrim::backdrop {
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  @keyframes route-peer-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes route-forward-in {
+    from {
+      opacity: 0.65;
+      transform: translate3d(12%, 0, 0);
+    }
+  }
+
+  @keyframes route-back-in {
+    from {
+      opacity: 0.72;
+      transform: translate3d(-4%, 0, 0);
     }
   }
 
@@ -2541,6 +2617,63 @@ dialog.sheet-scrim::backdrop {
 
   .banner {
     animation: screen-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+}
+
+@supports (view-transition-name: none) {
+  .nav {
+    view-transition-name: bottom-nav;
+  }
+
+  ::view-transition-old(bottom-nav),
+  ::view-transition-new(bottom-nav) {
+    animation: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html[data-route-motion='peer']::view-transition-old(root) {
+      animation: route-peer-out 90ms ease-in both;
+    }
+
+    html[data-route-motion='peer']::view-transition-new(root) {
+      animation: route-peer-in 150ms ease-out 70ms both;
+    }
+
+    html[data-route-motion='forward']::view-transition-old(root) {
+      animation: route-forward-out 180ms ease-in both;
+    }
+
+    html[data-route-motion='forward']::view-transition-new(root) {
+      animation: route-forward-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    html[data-route-motion='back']::view-transition-old(root) {
+      animation: route-back-out 160ms ease-in both;
+    }
+
+    html[data-route-motion='back']::view-transition-new(root) {
+      animation: route-back-in 230ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes route-peer-out {
+      to {
+        opacity: 0;
+      }
+    }
+
+    @keyframes route-forward-out {
+      to {
+        opacity: 0.72;
+        transform: translate3d(-4%, 0, 0);
+      }
+    }
+
+    @keyframes route-back-out {
+      to {
+        opacity: 0.65;
+        transform: translate3d(12%, 0, 0);
+      }
+    }
   }
 }
 

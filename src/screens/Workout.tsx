@@ -310,7 +310,7 @@ export function Workout() {
                   const workingNumber = workingIndex + 1;
                   const previous = isWarmup ? undefined : priorWorkingSets[workingIndex];
                   const previousValue = previous
-                    ? formatPreviousSet(previous, exercise.tracking, unit)
+                    ? formatPreviousSet(previous, exercise.tracking, unit, false)
                     : t('workout.noPrevious');
                   if (!isWarmup) workingIndex += 1;
                   const setNumber = setIndex + 1;
