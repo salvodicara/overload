@@ -42,9 +42,12 @@ export type RoutineExercise = {
   /** null = open-ended (e.g. "max") */
   repMax: number | null;
   restSec: number;
+  /** Technique cue for this exact exercise occurrence in this routine. */
   note?: string;
   startWeightKg?: number;
   incrementKg?: number;
+  /** Optional targets for prescriptions whose working sets do not share one range. */
+  setTargets?: { repMin: number; repMax: number | null; startWeightKg?: number }[];
   tracking?: TrackingType;
   warmupSets?: { weightKg?: number; reps?: number; durationSec?: number }[];
 };

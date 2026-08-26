@@ -1,39 +1,10 @@
-import type { ExerciseNote, Routine, Workout } from './types';
+import type { ExerciseNote, Workout } from './types';
 
 export type JournalEntry = {
   id: string;
   date: string;
   text: string;
 };
-
-export function routineTechniqueMigrations(
-  routines: Routine[],
-  notes: ExerciseNote[],
-): ExerciseNote[] {
-  const existingById = new Map(notes.map((note) => [note.id, note]));
-  const legacyByExercise = new Map<string, string[]>();
-
-  for (const routine of routines) {
-    for (const exercise of routine.exercises) {
-      const text = exercise.note?.trim();
-      if (!text) continue;
-      const collected = legacyByExercise.get(exercise.exerciseId) ?? [];
-      if (!collected.includes(text)) collected.push(text);
-      legacyByExercise.set(exercise.exerciseId, collected);
-    }
-  }
-
-  const migrations: ExerciseNote[] = [];
-  for (const [exerciseId, techniqueParts] of legacyByExercise) {
-    const existing = existingById.get(exerciseId);
-    if (existing?.technique?.trim()) continue;
-    migrations.push({
-      ...(existing ?? { id: exerciseId, entries: [], updatedAt: 0 }),
-      technique: techniqueParts.join('\n\n'),
-    });
-  }
-  return migrations;
-}
 
 export function exerciseJournal(
   workouts: Workout[],

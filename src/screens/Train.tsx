@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
-import { IconForward } from '../components/Icons';
+import { IconDown, IconForward } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { TEMPLATES } from '../data/templates';
 import { fmtDate } from '../lib/format';
@@ -67,11 +67,12 @@ type SheetState =
   | { kind: 'program'; folder: Folder }
   | { kind: 'renameProgram'; folder: Folder }
   | { kind: 'deleteProgram'; folder: Folder }
+  | { kind: 'explore' }
   | null;
 
 export function Train() {
   const { t } = useTranslation();
-  const { routines, folders, workouts } = useStore();
+  const { routines, folders, workouts, settings } = useStore();
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
   const saveFolder = useStore((s) => s.saveFolder);
@@ -88,20 +89,26 @@ export function Train() {
     (p) => !p.routines.every((r) => routines.some((x) => x.id === r.id)),
   );
 
-  const suggestedId = nextRoutine(routines, folders, workouts)?.id;
+  const suggestedId = nextRoutine(routines, folders, workouts, settings.programStartDate)?.id;
+  const suggestedFolderId = routines.find((routine) => routine.id === suggestedId)?.folderId;
+  const [openProgramId, setOpenProgramId] = useState<string | null>(
+    suggestedFolderId ?? folders[0]?.id ?? null,
+  );
   const sheetTitle = !sheet
     ? ''
     : sheet.kind === 'create'
       ? t('train.create')
-      : sheet.kind === 'newRoutine'
-        ? t('train.newRoutine')
-        : sheet.kind === 'newProgram'
-          ? t('train.newProgram')
-          : sheet.kind === 'renameProgram'
-            ? t('train.renameProgram')
-            : sheet.kind === 'program'
-              ? sheet.folder.name
-              : t('train.deleteFolder');
+      : sheet.kind === 'explore'
+        ? t('train.explorePrograms')
+        : sheet.kind === 'newRoutine'
+          ? t('train.newRoutine')
+          : sheet.kind === 'newProgram'
+            ? t('train.newProgram')
+            : sheet.kind === 'renameProgram'
+              ? t('train.renameProgram')
+              : sheet.kind === 'program'
+                ? sheet.folder.name
+                : t('train.deleteFolder');
 
   async function createRoutine(name: string, folderId?: string): Promise<void> {
     const routine: Routine = {
@@ -125,6 +132,14 @@ export function Train() {
     };
     const result = await saveFolder(folder);
     if (!isAccountActionCurrent(result)) return;
+    setOpenProgramId(folder.id);
+    setSheet(null);
+  }
+
+  async function addTemplate(pack: (typeof TEMPLATES)[number]): Promise<void> {
+    const result = await installTemplatePack(pack, { saveFolder, saveRoutine });
+    if (!isAccountActionCurrent(result)) return;
+    setOpenProgramId(pack.folder.id);
     setSheet(null);
   }
 
@@ -173,17 +188,37 @@ export function Train() {
         {folders.map((folder) => {
           const inFolder = routines.filter((routine) => routine.folderId === folder.id);
           const headingId = `program-${folder.id}`;
+          const contentId = `${headingId}-routines`;
+          const expanded = openProgramId === folder.id;
           return (
-            <section key={folder.id} className="train-group" aria-labelledby={headingId}>
+            <section
+              key={folder.id}
+              className={`train-group train-program${expanded ? ' train-program--open' : ''}`}
+              aria-labelledby={headingId}
+            >
               <div className="train-group__heading">
-                <div>
-                  <h2 id={headingId} className="train-group__title">
-                    {folder.name}
-                  </h2>
-                  <span className="train-group__count">
-                    {t('routines.days', { count: inFolder.length })}
+                <button
+                  type="button"
+                  className="train-program__toggle"
+                  aria-expanded={expanded}
+                  aria-controls={contentId}
+                  aria-label={`${folder.name}, ${t('routines.days', { count: inFolder.length })}`}
+                  onClick={() => setOpenProgramId(expanded ? null : folder.id)}
+                >
+                  <span>
+                    <h2 id={headingId} className="train-group__title">
+                      {folder.name}
+                    </h2>
+                    <span className="train-group__count">
+                      {t('routines.days', { count: inFolder.length })}
+                    </span>
                   </span>
-                </div>
+                  {expanded ? (
+                    <IconDown width={18} height={18} aria-hidden />
+                  ) : (
+                    <IconForward width={18} height={18} aria-hidden />
+                  )}
+                </button>
                 <button
                   className="iconbtn train-group__options"
                   aria-label={`${folder.name}, ${t('train.programOptions')}`}
@@ -195,7 +230,7 @@ export function Train() {
                   <IconForward width={15} height={15} aria-hidden />
                 </button>
               </div>
-              <ul className="train-routine-list">
+              <ul id={contentId} className="train-routine-list" hidden={!expanded}>
                 {inFolder.map((routine) => (
                   <RoutineCard
                     key={routine.id}
@@ -222,28 +257,16 @@ export function Train() {
         })}
 
         {missingPacks.length > 0 && (
-          <section className="train-group train-templates" aria-labelledby="routine-templates">
-            <h2 id="routine-templates" className="train-group__title">
-              {t('routines.templates')}
-            </h2>
-            <ul className="train-routine-list">
-              {missingPacks.map((pack) => (
-                <li key={pack.folder.id} className="train-template">
-                  <span className="train-template__copy">
-                    <strong>{pack.folder.name}</strong>
-                    <span>{t('routines.days', { count: pack.routines.length })}</span>
-                  </span>
-                  <button
-                    className="btn btn-ghost train-template__action"
-                    onClick={() => {
-                      void installTemplatePack(pack, { saveFolder, saveRoutine });
-                    }}
-                  >
-                    {t('routines.useTemplate')}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <section className="train-explore" aria-labelledby="explore-programs">
+            <div>
+              <h2 id="explore-programs" className="train-group__title">
+                {t('train.explorePrograms')}
+              </h2>
+              <p className="muted small">{t('train.exploreHint')}</p>
+            </div>
+            <button className="btn btn-ghost" onClick={() => setSheet({ kind: 'explore' })}>
+              {t('train.exploreAction')}
+            </button>
           </section>
         )}
       </div>
@@ -272,6 +295,25 @@ export function Train() {
               </button>
               <span className="muted small">{t('train.programHint')}</span>
             </>
+          )}
+          {sheet.kind === 'explore' && (
+            <ul className="train-routine-list train-explore-list">
+              {missingPacks.map((pack) => (
+                <li key={pack.folder.id} className="train-template">
+                  <span className="train-template__copy">
+                    <strong>{pack.folder.name}</strong>
+                    <span>{t('routines.days', { count: pack.routines.length })}</span>
+                    <small>{t(`train.pack.${pack.folder.id}`)}</small>
+                  </span>
+                  <button
+                    className="btn btn-ghost train-template__action"
+                    onClick={() => void addTemplate(pack)}
+                  >
+                    {t('routines.useTemplate')}
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
           {(sheet.kind === 'newRoutine' ||
             sheet.kind === 'newProgram' ||

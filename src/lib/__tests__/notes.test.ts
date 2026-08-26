@@ -10,7 +10,7 @@ vi.mock('../sync', async (importOriginal) => ({
 }));
 
 import { db, saveNote, saveRoutine } from '../db';
-import { exerciseJournal, routineTechniqueMigrations } from '../notes';
+import { exerciseJournal } from '../notes';
 import type { ExerciseNote, Routine, Workout } from '../types';
 import { useStore } from '../../state/useStore';
 import workoutSource from '../../screens/Workout.tsx?raw';
@@ -82,55 +82,6 @@ const workoutWithNote = (
   exerciseNotes: [{ exerciseId, text }],
 });
 
-describe('routine technique migration', () => {
-  it('deduplicates legacy routine notes into one technique note', () => {
-    const routines = [
-      routineWith('bench', 'Scapole ferme'),
-      routineWith('bench', 'Scapole ferme'),
-      routineWith('bench', 'Piedi stabili'),
-    ];
-
-    expect(routineTechniqueMigrations(routines, [])).toEqual([
-      { id: 'bench', technique: 'Scapole ferme\n\nPiedi stabili', entries: [], updatedAt: 0 },
-    ]);
-  });
-
-  it('does not overwrite an existing technique note', () => {
-    const existing: ExerciseNote = {
-      id: 'bench',
-      technique: 'Keep this',
-      entries: [{ date: '2026-08-20', text: 'Legacy entry' }],
-      updatedAt: 20,
-    };
-
-    expect(routineTechniqueMigrations([routineWith('bench', 'Routine note')], [existing])).toEqual(
-      [],
-    );
-  });
-
-  it('preserves legacy entries and is idempotent after the migration is merged', () => {
-    const existing: ExerciseNote = {
-      id: 'bench',
-      entries: [{ date: '2026-08-20', text: 'Legacy entry' }],
-      updatedAt: 20,
-    };
-    const [migration] = routineTechniqueMigrations(
-      [routineWith('bench', 'Routine note')],
-      [existing],
-    );
-
-    expect(migration).toEqual({
-      id: 'bench',
-      technique: 'Routine note',
-      entries: [{ date: '2026-08-20', text: 'Legacy entry' }],
-      updatedAt: 20,
-    });
-    expect(routineTechniqueMigrations([routineWith('bench', 'Routine note')], [migration])).toEqual(
-      [],
-    );
-  });
-});
-
 describe('exercise journal', () => {
   it('keeps two notes from two workouts on the same day', () => {
     const workouts = [
@@ -194,7 +145,7 @@ describe('note persistence', () => {
     pushRecord.mockClear();
   });
 
-  it('reload migrates a routine note once and preserves imported entries', async () => {
+  it('reload keeps a routine note scoped to its routine occurrence', async () => {
     const routine = routineWith('bench', '  Scapole ferme  ');
     const imported: ExerciseNote = {
       id: 'bench',
@@ -205,12 +156,12 @@ describe('note persistence', () => {
     await saveNote(imported);
 
     await useStore.getState().reload();
-    const once = useStore.getState().notes[0];
+    const reloadedRoutine = useStore.getState().routines[0];
     await useStore.getState().reload();
 
-    expect(once).toEqual({ ...imported, technique: 'Scapole ferme' });
-    expect(useStore.getState().notes).toEqual([once]);
-    expect(await db.notes.get('bench')).toEqual(once);
+    expect(reloadedRoutine.exercises[0].note).toBe('  Scapole ferme  ');
+    expect(useStore.getState().notes).toEqual([imported]);
+    expect(await db.notes.get('bench')).toEqual(imported);
   });
 
   it('saves a trimmed technique while preserving legacy entries and allows clearing it', async () => {
@@ -233,77 +184,6 @@ describe('note persistence', () => {
     await useStore.getState().saveTechniqueNote('bench', '   ');
     expect(useStore.getState().notes[0].technique).toBe('');
     expect((await db.notes.get('bench'))?.technique).toBe('');
-  });
-
-  it('pushes a migrated routine technique when authenticated', async () => {
-    const existing: ExerciseNote = {
-      id: 'bench',
-      entries: [{ date: '2026-08-20', text: 'Legacy import' }],
-      updatedAt: 20,
-    };
-    await saveRoutine(routineWith('bench', 'Scapole ferme'));
-    await saveNote(existing);
-
-    await useStore.getState().reload();
-
-    expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
-      id: 'bench',
-      technique: 'Scapole ferme',
-      entries: existing.entries,
-      updatedAt: 20,
-    });
-  });
-
-  it('publishes a boot migration after readiness without making init wait for the network', async () => {
-    useStore.getState().setUser(null);
-    await vi.waitFor(() => expect(useStore.getState().authState).toBe('signedOut'));
-    const existing: ExerciseNote = {
-      id: 'bench',
-      entries: [{ date: '2026-08-20', text: 'Same timestamp remotely' }],
-      updatedAt: 20,
-    };
-    await saveRoutine(routineWith('bench', 'Boot technique'));
-    await saveNote(existing);
-    pushRecord.mockClear();
-    const remote = deferred<void>();
-    pushRecord.mockReturnValueOnce(remote.promise);
-
-    useStore.getState().setUser({ uid: 'user-1', name: null });
-    const init = useStore.getState().init();
-    try {
-      await vi.waitFor(() => expect(useStore.getState().authState).toBe('ready'));
-      await vi.waitFor(() =>
-        expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
-          ...existing,
-          technique: 'Boot technique',
-        }),
-      );
-      const settled = vi.fn();
-      void init.then(settled);
-      await vi.waitFor(() => expect(settled).toHaveBeenCalledOnce());
-    } finally {
-      remote.resolve();
-      await init;
-    }
-  });
-
-  it('publishes the final migration record created while importing workouts', async () => {
-    const existing: ExerciseNote = {
-      id: 'bench',
-      entries: [{ date: '2026-08-20', text: 'Same timestamp remotely' }],
-      updatedAt: 20,
-    };
-    await saveRoutine(routineWith('bench', 'Imported technique'));
-    await saveNote(existing);
-    useStore.setState({ routines: [], notes: [] });
-    pushRecord.mockClear();
-
-    await useStore.getState().importWorkouts([]);
-
-    expect(pushRecord).toHaveBeenCalledWith('user-1', 'notes', {
-      ...existing,
-      technique: 'Imported technique',
-    });
   });
 
   it('drops a queued Technique edit when its account is invalidated before the timer fires', async () => {
@@ -710,19 +590,17 @@ describe('note persistence', () => {
 });
 
 describe('active Workout note API contract', () => {
-  it('uses Technique and This session actions without the legacy dated-entry action', () => {
+  it('renders the routine occurrence note and keeps session notes on the workout', () => {
     expect(workoutSource).not.toContain('addNoteEntry');
-    expect(workoutSource).toContain('queueTechniqueNote');
-    expect(workoutSource).toContain('saveTechniqueNote');
-    expect(workoutSource).not.toContain('flushTechniqueNote');
-    expect(workoutSource).toContain('isAccountActionCurrent(result)');
-    expect(workoutSource).toContain('disabled={techniqueCommitting}');
+    expect(workoutSource).not.toContain('queueTechniqueNote');
+    expect(workoutSource).not.toContain('saveTechniqueNote');
+    expect(workoutSource).toContain('routine.exercises[exerciseIndex]');
+    expect(workoutSource).toContain('prescription?.note');
     expect(workoutSource).toContain('updateSessionNote');
-    expect(workoutSource).toContain('note?.technique');
     expect(workoutSource).toContain('e.sessionNote');
   });
 
-  it('locks Technique text input while Done is committing', () => {
+  it('can lock a note editor while Done is committing', () => {
     expect(noteEditorSource).toMatch(/<textarea[\s\S]*disabled=\{disabled\}/);
   });
 

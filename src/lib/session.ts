@@ -74,17 +74,22 @@ function activeSet(
   };
 }
 
-export function buildActiveExercise(rx: RoutineExercise, history: Workout[]): ActiveExercise {
+export function buildActiveExercise(
+  rx: RoutineExercise,
+  history: Workout[],
+  routineId?: string,
+): ActiveExercise {
   const tracking = trackingOf(rx.tracking);
-  const suggestion = suggest(rx, history);
+  const suggestion = suggest(rx, history, routineId);
   const warmups = (rx.warmupSets ?? []).map((target) => activeSet(tracking, 'warmup', target));
-  const working = suggestion.weights.map((weightKg) =>
-    activeSet(tracking, 'working', {
+  const working = suggestion.weights.map((weightKg, index) => {
+    const target = rx.setTargets?.[index];
+    return activeSet(tracking, 'working', {
       weightKg,
-      reps: tracking === 'reps' ? rx.repMin : undefined,
-      durationSec: tracking === 'duration' ? rx.repMin : undefined,
-    }),
-  );
+      reps: tracking === 'reps' ? (target?.repMin ?? rx.repMin) : undefined,
+      durationSec: tracking === 'duration' ? (target?.repMin ?? rx.repMin) : undefined,
+    });
+  });
 
   return {
     exerciseId: rx.exerciseId,

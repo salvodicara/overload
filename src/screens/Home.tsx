@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconBack, IconForward } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
 import { nextRoutine } from '../lib/routines';
@@ -9,6 +10,12 @@ import { computeVolume } from '../lib/volume';
 import { useStore } from '../state/useStore';
 
 type WeekDay = { iso: string; label: string };
+
+function addDays(date: Date, amount: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
 
 export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
   const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
@@ -25,6 +32,18 @@ export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
   });
 }
 
+export function weekRangeLabel(days: WeekDay[], language: string): string {
+  const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
+  const first = new Date(`${days[0].iso}T12:00:00`);
+  const last = new Date(`${days.at(-1)!.iso}T12:00:00`);
+  const sameMonth =
+    first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
+  if (sameMonth) {
+    return `${first.getDate()}–${last.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`;
+  }
+  return `${first.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`;
+}
+
 function workingSetCount(workout: Workout): number {
   return workout.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
 }
@@ -35,8 +54,12 @@ export function Home() {
   const nav = useStore((state) => state.nav);
   const startWorkout = useStore((state) => state.startWorkout);
   const ensureCatalog = useStore((state) => state.ensureCatalog);
-  const days = weekDays(new Date(), i18n.language);
+  const [weekAnchor, setWeekAnchor] = useState(() => new Date());
+  const days = weekDays(weekAnchor, i18n.language);
+  const currentDays = weekDays(new Date(), i18n.language);
+  const previousDays = weekDays(addDays(weekAnchor, -7), i18n.language);
   const daySet = new Set(days.map((day) => day.iso));
+  const previousDaySet = new Set(previousDays.map((day) => day.iso));
   const weeklyWorkouts = workouts.filter(
     (workout) => daySet.has(workout.date) && workingSetCount(workout) > 0,
   );
@@ -48,10 +71,26 @@ export function Home() {
     (total, workout) => total + computeVolume(workout.sets),
     0,
   );
-  const next = nextRoutine(routines, folders, workouts);
+  const previousWorkouts = workouts.filter(
+    (workout) => previousDaySet.has(workout.date) && workingSetCount(workout) > 0,
+  );
+  const previousSetsCount = previousWorkouts.reduce(
+    (total, workout) => total + workingSetCount(workout),
+    0,
+  );
+  const previousVolume = previousWorkouts.reduce(
+    (total, workout) => total + computeVolume(workout.sets),
+    0,
+  );
+  const next = nextRoutine(routines, folders, workouts, settings.programStartDate);
   const today = new Date().toLocaleDateString('sv');
   const unit = settings.unit ?? 'kg';
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
+  const isCurrentWeek = days[0].iso === currentDays[0].iso;
+  const signed = (value: number) =>
+    new Intl.NumberFormat(locale, { signDisplay: 'always', maximumFractionDigits: 1 }).format(
+      value,
+    );
 
   useEffect(() => {
     if (workouts.length > 0) return;
@@ -141,18 +180,59 @@ export function Home() {
         </section>
 
         <section className="home-week" aria-labelledby="week-summary">
-          <h2 id="week-summary" className="display section-title home-section-title">
-            {t('home.thisWeek')}
-          </h2>
+          <div className="home-week-heading">
+            <div>
+              <h2 id="week-summary" className="display section-title home-section-title">
+                {isCurrentWeek ? t('home.thisWeek') : t('home.selectedWeek')}
+              </h2>
+              <span className="mono small muted">{weekRangeLabel(days, i18n.language)}</span>
+            </div>
+            <div className="home-week-nav">
+              <button
+                type="button"
+                className="iconbtn"
+                aria-label={t('home.previousWeek')}
+                onClick={() => setWeekAnchor((date) => addDays(date, -7))}
+              >
+                <IconBack />
+              </button>
+              <button
+                type="button"
+                className="iconbtn"
+                aria-label={t('home.nextWeek')}
+                disabled={isCurrentWeek}
+                onClick={() => setWeekAnchor((date) => addDays(date, 7))}
+              >
+                <IconForward />
+              </button>
+            </div>
+          </div>
           <div className="week-band">
             <div className="week-days" aria-label={t('home.weekDays')}>
               {days.map((day) => {
-                const trained = weeklyWorkouts.some((workout) => workout.date === day.iso);
-                return (
+                const dayWorkouts = weeklyWorkouts.filter((workout) => workout.date === day.iso);
+                const trained = dayWorkouts.length > 0;
+                const className = `week-day${trained ? ' week-day--trained' : ''}`;
+                const label = `${day.iso}${trained ? ` ${t('home.trained')}` : ''}`;
+                return trained ? (
+                  <button
+                    type="button"
+                    key={day.iso}
+                    className={className}
+                    aria-label={label}
+                    aria-current={day.iso === today ? 'date' : undefined}
+                    onClick={() => {
+                      const latest = [...dayWorkouts].sort((a, b) => b.startTs - a.startTs)[0];
+                      nav({ view: 'workoutDetail', id: latest.id });
+                    }}
+                  >
+                    {day.label}
+                  </button>
+                ) : (
                   <span
                     key={day.iso}
-                    className={`week-day${trained ? ' week-day--trained' : ''}`}
-                    aria-label={`${day.iso}${trained ? ` ${t('home.trained')}` : ''}`}
+                    className={className}
+                    aria-label={label}
                     aria-current={day.iso === today ? 'date' : undefined}
                   >
                     {day.label}
@@ -180,6 +260,14 @@ export function Home() {
                 <span>{t('home.volume')}</span>
               </span>
             </div>
+            <p className="home-week-comparison mono small muted">
+              {t('home.weekComparison', {
+                workouts: signed(weeklyWorkouts.length - previousWorkouts.length),
+                sets: signed(workingSets - previousSetsCount),
+                volume: signed(displayVolume(weeklyVolume - previousVolume, unit)),
+                unit,
+              })}
+            </p>
           </div>
         </section>
       </div>

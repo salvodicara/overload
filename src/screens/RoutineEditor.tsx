@@ -75,7 +75,6 @@ export function RoutineEditor({ id }: { id: string }) {
   const unit = useStore((s) => s.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const saveRoutine = useStore((s) => s.saveRoutine);
-  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
   const deleteRoutine = useStore((s) => s.deleteRoutine);
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
@@ -473,16 +472,20 @@ export function RoutineEditor({ id }: { id: string }) {
                   className="mono small muted"
                   style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
                 >
-                  {t('notes.technique')}
+                  {t('notes.coach')}
                 </span>
                 <textarea
-                  key={`technique-${rx.exerciseId}-${rev}`}
-                  defaultValue={note?.technique ?? ''}
-                  aria-label={t('notes.technique')}
-                  placeholder={t('notes.techniquePlaceholder')}
+                  key={`routine-note-${rx.exerciseId}-${rev}`}
+                  defaultValue={rx.note ?? ''}
+                  aria-label={t('notes.coach')}
+                  placeholder={t('notes.coachPlaceholder')}
                   rows={2}
                   style={{ minHeight: 64, resize: 'vertical' }}
-                  onChange={(e) => void saveTechniqueNote(rx.exerciseId, e.target.value)}
+                  onChange={(event) =>
+                    commit((draft) => {
+                      draft.exercises[xi].note = event.target.value.trim() || undefined;
+                    })
+                  }
                 />
               </label>
               {note?.entries.at(-1) && (

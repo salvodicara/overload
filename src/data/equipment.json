@@ -1,0 +1,14 @@
+{
+  "bands": "bands",
+  "barbell": "barbell",
+  "body only": "bodyOnly",
+  "cable": "cable",
+  "dumbbell": "dumbbell",
+  "e-z curl bar": "ezCurlBar",
+  "exercise ball": "exerciseBall",
+  "foam roll": "foamRoll",
+  "kettlebells": "kettlebells",
+  "machine": "machine",
+  "medicine ball": "medicineBall",
+  "other": "other"
+}

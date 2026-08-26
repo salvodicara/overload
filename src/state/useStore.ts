@@ -59,7 +59,6 @@ import type {
   Workout,
 } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
-import { routineTechniqueMigrations } from '../lib/notes';
 import type { BackupV2 } from '../lib/importer';
 
 export type Route =
@@ -438,7 +437,6 @@ type HydratedCollections = {
   nutrition: NutritionDay[];
   customExercises: CustomExercise[];
   settings: Settings;
-  techniqueMigrations: ExerciseNote[];
 };
 
 async function loadHydratedCollections(): Promise<HydratedCollections> {
@@ -453,23 +451,15 @@ async function loadHydratedCollections(): Promise<HydratedCollections> {
       listCustomExercises(),
       getSettings(),
     ]);
-  const techniqueMigrations = routineTechniqueMigrations(routines, notes);
-  for (const migration of techniqueMigrations) await saveNote(migration);
-  const migratedById = new Map(techniqueMigrations.map((note) => [note.id, note]));
-  const mergedNotes = [
-    ...notes.map((note) => migratedById.get(note.id) ?? note),
-    ...techniqueMigrations.filter((note) => !notes.some((existing) => existing.id === note.id)),
-  ];
   return {
     workouts,
     routines,
     folders,
-    notes: mergedNotes,
+    notes,
     measurements,
     nutrition,
     customExercises,
     settings,
-    techniqueMigrations,
   };
 }
 
@@ -482,7 +472,7 @@ async function reloadForOwner(owner: Owner, set: (state: Partial<Store>) => void
     return { hydrated: await loadHydratedCollections(), routinesAtRead };
   });
   if (!snapshot || !owns(owner)) return;
-  const { techniqueMigrations, ...collections } = snapshot.hydrated;
+  const collections = snapshot.hydrated;
   registerCustomExercises(collections.customExercises);
   if (!owns(owner)) return;
   const routines =
@@ -490,16 +480,6 @@ async function reloadForOwner(owner: Owner, set: (state: Partial<Store>) => void
       ? collections.routines
       : useStore.getState().routines;
   set({ ...collections, routines });
-  if (!owns(owner)) return;
-  await pushTechniqueMigrations(owner, techniqueMigrations);
-}
-
-async function pushTechniqueMigrations(owner: Owner, migrations: ExerciseNote[]): Promise<boolean> {
-  for (const migration of migrations) {
-    if (!owns(owner)) return false;
-    await pushRecord(owner.uid, 'notes', migration);
-  }
-  return owns(owner);
 }
 
 const initialActive = readActive();
@@ -634,7 +614,7 @@ export const useStore = create<Store>((set, get) => ({
 
         currentOwner = owner;
         const readyUser = pendingBoot?.generation === generation ? pendingBoot.user : user;
-        const { techniqueMigrations, ...collections } = hydrated;
+        const collections = hydrated;
         registerCustomExercises(collections.customExercises);
         set({
           ...collections,
@@ -643,8 +623,6 @@ export const useStore = create<Store>((set, get) => ({
           route: get().active ? { view: 'workout' } : get().route,
         });
         if (get().active) acquireWakeLock();
-        void pushTechniqueMigrations(owner, techniqueMigrations);
-
         if (import.meta.env.VITE_E2E !== '1' && owns(owner)) {
           syncController = startSync(
             owner.uid,
@@ -701,7 +679,7 @@ export const useStore = create<Store>((set, get) => ({
     const active: ActiveSession = {
       routineId,
       startTs: Date.now(),
-      ex: routine.exercises.map((rx) => buildActiveExercise(rx, history)),
+      ex: routine.exercises.map((rx) => buildActiveExercise(rx, history, routine.id)),
     };
     persistActive(active);
     set({ active, route: { view: 'workout' } });
@@ -1203,12 +1181,9 @@ export const useStore = create<Store>((set, get) => ({
       return loadHydratedCollections();
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    const { techniqueMigrations, ...collections } = result.value;
+    const collections = result.value;
     registerCustomExercises(collections.customExercises);
     set(collections);
-    if (!(await pushTechniqueMigrations(owner, techniqueMigrations))) {
-      return STALE_ACCOUNT_ACTION;
-    }
     for (const workout of fresh) {
       if (!owns(owner)) return STALE_ACCOUNT_ACTION;
       await pushRecord(owner.uid, 'workouts', workout);
@@ -1225,16 +1200,9 @@ export const useStore = create<Store>((set, get) => ({
       return loadHydratedCollections();
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    const { techniqueMigrations, ...collections } = result.value;
+    const collections = result.value;
     registerCustomExercises(collections.customExercises);
     set(collections);
-    const migrationById = new Map(techniqueMigrations.map((note) => [note.id, note]));
-    const notesForCloud = [
-      ...backup.notes.map((note) => migrationById.get(note.id) ?? note),
-      ...techniqueMigrations.filter(
-        (migration) => !backup.notes.some((note) => note.id === migration.id),
-      ),
-    ];
     try {
       for (const record of backup.workouts) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
@@ -1248,7 +1216,7 @@ export const useStore = create<Store>((set, get) => ({
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'folders', record);
       }
-      for (const record of notesForCloud) {
+      for (const record of backup.notes) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
         await pushRecordStrict(owner.uid, 'notes', record);
       }

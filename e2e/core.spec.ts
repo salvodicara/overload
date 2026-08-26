@@ -15,12 +15,95 @@ function expectAtLeast44PxGeometry(actualPx: number): void {
 
 export async function installNeutralTemplate(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
-  await page
+  await page.getByRole('button', { name: /^(explore|esplora)$/i }).click();
+  const explore = page.getByRole('dialog', { name: /explore programs|esplora programmi/i });
+  await explore
     .getByRole('button', { name: /^(use|usa)$/i })
     .first()
     .click();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /start full body b|inizia full body b/i }),
+  ).toBeVisible();
 }
+
+test('Train keeps one program accordion open and separates ready-made programs', async ({
+  page,
+}) => {
+  const fullBody = page.getByRole('button', {
+    name: /full body a\/b.*2 (routines|schede)/i,
+  });
+  await expect(fullBody).toHaveAttribute('aria-expanded', 'true');
+
+  await page.getByRole('button', { name: /^(explore|esplora)$/i }).click();
+  const explore = page.getByRole('dialog', { name: /explore programs|esplora programmi/i });
+  await expect(explore.getByText(/push \/ pull \/ legs/i)).toBeVisible();
+  await explore.getByRole('button', { name: /^(use|usa)$/i }).click();
+
+  const ppl = page.getByRole('button', {
+    name: /push \/ pull \/ legs.*3 (routines|schede)/i,
+  });
+  await expect(ppl).toHaveAttribute('aria-expanded', 'true');
+  await expect(fullBody).toHaveAttribute('aria-expanded', 'false');
+  await fullBody.click();
+  await expect(fullBody).toHaveAttribute('aria-expanded', 'true');
+  await expect(ppl).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('the same exercise keeps a different technique note in each routine', async ({ page }) => {
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const transaction = database.transaction('routines', 'readwrite');
+    const store = transaction.objectStore('routines');
+    const get = (id: string) =>
+      new Promise<{
+        id: string;
+        exercises: Array<{ exerciseId: string; note?: string }>;
+      }>((resolve, reject) => {
+        const request = store.get(id);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+    const routineA = await get('full-body-a');
+    const routineB = await get('full-body-b');
+    routineA.exercises[0].note = 'Cue specifica del Giorno A';
+    routineB.exercises[0].exerciseId = routineA.exercises[0].exerciseId;
+    routineB.exercises[0].note = 'Cue specifica del Giorno B';
+    store.put(routineA);
+    store.put(routineB);
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  await page.reload();
+
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
+  await page.getByRole('button', { name: /start full body a|inizia full body a/i }).click();
+  await expect(page.locator('.workout-coach-note').first()).toContainText(
+    'Cue specifica del Giorno A',
+  );
+  await expect(page.getByText('Cue specifica del Giorno B')).toHaveCount(0);
+
+  await page.getByText(/more .*actions|altre azioni/i).click();
+  await page.getByRole('button', { name: /^(abandon|abbandona)$/i }).click();
+  await page
+    .getByRole('dialog', { name: /abandon this workout|abbandonare l'allenamento/i })
+    .getByRole('button', { name: /^(abandon|abbandona)$/i })
+    .click();
+  await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
+  await page.getByRole('button', { name: /start full body b|inizia full body b/i }).click();
+  await expect(page.locator('.workout-coach-note').first()).toContainText(
+    'Cue specifica del Giorno B',
+  );
+  await expect(page.getByText('Cue specifica del Giorno A')).toHaveCount(0);
+});
 
 export async function startNeutralWorkout(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
@@ -1051,6 +1134,21 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   }
 });
 
+test('Home week navigator browses earlier progress and opens a completed day', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  await page.getByRole('button', { name: /2026-08-24.*trained|2026-08-24.*allenato/i }).click();
+  await expect(page.getByRole('heading', { name: /truthful august/i })).toBeVisible();
+  await page.goBack();
+
+  await page.getByRole('button', { name: /previous week|settimana precedente/i }).click();
+  await expect(page.getByText(/17.*23.*aug|17.*23.*ago/i)).toBeVisible();
+  await expect(
+    page.getByText(/compared with the previous week|rispetto alla settimana precedente/i),
+  ).toBeVisible();
+});
+
 test('history groups truthful completed working activity by month', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
@@ -1114,10 +1212,12 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
   await page.getByRole('button', { name: /^train$/i }).click();
   await expect(page.getByText(/^1 routine$/i)).toBeVisible();
   await expect(page.getByText(/^2 routines$/i)).toBeVisible();
+  await page.getByRole('button', { name: /solo program.*1 routine/i }).click();
   await expect(
     page.getByRole('button', { name: /edit solo routine/i }).getByText(/^1 exercise$/i),
   ).toBeVisible();
 
+  await page.getByRole('button', { name: /full body a\/b.*2 routines/i }).click();
   await page.getByRole('button', { name: /start full body a/i }).click();
   await page.getByRole('button', { name: /minimize/i }).click();
   await page.getByRole('button', { name: /^home$/i }).click();
@@ -1678,7 +1778,7 @@ test('active workout adapts rows without shifting working previous values', asyn
   await expect(timed.locator('.set-row')).toHaveCount(2);
   await expect(timed.locator('.set-previous')).toHaveText(['—', '35s']);
   await expect(timed.getByLabel(/set 1 seconds/i)).toHaveValue('15');
-  await expect(page.getByText(/technique/i)).toHaveCount(3);
+  await expect(page.getByText(/^(this session|questa sessione)$/i)).toHaveCount(3);
   await expect(page.getByRole('button', { name: /barbell squat/i })).toHaveCount(1);
 
   await weighted.getByRole('button', { name: /^(set 1|serie 1)$/i }).click();
@@ -1773,76 +1873,6 @@ test('active workout adapts rows without shifting working previous values', asyn
       expect(bottomMetrics.actionsBottom).toBeLessThan(bottomMetrics.restTop);
     }
   }
-});
-
-test('disabled Technique trigger CSS preserves its geometry', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await setStoredLocale(page, 'en');
-  await startNeutralWorkout(page);
-  const techniqueTrigger = page
-    .getByRole('button', { name: /^Technique\b/ })
-    .and(page.locator('[aria-controls="workout-note-0-technique-content"]'));
-  await expect(techniqueTrigger).toHaveCount(1);
-  await expect(techniqueTrigger).toHaveAttribute(
-    'aria-controls',
-    'workout-note-0-technique-content',
-  );
-  await expect(techniqueTrigger.locator('.workout-note__scope')).toHaveText('Technique');
-  await expect(techniqueTrigger.locator('.workout-note__scope')).toHaveAttribute(
-    'id',
-    'workout-note-0-technique-label',
-  );
-  await expect(techniqueTrigger).toBeEnabled();
-
-  const enabled = await techniqueTrigger.evaluate(async (button) => {
-    await document.fonts.ready;
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-    const computed = getComputedStyle(button);
-    const rect = button.getBoundingClientRect();
-    return {
-      backgroundColor: computed.backgroundColor,
-      boxShadow: computed.boxShadow,
-      cursor: computed.cursor,
-      height: rect.height,
-      opacity: computed.opacity,
-      width: rect.width,
-    };
-  });
-
-  await techniqueTrigger.evaluate((button: HTMLButtonElement) => {
-    button.disabled = true;
-  });
-
-  const disabled = await techniqueTrigger.evaluate(async (button) => {
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-    const computed = getComputedStyle(button);
-    const rect = button.getBoundingClientRect();
-    return {
-      backgroundColor: computed.backgroundColor,
-      boxShadow: computed.boxShadow,
-      cursor: computed.cursor,
-      height: rect.height,
-      opacity: computed.opacity,
-      width: rect.width,
-    };
-  });
-
-  expect(Math.abs(disabled.width - enabled.width)).toBeLessThanOrEqual(
-    DOM_RECT_SUBPIXEL_EPSILON_PX,
-  );
-  expect(Math.abs(disabled.height - enabled.height)).toBeLessThanOrEqual(
-    DOM_RECT_SUBPIXEL_EPSILON_PX,
-  );
-  expect(disabled.backgroundColor).not.toBe(enabled.backgroundColor);
-  expect(disabled.boxShadow).not.toBe(enabled.boxShadow);
-  expect(disabled).toMatchObject({
-    cursor: 'not-allowed',
-    opacity: '0.65',
-  });
 });
 
 test('log a workout end to end', async ({ page }) => {
@@ -2355,15 +2385,11 @@ test('exercise detail promotes valid media, stays static when reduced, and defer
   const headings = await page
     .getByRole('heading', { level: 2 })
     .evaluateAll((elements) => elements.map((element) => element.textContent?.trim()));
-  const techniqueIndex = headings.findIndex((heading) =>
-    /^Technique|^Tecnica/i.test(heading ?? ''),
-  );
   const journalIndex = headings.findIndex((heading) => /^Journal|^Diario/i.test(heading ?? ''));
   const instructionsIndex = headings.findIndex((heading) =>
     /^How to|^Esecuzione/i.test(heading ?? ''),
   );
-  expect(techniqueIndex).toBeGreaterThanOrEqual(0);
-  expect(journalIndex).toBeGreaterThan(techniqueIndex);
+  expect(journalIndex).toBeGreaterThanOrEqual(0);
   expect(instructionsIndex).toBeGreaterThan(journalIndex);
 });
 
@@ -2401,42 +2427,6 @@ test('two-frame exercise media can be paused by keyboard and disappears under re
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(resume).toBeHidden();
   await expect(media.locator('.exmedia-b')).toHaveCSS('animation-name', 'none');
-});
-
-test('exercise Technique reports failure and stale saves before a current retry closes it', async ({
-  page,
-}) => {
-  await installCompletedWorkoutFixture(page);
-  await openExerciseDetail(page);
-  await page.evaluate(async () => {
-    const modulePath = '/src/state/useStore.ts';
-    const { useStore } = (await import(modulePath)) as typeof import('../src/state/useStore');
-    const original = useStore.getState().saveTechniqueNote;
-    let attempt = 0;
-    useStore.setState({
-      saveTechniqueNote: async (...args) => {
-        attempt += 1;
-        if (attempt === 1) throw new Error('local write failed');
-        if (attempt === 2) return { status: 'stale' as const };
-        return original(...args);
-      },
-    });
-  });
-
-  const trigger = page.getByRole('button', { name: /^technique|^tecnica/i });
-  await trigger.click();
-  await page.getByRole('textbox', { name: /^technique|^tecnica/i }).fill('Retry cue');
-  const done = page.getByRole('button', { name: /^done$|^fatto$/i });
-
-  await done.click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('alert')).toContainText(/could not save|impossibile salvare/i);
-  await done.click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByRole('alert')).toBeVisible();
-  await done.click();
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('program delete confirmation ignores its scrim without replacing the dialog', async ({
@@ -2528,6 +2518,7 @@ test('programs group routines and are manageable', async ({ page }) => {
     .first()
     .click();
   await expect(page.getByText(/test program/i)).toBeVisible();
+  await page.getByRole('button', { name: /test program.*1 (routine|scheda)/i }).click();
   await expect(page.getByText(/day x/i)).toBeVisible();
   // Delete the program: routine survives as standalone.
   await page
@@ -2539,12 +2530,10 @@ test('programs group routines and are manageable', async ({ page }) => {
   await expect(page.getByText(/day x/i)).toBeVisible();
 });
 
-test('technique persists globally and session notes stay on their workouts', async ({ page }) => {
+test('session notes stay on their workouts', async ({ page }) => {
   await startNeutralWorkout(page);
 
-  const technique = page.getByRole('button', { name: /^technique|^tecnica/i }).first();
   const session = page.getByRole('button', { name: /^this session|^questa sessione/i }).first();
-  await expect(technique).toHaveAttribute('aria-expanded', 'false');
   await expect(session).toHaveAttribute('aria-expanded', 'false');
   expect(
     await page.locator('.workout-note__trigger').evaluateAll((triggers) =>
@@ -2565,51 +2554,6 @@ test('technique persists globally and session notes stay on their workouts', asy
         ),
     ).toBe(true);
   }
-
-  await technique.click();
-  await expect(technique).toHaveAttribute('aria-expanded', 'true');
-  expect(
-    await page.getByRole('textbox', { name: /^technique|^tecnica/i }).evaluate((editor) => {
-      const labelId = editor.getAttribute('aria-labelledby');
-      return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
-    }),
-  ).toBe('Technique');
-  await page.getByLabel(/^technique|^tecnica/i).fill('Seat at 4');
-  const done = page.getByRole('button', { name: /^done|^fatto/i });
-  expect(
-    await done.evaluate((button) => button.getBoundingClientRect().height),
-  ).toBeGreaterThanOrEqual(44);
-  await done.dblclick();
-  await expect(done).toHaveCount(0);
-  await expect(technique).toHaveAttribute('aria-expanded', 'false');
-  await expect(technique).toContainText('Seat at 4');
-  expect(
-    await page.evaluate(async () => {
-      const database = await new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open('overload');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-      });
-      const note = await new Promise<{ technique?: string } | undefined>((resolve, reject) => {
-        const request = database
-          .transaction('notes', 'readonly')
-          .objectStore('notes')
-          .get('Barbell_Squat');
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
-      });
-      database.close();
-      return note?.technique;
-    }),
-  ).toBe('Seat at 4');
-  expect(
-    await page.locator('.workout-note__trigger').evaluateAll((triggers) =>
-      triggers.every((trigger) => {
-        const controlledId = trigger.getAttribute('aria-controls');
-        return controlledId !== null && document.getElementById(controlledId) !== null;
-      }),
-    ),
-  ).toBe(true);
 
   await session.click();
   await expect(session).toHaveAttribute('aria-expanded', 'true');
@@ -2659,7 +2603,6 @@ test('technique persists globally and session notes stay on their workouts', asy
   expect(firstWorkoutNotes).toContain('First session');
 
   await startNeutralWorkout(page);
-  await expect(technique).toContainText('Seat at 4');
   await expect(session).toContainText(/how this exercise felt|com'è andato/i);
   await session.click();
   await expect(page.getByLabel(/^this session|^questa sessione/i)).toHaveValue('');
@@ -2741,20 +2684,6 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
   ).toBeVisible();
   await expect(page.getByText('110.2 × 8', { exact: true })).toBeVisible();
   await expect(page.getByText('44.1 × 5', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Technique', exact: true })).toBeVisible();
-  const technique = page.getByRole('button', { name: /^technique/i });
-  expect(
-    await technique.evaluate((button) => button.getBoundingClientRect().height),
-  ).toBeGreaterThanOrEqual(44);
-  await technique.click();
-  const techniqueEditor = page.getByRole('textbox', { name: /^technique/i });
-  await expect(techniqueEditor).toHaveValue('Brace and drive');
-  await expect(techniqueEditor).toBeFocused();
-  await page.keyboard.press('Tab');
-  const techniqueDone = page.getByRole('button', { name: 'Done', exact: true });
-  await expect(techniqueDone).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(technique).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByRole('heading', { name: 'Journal', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /Linked observation/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Older observation/ })).toBeVisible();
@@ -3651,7 +3580,7 @@ test('hydrated custom exercises stay searchable and usable without the public ca
     releaseCatalog();
     await expect.poll(() => attempts).toBe(2);
     await expect(coldPage.getByRole('heading', { name: 'Offline carry' })).toBeVisible();
-    await expect(coldPage.getByRole('button', { name: 'Technique' })).toBeVisible();
+    await expect(coldPage.getByText('First time doing this exercise')).toBeVisible();
     expect(pageErrors).toEqual([]);
   } finally {
     releaseCatalog();

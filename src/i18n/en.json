@@ -33,6 +33,10 @@
     "welcomeBody": "Start from a template or create a routine that fits your training.",
     "welcomeCta": "Choose a routine",
     "thisWeek": "This week",
+    "selectedWeek": "Selected week",
+    "previousWeek": "Previous week",
+    "nextWeek": "Next week",
+    "weekComparison": "{{workouts}} workouts · {{sets}} sets · {{volume}} {{unit}} compared with the previous week",
     "sessions_one": "workout",
     "sessions_other": "workouts",
     "nextWorkout": "Next workout",
@@ -314,6 +318,13 @@
     "journalLatest": "Journal"
   },
   "train": {
+    "explorePrograms": "Explore programs",
+    "exploreHint": "Ready-made programs you can add and customize.",
+    "exploreAction": "Explore",
+    "pack": {
+      "full-body-folder": "Two complete routines that train the whole body.",
+      "ppl-folder": "Three routines organized into push, pull, and legs."
+    },
     "deleteFolder": "Delete program",
     "deleteFolderBody": "Routines inside are not deleted: they move back to standalone routines.",
     "create": "Create",
@@ -335,6 +346,8 @@
     "workouts_other": "{{count}} workouts"
   },
   "notes": {
+    "coach": "Routine technique note",
+    "coachPlaceholder": "Technique cues for this exercise in this routine…",
     "technique": "Technique",
     "techniquePlaceholder": "Cues to keep for every workout…",
     "session": "This session",

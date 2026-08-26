@@ -14,14 +14,21 @@ export function fmtDate(
   return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', opts);
 }
 
-function latestWorkoutWith(workouts: Workout[], exerciseId: string): Workout | null {
+function latestWorkoutWith(
+  workouts: Workout[],
+  exerciseId: string,
+  routineId?: string,
+): Workout | null {
+  const matching = workouts.filter((workout) =>
+    workout.sets.some(
+      (set) => set.exerciseId === exerciseId && set.done && kindOf(set.kind) === 'working',
+    ),
+  );
+  const sameRoutine = routineId
+    ? matching.filter((workout) => workout.routineId === routineId)
+    : [];
   let latest: Workout | null = null;
-  for (const w of workouts) {
-    if (
-      !w.sets.some((s) => s.exerciseId === exerciseId && s.done && kindOf(s.kind) === 'working')
-    ) {
-      continue;
-    }
+  for (const w of sameRoutine.length > 0 ? sameRoutine : matching) {
     if (
       latest === null ||
       w.date > latest.date ||
@@ -34,9 +41,13 @@ function latestWorkoutWith(workouts: Workout[], exerciseId: string): Workout | n
 }
 
 /** Most recent completed working sets of an exercise, kept in their saved order. */
-export function previousSets(workouts: Workout[], exerciseId: string): SetLog[] {
+export function previousSets(
+  workouts: Workout[],
+  exerciseId: string,
+  routineId?: string,
+): SetLog[] {
   return (
-    latestWorkoutWith(workouts, exerciseId)?.sets.filter(
+    latestWorkoutWith(workouts, exerciseId, routineId)?.sets.filter(
       (s) => s.exerciseId === exerciseId && s.done && kindOf(s.kind) === 'working',
     ) ?? []
   );

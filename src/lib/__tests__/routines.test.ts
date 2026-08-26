@@ -47,6 +47,11 @@ describe('nextRoutine', () => {
     expect(nextRoutine([a, b], [program], [done('b', 200), done('a', 100)])?.id).toBe('a');
   });
 
+  it('does not let archived history choose the current program', () => {
+    const archived = { ...done('b', 200), date: '2026-06-20' };
+    expect(nextRoutine([a, b], [program], [archived], '2026-08-25')?.id).toBe('a');
+  });
+
   it('returns the latest completion for a routine', () => {
     expect(lastCompletedFor(a, [done('a', 100), done('a', 200)])?.startTs).toBe(200);
   });

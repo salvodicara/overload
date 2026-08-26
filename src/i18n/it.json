@@ -33,6 +33,10 @@
     "welcomeBody": "Parti da un template o crea una scheda adatta al tuo allenamento.",
     "welcomeCta": "Scegli una scheda",
     "thisWeek": "Questa settimana",
+    "selectedWeek": "Settimana selezionata",
+    "previousWeek": "Settimana precedente",
+    "nextWeek": "Settimana successiva",
+    "weekComparison": "{{workouts}} allenamenti · {{sets}} serie · {{volume}} {{unit}} rispetto alla settimana precedente",
     "sessions_one": "allenamento",
     "sessions_other": "allenamenti",
     "nextWorkout": "Prossimo allenamento",
@@ -314,6 +318,13 @@
     "journalLatest": "Diario"
   },
   "train": {
+    "explorePrograms": "Esplora programmi",
+    "exploreHint": "Programmi pronti da aggiungere e personalizzare.",
+    "exploreAction": "Esplora",
+    "pack": {
+      "full-body-folder": "Due schede complete per allenare tutto il corpo.",
+      "ppl-folder": "Tre schede organizzate in spinta, tirata e gambe."
+    },
     "deleteFolder": "Elimina programma",
     "deleteFolderBody": "Le routine al suo interno non vengono eliminate: tornano fra le routine singole.",
     "create": "Crea",
@@ -335,6 +346,8 @@
     "workouts_other": "{{count}} allenamenti"
   },
   "notes": {
+    "coach": "Nota tecnica della scheda",
+    "coachPlaceholder": "Indicazioni tecniche per questo esercizio in questa scheda…",
     "technique": "Tecnica",
     "techniquePlaceholder": "Indicazioni da mantenere in ogni allenamento…",
     "session": "Questa sessione",

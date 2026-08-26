@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack, IconPlay } from '../components/Icons';
-import { NoteEditor } from '../components/NoteEditor';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import {
@@ -16,7 +15,7 @@ import {
 import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
 import { trackingOf } from '../lib/types';
-import { isAccountActionCurrent, useStore } from '../state/useStore';
+import { useStore } from '../state/useStore';
 
 export function ExerciseSheet({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
@@ -28,13 +27,7 @@ export function ExerciseSheet({ id }: { id: string }) {
   const notes = useStore((s) => s.notes);
   const unit = useStore((s) => s.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
-  const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
-  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
   const [showVideo, setShowVideo] = useState(false);
-  const [techniqueOpen, setTechniqueOpen] = useState(false);
-  const [techniqueCommitting, setTechniqueCommitting] = useState(false);
-  const [techniqueError, setTechniqueError] = useState<string | null>(null);
-  const committingTechnique = useRef(false);
 
   useEffect(() => {
     if (!isIt) {
@@ -63,29 +56,6 @@ export function ExerciseSheet({ id }: { id: string }) {
       ? unit
       : t(latestTracking === 'reps' ? 'editor.trackingReps' : 'editor.trackingDuration');
   const journal = exerciseJournal(workouts, note, id);
-  const techniqueLabelId = 'exercise-technique-label';
-  const techniqueContentId = 'exercise-technique-content';
-
-  async function commitTechnique(text: string): Promise<void> {
-    if (committingTechnique.current) return;
-    committingTechnique.current = true;
-    setTechniqueCommitting(true);
-    setTechniqueError(null);
-    try {
-      const result = await saveTechniqueNote(id, text);
-      if (isAccountActionCurrent(result)) {
-        setTechniqueOpen(false);
-        setTechniqueError(null);
-      } else {
-        setTechniqueError(t('notes.techniqueSaveError'));
-      }
-    } catch {
-      setTechniqueError(t('notes.techniqueSaveError'));
-    } finally {
-      committingTechnique.current = false;
-      setTechniqueCommitting(false);
-    }
-  }
 
   if (!catalogReady && !ex) {
     return (
@@ -147,60 +117,6 @@ export function ExerciseSheet({ id }: { id: string }) {
         ) : (
           <div className="mono small muted">{t('workout.firstTime')}</div>
         )}
-      </section>
-
-      <section className="exercise-detail__section">
-        <h2 id={techniqueLabelId}>{t('notes.technique')}</h2>
-        <div className="workout-note">
-          <button
-            type="button"
-            className="workout-note__trigger"
-            aria-expanded={techniqueOpen}
-            aria-controls={techniqueContentId}
-            disabled={techniqueCommitting}
-            onClick={() => {
-              if (!committingTechnique.current) {
-                setTechniqueError(null);
-                setTechniqueOpen((open) => !open);
-              }
-            }}
-          >
-            <span className="workout-note__copy">
-              <span className="workout-note__scope">{t('notes.technique')}</span>
-              <span className="workout-note__summary">
-                {note?.technique || t('notes.techniquePlaceholder')}
-              </span>
-            </span>
-            <span className="workout-note__chevron" aria-hidden="true">
-              ▾
-            </span>
-          </button>
-          <div
-            id={techniqueContentId}
-            className="workout-note__content"
-            role="group"
-            hidden={!techniqueOpen}
-          >
-            {techniqueOpen && (
-              <>
-                <NoteEditor
-                  initial={note?.technique ?? ''}
-                  placeholder={t('notes.techniquePlaceholder')}
-                  labelledBy={techniqueLabelId}
-                  doneLabel={t('notes.done')}
-                  disabled={techniqueCommitting}
-                  onChangeText={(text) => queueTechniqueNote(id, text)}
-                  onDone={commitTechnique}
-                />
-                {techniqueError && (
-                  <div className="form-feedback form-feedback--error" role="alert">
-                    {techniqueError}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
       </section>
 
       {journal.length > 0 && (

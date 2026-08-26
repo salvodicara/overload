@@ -23,10 +23,15 @@ export function nextRoutine(
   routines: Routine[],
   folders: Folder[],
   workouts: Workout[],
+  programStartDate?: string,
 ): Routine | null {
   if (routines.length === 0) return null;
 
-  const latestWorkout = [...workouts]
+  const currentWorkouts = programStartDate
+    ? workouts.filter((workout) => workout.date >= programStartDate)
+    : workouts;
+
+  const latestWorkout = [...currentWorkouts]
     .sort(compareNewest)
     .find((workout) => routines.some((routine) => belongsTo(routine, workout)));
 
@@ -45,8 +50,8 @@ export function nextRoutine(
   }
 
   return routines.reduce((oldest, routine) => {
-    const oldestCompletion = lastCompletedFor(oldest, workouts);
-    const routineCompletion = lastCompletedFor(routine, workouts);
+    const oldestCompletion = lastCompletedFor(oldest, currentWorkouts);
+    const routineCompletion = lastCompletedFor(routine, currentWorkouts);
     if (!oldestCompletion) return oldest;
     if (!routineCompletion) return routine;
     return compareNewest(oldestCompletion, routineCompletion) <= 0 ? routine : oldest;

@@ -10,7 +10,7 @@ import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
 import type { TrackingType } from '../lib/types';
 import { canonicalWeight, displayWeight, formatWeight, weightLabel } from '../lib/units';
-import { isAccountActionCurrent, useStore } from '../state/useStore';
+import { useStore } from '../state/useStore';
 
 function fmtRest(sec: number): string {
   if (sec < 60) return `${sec}″`;
@@ -50,16 +50,12 @@ export function Workout() {
   const abandon = useStore((s) => s.abandonWorkout);
   const finish = useStore((s) => s.finishWorkout);
   const notes = useStore((s) => s.notes);
-  const queueTechniqueNote = useStore((s) => s.queueTechniqueNote);
-  const saveTechniqueNote = useStore((s) => s.saveTechniqueNote);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((s) => s.setRestOverride);
   const [confirming, setConfirming] = useState(false);
   const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
-  const [committingNotes, setCommittingNotes] = useState<Record<string, boolean>>({});
-  const committingNoteKeys = useRef(new Set<string>());
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
   const addSetRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
@@ -113,17 +109,26 @@ export function Workout() {
 
       <div className="stack workout-exercises">
         {active.ex.map((exercise, exerciseIndex) => {
-          const prescription = routine.exercises.find(
-            (item) => item.exerciseId === exercise.exerciseId,
-          );
+          // Active exercises preserve routine order, so the index identifies the exact
+          // prescription even when the same catalog exercise appears more than once.
+          const prescription = routine.exercises[exerciseIndex];
           const name = exerciseName(exercise.exerciseId, i18n.language);
-          const priorWorkingSets = previousSets(workouts, exercise.exerciseId);
+          const priorWorkingSets = previousSets(workouts, exercise.exerciseId, routine.id);
           const firstWorkingWeight =
             exercise.sets.find((set) => set.kind === 'working')?.weightKg ?? 0;
           const target = prescription
-            ? `${prescription.sets} × ${rangeLabel(prescription.repMin, prescription.repMax)}${
-                exercise.tracking === 'duration' ? 's' : ''
-              }`
+            ? prescription.setTargets?.length
+              ? prescription.setTargets
+                  .map(
+                    (setTarget) =>
+                      `${rangeLabel(setTarget.repMin, setTarget.repMax)}${
+                        exercise.tracking === 'duration' ? 's' : ''
+                      }`,
+                  )
+                  .join(' / ')
+              : `${prescription.sets} × ${rangeLabel(prescription.repMin, prescription.repMax)}${
+                  exercise.tracking === 'duration' ? 's' : ''
+                }`
             : null;
           const progression =
             exercise.tracking === 'weight_reps'
@@ -208,86 +213,26 @@ export function Workout() {
                   </div>
                 )}
 
+                {prescription?.note && (
+                  <aside className="workout-coach-note">
+                    <span className="mono small">{t('notes.coach')}</span>
+                    <p>{prescription.note}</p>
+                  </aside>
+                )}
+
                 {(() => {
                   const note = notes.find((item) => item.id === exercise.exerciseId);
-                  const techniqueKey = `${exerciseIndex}:technique`;
                   const sessionKey = `${exerciseIndex}:session`;
-                  const techniqueExpanded = expandedNotes[techniqueKey] ?? false;
                   const sessionExpanded = expandedNotes[sessionKey] ?? false;
-                  const techniqueCommitting = committingNotes[techniqueKey] ?? false;
-                  const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
                   const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
-                  const techniqueContentId = `workout-note-${exerciseIndex}-technique-content`;
                   const sessionContentId = `workout-note-${exerciseIndex}-session-content`;
                   const previousSession = exerciseJournal(workouts, note, exercise.exerciseId).find(
                     (entry) => entry.id.startsWith('workout:'),
                   );
                   const toggleNote = (key: string) =>
                     setExpandedNotes((current) => ({ ...current, [key]: !current[key] }));
-                  const commitTechnique = async (text: string) => {
-                    if (committingNoteKeys.current.has(techniqueKey)) return;
-                    committingNoteKeys.current.add(techniqueKey);
-                    setCommittingNotes((current) => ({ ...current, [techniqueKey]: true }));
-                    try {
-                      const result = await saveTechniqueNote(exercise.exerciseId, text);
-                      if (isAccountActionCurrent(result)) {
-                        setExpandedNotes((current) => ({ ...current, [techniqueKey]: false }));
-                      }
-                    } catch {
-                      // Keep the draft open when local persistence fails.
-                    } finally {
-                      committingNoteKeys.current.delete(techniqueKey);
-                      setCommittingNotes((current) => ({ ...current, [techniqueKey]: false }));
-                    }
-                  };
                   return (
                     <div className="workout-notes">
-                      <section className="workout-note">
-                        <button
-                          type="button"
-                          className="workout-note__trigger"
-                          aria-expanded={techniqueExpanded}
-                          aria-controls={techniqueContentId}
-                          disabled={techniqueCommitting}
-                          onClick={() => {
-                            if (!committingNoteKeys.current.has(techniqueKey)) {
-                              toggleNote(techniqueKey);
-                            }
-                          }}
-                        >
-                          <IconNote width={16} height={16} aria-hidden />
-                          <span className="workout-note__copy">
-                            <span id={techniqueLabelId} className="workout-note__scope">
-                              {t('notes.technique')}
-                            </span>
-                            <span className="workout-note__summary">
-                              {note?.technique || t('notes.techniquePlaceholder')}
-                            </span>
-                          </span>
-                          <span className="workout-note__chevron" aria-hidden="true">
-                            ▾
-                          </span>
-                        </button>
-                        <div
-                          id={techniqueContentId}
-                          className="workout-note__content"
-                          role="group"
-                          hidden={!techniqueExpanded}
-                        >
-                          {techniqueExpanded && (
-                            <NoteEditor
-                              key={`technique:${exerciseIndex}`}
-                              initial={note?.technique ?? ''}
-                              placeholder={t('notes.techniquePlaceholder')}
-                              labelledBy={techniqueLabelId}
-                              doneLabel={t('notes.done')}
-                              disabled={techniqueCommitting}
-                              onChangeText={(text) => queueTechniqueNote(exercise.exerciseId, text)}
-                              onDone={commitTechnique}
-                            />
-                          )}
-                        </div>
-                      </section>
                       <section className="workout-note">
                         <button
                           type="button"

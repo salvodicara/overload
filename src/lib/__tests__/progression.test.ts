@@ -105,6 +105,43 @@ describe('suggest', () => {
 
     expect(suggest(rx(), history).weights).toEqual([40, 40, 40]);
   });
+
+  it('prefers history from the same routine before exercise-wide history', () => {
+    const history = [
+      workout('other', '2026-08-20', [set(80, 10), set(80, 10), set(80, 10)], {
+        routineId: 'other-routine',
+      }),
+      workout('same', '2026-08-10', [set(40, 8), set(40, 8), set(40, 8)], {
+        routineId: 'current-routine',
+      }),
+    ];
+
+    expect(suggest(rx(), history, 'current-routine').weights).toEqual([40, 40, 40]);
+  });
+
+  it('falls back to exercise-wide history for a routine with no completed session', () => {
+    const history = [
+      workout('other', '2026-08-20', [set(50, 8), set(50, 8), set(50, 8)], {
+        routineId: 'other-routine',
+      }),
+    ];
+
+    expect(suggest(rx(), history, 'new-routine').weights).toEqual([50, 50, 50]);
+  });
+
+  it('progresses per-set targets independently for top-set and back-off prescriptions', () => {
+    const prescription = rx({
+      sets: 3,
+      setTargets: [
+        { repMin: 6, repMax: 8, startWeightKg: 60 },
+        { repMin: 8, repMax: 10, startWeightKg: 50 },
+        { repMin: 8, repMax: 10, startWeightKg: 50 },
+      ],
+    });
+    const history = [workout('same', '2026-08-20', [set(60, 8), set(50, 9), set(50, 10)])];
+
+    expect(suggest(prescription, history).weights).toEqual([62.5, 50, 52.5]);
+  });
 });
 
 describe('previousSets', () => {

@@ -1,4 +1,5 @@
 import { CURATED } from '../data/curated';
+import EQUIPMENT_KEYS from '../data/equipment.json';
 import NAMES_IT from '../data/names.it.json';
 import type { Exercise } from './types';
 
@@ -15,23 +16,9 @@ export type CatalogExercise = Exercise & { instructions: string[] };
 
 export type MuscleGroup = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core' | 'calves';
 
-const EQUIPMENT_KEYS: Record<string, string> = {
-  bands: 'bands',
-  barbell: 'barbell',
-  'body only': 'bodyOnly',
-  cable: 'cable',
-  dumbbell: 'dumbbell',
-  'e-z curl bar': 'ezCurlBar',
-  'exercise ball': 'exerciseBall',
-  'foam roll': 'foamRoll',
-  kettlebells: 'kettlebells',
-  machine: 'machine',
-  'medicine ball': 'medicineBall',
-  other: 'other',
-};
-
 export function equipmentLabelKey(equipment: string): string {
-  return `library.equipment.${EQUIPMENT_KEYS[equipment.trim().toLowerCase()] ?? 'other'}`;
+  const keys = EQUIPMENT_KEYS as Record<string, string>;
+  return `library.equipment.${keys[equipment.trim().toLowerCase()] ?? 'other'}`;
 }
 
 const GROUP_OF: Record<string, MuscleGroup> = {

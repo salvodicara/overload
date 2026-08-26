@@ -1037,7 +1037,7 @@ describe('backup restore store action', () => {
     ]);
   });
 
-  it('strictly publishes the final note record after restore creates a Technique migration', async () => {
+  it('restores routine technique without copying it into a global exercise note', async () => {
     await login('u1');
     const existing = {
       id: 'bench',
@@ -1068,10 +1068,8 @@ describe('backup restore store action', () => {
 
     await useStore.getState().restoreBackup(backup);
 
-    expect(pushRecordStrictMock).toHaveBeenCalledWith('u1', 'notes', {
-      ...existing,
-      technique: 'Restored technique',
-    });
+    expect(pushRecordStrictMock).toHaveBeenCalledWith('u1', 'notes', existing);
+    expect(useStore.getState().routines[0].exercises[0].note).toBe('Restored technique');
   });
 
   it('rejects an authenticated restore when a required cloud write fails', async () => {
