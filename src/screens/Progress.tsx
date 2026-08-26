@@ -4,7 +4,7 @@ import { LineChart, type ChartPoint } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName, getCatalog } from '../lib/exercises';
-import { displayVolume, displayWeight, weightLabel } from '../lib/units';
+import { displayVolume, formatWeight, weightLabel } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
 import { useStore } from '../state/useStore';
 import { ProgressBody } from './ProgressBody';
@@ -98,11 +98,11 @@ function topSets(
   return { tracking: current, sessions };
 }
 
-function TrainingSection() {
+function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
   useCatalog(workouts.length > 0);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialExerciseId ?? null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const unit = settings.unit ?? 'kg';
 
@@ -137,7 +137,9 @@ function TrainingSection() {
   const { tracking, sessions } = progress;
   const name = exerciseName(selected, i18n.language);
   const formatAxisValue = (value: number): string =>
-    (tracking === 'weight_reps' ? displayWeight(value, unit) : value).toLocaleString(locale);
+    tracking === 'weight_reps'
+      ? formatWeight(value, unit, i18n.language)
+      : value.toLocaleString(locale);
   const formatSession = (session: SessionTop): string => {
     if (tracking === 'duration') {
       return `${session.value.toLocaleString(locale)} ${t('workout.seconds')}`;
@@ -145,7 +147,7 @@ function TrainingSection() {
     if (tracking === 'reps') {
       return `${session.value.toLocaleString(locale)} ${t('workout.reps')}`;
     }
-    return `${displayWeight(session.set.weightKg, unit).toLocaleString(locale)} ${weightLabel(unit)} × ${session.set.reps.toLocaleString(locale)} ${t('workout.reps')}`;
+    return `${formatWeight(session.set.weightKg, unit, i18n.language)} × ${session.set.reps.toLocaleString(locale)}`;
   };
   const points: ChartPoint[] = sessions.map((session) => ({
     date: session.date,
@@ -260,6 +262,8 @@ type Segment = (typeof SEGMENTS)[number];
 
 export function Progress() {
   const { t } = useTranslation();
+  const route = useStore((state) => state.route);
+  const initialExerciseId = route.view === 'progress' ? route.exerciseId : undefined;
   const [segment, setSegment] = useState<Segment>('training');
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -308,7 +312,9 @@ export function Progress() {
           hidden={segment !== key}
           className="progress-panel"
         >
-          {segment === key && key === 'training' && <TrainingSection />}
+          {segment === key && key === 'training' && (
+            <TrainingSection initialExerciseId={initialExerciseId} />
+          )}
           {segment === key && key === 'body' && <ProgressBody />}
           {segment === key && key === 'diet' && <ProgressDiet />}
         </section>

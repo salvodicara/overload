@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
-import { IconBack, IconPlay } from '../components/Icons';
+import { IconBack, IconDown, IconPlay } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import {
@@ -12,9 +12,9 @@ import {
   loadItalianInstructions,
   muscleGroup,
 } from '../lib/exercises';
-import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
+import { fmtDate, formatPreviousSet, previousSets, previousWorkout } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
-import { trackingOf } from '../lib/types';
+import { kindOf, trackingOf } from '../lib/types';
 import { useStore } from '../state/useStore';
 
 export function ExerciseSheet({ id }: { id: string }) {
@@ -28,6 +28,8 @@ export function ExerciseSheet({ id }: { id: string }) {
   const unit = useStore((s) => s.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const [showVideo, setShowVideo] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [visibleJournalEntries, setVisibleJournalEntries] = useState(5);
 
   useEffect(() => {
     if (!isIt) {
@@ -49,13 +51,42 @@ export function ExerciseSheet({ id }: { id: string }) {
   const name = ex ? (isIt ? ex.nameIt : ex.nameEn) : exerciseName(id, i18n.language);
   const altName = ex ? (isIt ? ex.nameEn : ex.nameIt) : '';
   const note = notes.find((item) => item.id === id);
+  const latestWorkout = previousWorkout(workouts, id);
   const latestWorkingSets = previousSets(workouts, id);
   const latestTracking = trackingOf(latestWorkingSets[0]?.tracking);
-  const latestPerformanceContext =
-    latestTracking === 'weight_reps'
-      ? unit
-      : t(latestTracking === 'reps' ? 'editor.trackingReps' : 'editor.trackingDuration');
   const journal = exerciseJournal(workouts, note, id);
+  const completedWorkingSets = workouts.flatMap((workout) =>
+    workout.sets.filter(
+      (set) =>
+        set.exerciseId === id &&
+        set.done &&
+        kindOf(set.kind) === 'working' &&
+        trackingOf(set.tracking) === latestTracking,
+    ),
+  );
+  const bestSet = completedWorkingSets.reduce<(typeof completedWorkingSets)[number] | undefined>(
+    (best, set) => {
+      if (!best) return set;
+      const tracking = trackingOf(set.tracking);
+      if (tracking === 'weight_reps') {
+        return set.weightKg > best.weightKg ||
+          (set.weightKg === best.weightKg && set.reps > best.reps)
+          ? set
+          : best;
+      }
+      const value = tracking === 'duration' ? (set.durationSec ?? 0) : set.reps;
+      const bestValue = tracking === 'duration' ? (best.durationSec ?? 0) : best.reps;
+      return value > bestValue ? set : best;
+    },
+    undefined,
+  );
+  const bestPerformance = bestSet
+    ? trackingOf(bestSet.tracking) === 'duration'
+      ? t('history.durationSet', { seconds: bestSet.durationSec ?? 0 })
+      : trackingOf(bestSet.tracking) === 'reps'
+        ? t('history.repsSet', { reps: bestSet.reps })
+        : formatPreviousSet(bestSet, bestSet.tracking, unit)
+    : null;
 
   if (!catalogReady && !ex) {
     return (
@@ -101,7 +132,19 @@ export function ExerciseSheet({ id }: { id: string }) {
       </div>
 
       <section className="exercise-detail__section exercise-detail__performance">
-        <h2>{t('notes.latestPerformance', { unit: latestPerformanceContext })}</h2>
+        <div className="exercise-performance-heading">
+          <div>
+            <h2>{t('notes.lastTime')}</h2>
+            {latestWorkout && (
+              <p className="exercise-performance-context mono small muted">
+                <time dateTime={latestWorkout.date}>
+                  {fmtDate(latestWorkout.date, i18n.language)}
+                </time>
+                {latestWorkout.dayLabel && <> · {latestWorkout.dayLabel}</>}
+              </p>
+            )}
+          </div>
+        </div>
         {latestWorkingSets.length > 0 ? (
           <ul className="exercise-performance-list">
             {latestWorkingSets.map((set, index) => (
@@ -117,50 +160,21 @@ export function ExerciseSheet({ id }: { id: string }) {
         ) : (
           <div className="mono small muted">{t('workout.firstTime')}</div>
         )}
+        {bestPerformance && (
+          <div className="exercise-performance-record mono small">
+            <span>{t('notes.best')}</span>
+            <strong>{bestPerformance}</strong>
+          </div>
+        )}
       </section>
 
-      {journal.length > 0 && (
-        <section className="exercise-detail__section">
-          <h2>{t('notes.journal')}</h2>
-          <ul className="exercise-journal">
-            {journal.map((entry) => {
-              const imported = entry.id.startsWith('legacy:');
-              const content = (
-                <>
-                  <span className="exercise-journal__topline">
-                    <span className="mono muted">{fmtDate(entry.date, i18n.language)}</span>
-                    {imported && (
-                      <span className="exercise-journal__imported">
-                        {t('notes.importedJournal')}
-                      </span>
-                    )}
-                  </span>
-                  <span className="exercise-journal__text">{entry.text}</span>
-                </>
-              );
-              return (
-                <li key={entry.id}>
-                  {entry.id.startsWith('workout:') ? (
-                    <button
-                      type="button"
-                      className="exercise-journal__entry exercise-journal__entry--linked"
-                      onClick={() =>
-                        nav({ view: 'workoutDetail', id: entry.id.slice('workout:'.length) })
-                      }
-                    >
-                      {content}
-                    </button>
-                  ) : (
-                    <div className="exercise-journal__entry exercise-journal__entry--imported">
-                      {content}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <button
+        type="button"
+        className="btn btn-ghost btn-block exercise-detail__progress-link"
+        onClick={() => nav({ view: 'progress', exerciseId: id })}
+      >
+        {t('notes.openProgress')}
+      </button>
 
       {ex && ex.instructions.length > 0 && (
         <section className="exercise-detail__section exercise-detail__instructions">
@@ -177,6 +191,77 @@ export function ExerciseSheet({ id }: { id: string }) {
                 ),
               )}
             </ol>
+          )}
+        </section>
+      )}
+
+      {journal.length > 0 && (
+        <section className="exercise-detail__section exercise-detail__journal">
+          <div className="exercise-journal__heading">
+            <h2 id="exercise-journal-title">{t('notes.journal')}</h2>
+            <button
+              type="button"
+              className="exercise-journal__toggle"
+              aria-expanded={journalOpen}
+              aria-controls="exercise-journal-entries"
+              aria-label={t('notes.journalEntries', { count: journal.length })}
+              onClick={() => setJournalOpen((open) => !open)}
+            >
+              <span className="mono small muted">
+                {t('notes.entryCount', { count: journal.length })}
+              </span>
+              <IconDown aria-hidden />
+            </button>
+          </div>
+          {journalOpen && (
+            <div id="exercise-journal-entries">
+              <ul className="exercise-journal">
+                {journal.slice(0, visibleJournalEntries).map((entry) => {
+                  const imported = entry.id.startsWith('legacy:');
+                  const content = (
+                    <>
+                      <span className="exercise-journal__topline">
+                        <span className="mono muted">{fmtDate(entry.date, i18n.language)}</span>
+                        {imported && (
+                          <span className="exercise-journal__imported">
+                            {t('notes.importedJournal')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="exercise-journal__text">{entry.text}</span>
+                    </>
+                  );
+                  return (
+                    <li key={entry.id}>
+                      {entry.id.startsWith('workout:') ? (
+                        <button
+                          type="button"
+                          className="exercise-journal__entry exercise-journal__entry--linked"
+                          onClick={() =>
+                            nav({ view: 'workoutDetail', id: entry.id.slice('workout:'.length) })
+                          }
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <div className="exercise-journal__entry exercise-journal__entry--imported">
+                          {content}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {visibleJournalEntries < journal.length && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-block exercise-journal__more"
+                  onClick={() => setVisibleJournalEntries((count) => count + 5)}
+                >
+                  {t('notes.showMore')}
+                </button>
+              )}
+            </div>
           )}
         </section>
       )}

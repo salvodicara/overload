@@ -52,6 +52,25 @@ export const IconDown = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const IconGrip = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="8" cy="7" r="1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="7" r="1" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="17" r="1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="17" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const IconMore = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M8.5 5.8v12.4L18.5 12z" fill="currentColor" stroke="none" />

@@ -32,7 +32,7 @@ The app is installed as a PWA and used during live training, between sets, durin
 - Optional Full Body and Push / Pull / Legs packs provide neutral starting points. Users own their programs, routines, preparation, warm-up sets, set targets, rest periods, starting loads, increments, tracking modes, and exercise order.
 - Weighted working-set guidance uses the most recent completed working sets. It repeats the prior load until all prescribed sets reach the top of the rep range, then applies the configured increment.
 - Exercises support weight and reps, reps only, or duration tracking. The interface accepts and displays kg or lb; canonical stored weights remain kilograms.
-- Notes have exactly two current scopes. Technique is persistent for the exercise. This session is saved with the completed workout and appears in the exercise journal. Imported historical entries remain readable in that journal.
+- Notes have exactly two current scopes. Technique belongs to the exact exercise occurrence inside a routine; the same exercise can therefore carry different cues in different routines or positions. This session is saved with the completed workout and appears in the exercise journal. Imported historical entries remain readable in that journal.
 - Home prioritizes one useful next action, current-week training, recent activity, and meaningful progress without becoming a social feed.
 - Training progress, body measurements, and kcal/protein records remain compact operational tools rather than coaching surfaces.
 - The version-2 JSON backup contains workouts, routines, programs, exercise notes, measurements, nutrition days, custom exercises, and settings. CSV export is a flat report of completed sets with date, routine, exercise, weight in kilograms, and reps.

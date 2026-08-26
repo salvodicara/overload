@@ -34,6 +34,21 @@ test('Train keeps one program accordion open and separates ready-made programs',
     name: /full body a\/b.*2 (routines|schede)/i,
   });
   await expect(fullBody).toHaveAttribute('aria-expanded', 'true');
+  const programHeading = fullBody.locator('xpath=..');
+  const programOptions = programHeading.getByRole('button', {
+    name: /full body a\/b.*(program options|opzioni programma)/i,
+  });
+  await expect(programOptions).toBeVisible();
+  await expect(programOptions.locator('svg circle')).toHaveCount(3);
+  const fullBodySection = fullBody.locator('xpath=../..');
+  const fullBodyContent = fullBodySection.locator('.train-program__content');
+  const fullBodyChevron = fullBody.locator('.train-program__chevron');
+  await expect(fullBodyContent).toHaveAttribute('aria-hidden', 'false');
+  await expect(fullBodyContent).not.toHaveAttribute('hidden', '');
+  await expect(fullBodyChevron).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+  expect(
+    await fullBodyContent.evaluate((element) => getComputedStyle(element).transitionDuration),
+  ).not.toBe('0s');
 
   await page.getByRole('button', { name: /^(explore|esplora)$/i }).click();
   const explore = page.getByRole('dialog', { name: /explore programs|esplora programmi/i });
@@ -45,6 +60,8 @@ test('Train keeps one program accordion open and separates ready-made programs',
   });
   await expect(ppl).toHaveAttribute('aria-expanded', 'true');
   await expect(fullBody).toHaveAttribute('aria-expanded', 'false');
+  await expect(fullBodyContent).toHaveAttribute('aria-hidden', 'true');
+  await expect(fullBodyChevron).not.toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
   await fullBody.click();
   await expect(fullBody).toHaveAttribute('aria-expanded', 'true');
   await expect(ppl).toHaveAttribute('aria-expanded', 'false');
@@ -197,7 +214,21 @@ export async function completeAndFinishOneSet(page: Page): Promise<void> {
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
 }
 
+async function setRoutineExerciseGoal(page: Page, exercise: Locator, goal: RegExp): Promise<void> {
+  await exercise.getByRole('button', { name: /exercise options|opzioni esercizio/i }).click();
+  await page
+    .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
+    .getByRole('button', { name: /goal type|tipo di obiettivo/i })
+    .click();
+  await page
+    .getByRole('dialog', { name: /goal type|tipo di obiettivo/i })
+    .getByRole('button')
+    .filter({ has: page.getByText(goal) })
+    .click();
+}
+
 async function applyRapidRoutineEdits(page: Page): Promise<void> {
+  await setRoutineExerciseGoal(page, page.locator('.routine-exercise').first(), /^time$|^tempo$/i);
   await page.evaluate(() => {
     const setValue = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
       const prototype =
@@ -211,11 +242,8 @@ async function applyRapidRoutineEdits(page: Page): Promise<void> {
     const preparation = document.querySelector<HTMLTextAreaElement>(
       'textarea[aria-label="Warm-up"]',
     );
-    const tracking = document.querySelector<HTMLSelectElement>('select[aria-label="Tracking"]');
-    if (!preparation || !tracking) throw new Error('routine editor controls missing');
+    if (!preparation) throw new Error('routine editor controls missing');
     setValue(preparation, '5 min easy bike');
-    tracking.value = 'duration';
-    tracking.dispatchEvent(new Event('change', { bubbles: true }));
     const workingSets = document.querySelector<HTMLInputElement>(
       'input[aria-label="Working sets"]',
     );
@@ -1024,8 +1052,8 @@ async function expectNarrowTouchTargets(page: Page, controls: Locator): Promise<
     );
     expect(rects.length).toBeGreaterThan(0);
     for (const rect of rects) {
-      expect(rect.width).toBeGreaterThanOrEqual(44);
-      expect(rect.height).toBeGreaterThanOrEqual(44);
+      expectAtLeast44PxGeometry(rect.width);
+      expectAtLeast44PxGeometry(rect.height);
     }
   }
 }
@@ -1204,6 +1232,32 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   }
 });
 
+test('route motion keeps its hierarchy when native view transitions are unavailable', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-route-motion', 'peer');
+  await expect(page.locator('html')).not.toHaveAttribute('data-route-motion', { timeout: 600 });
+});
+
+test('rapid navigation interrupts motion without an unhandled rejection', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await page.waitForTimeout(350);
+
+  expect(errors).toEqual([]);
+});
+
 test('Home week navigator browses earlier progress and opens a completed day', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
@@ -1212,11 +1266,52 @@ test('Home week navigator browses earlier progress and opens a completed day', a
   await expect(page.getByRole('heading', { name: /truthful august/i })).toBeVisible();
   await page.goBack();
 
-  await page.getByRole('button', { name: /previous week|settimana precedente/i }).click();
+  const overview = page.locator('.home-period-overview');
+  await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await overview.dispatchEvent('pointermove', { clientX: 150, pointerId: 1 });
+  await expect
+    .poll(() =>
+      overview
+        .locator('.home-period-page')
+        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
+    )
+    .toBeGreaterThan(50);
+  await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
   await expect(page.getByText(/17.*23.*aug|17.*23.*ago/i)).toBeVisible();
+  await expect(page.getByRole('button', { name: /today|oggi/i })).toBeVisible();
+  await expect(page.locator('.home-week-comparison')).toHaveCount(0);
+  await expect(page.locator('.week-metric__delta')).toHaveCount(4);
+  await page.getByRole('button', { name: /today|oggi/i }).click();
+  await expect(page.getByRole('button', { name: /today|oggi/i })).toHaveCount(0);
+  await expect(overview.locator('.home-period-page')).toHaveAttribute('data-motion', 'today');
+});
+
+test('Home switches training periods and swipes the overview to an earlier period', async ({
+  page,
+}) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  const periods = page.getByRole('tablist', { name: /training period|periodo di allenamento/i });
+  await periods.getByRole('tab', { name: /month|mese/i }).click();
+  const overview = page.locator('.home-period-overview');
   await expect(
-    page.getByText(/compared with the previous week|rispetto alla settimana precedente/i),
-  ).toBeVisible();
+    overview.getByRole('button', { name: /previous|next|precedente|successiv/i }),
+  ).toHaveCount(0);
+  const label = page.locator('.home-period-label');
+  const currentLabel = await label.textContent();
+
+  await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
+
+  await expect(label).not.toHaveText(currentLabel ?? '');
+  await overview.focus();
+  const swipedLabel = await label.textContent();
+  await page.keyboard.press('ArrowRight');
+  await expect(label).not.toHaveText(swipedLabel ?? '');
+  await expect(overview.getByRole('button', { name: /duration|durata/i })).toBeVisible();
+  await periods.getByRole('tab', { name: /year|anno/i }).click();
+  await expect(page.locator('.line-chart')).toBeVisible();
 });
 
 test('history groups truthful completed working activity by month', async ({ page }) => {
@@ -1325,13 +1420,22 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
 test('routine preparation and exercise settings remain editable', async ({ page }) => {
   await openNeutralRoutineEditor(page);
   await page.getByRole('textbox', { name: /warm-up|riscaldamento/i }).fill('5 min easy bike');
+  await setRoutineExerciseGoal(page, page.locator('.routine-exercise').first(), /^time$|^tempo$/i);
   await page
-    .getByLabel(/tracking|tracciamento/i)
+    .locator('.routine-exercise')
     .first()
-    .selectOption('duration');
+    .locator('summary')
+    .filter({ hasText: /warm-up sets|serie di riscaldamento/i })
+    .click();
   await page
     .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
     .first()
+    .click();
+  await page
+    .locator('.routine-exercise')
+    .first()
+    .locator('summary')
+    .filter({ hasText: /routine technique|tecnica della scheda/i })
     .click();
   await page
     .getByLabel(/technique|tecnica/i)
@@ -1342,16 +1446,15 @@ test('routine preparation and exercise settings remain editable', async ({ page 
   await expect(page.getByRole('textbox', { name: /warm-up|riscaldamento/i })).toHaveValue(
     '5 min easy bike',
   );
-  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveValue('duration');
   await expect(page.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
   await expect(page.getByLabel(/technique|tecnica/i).first()).toHaveValue(
     'Brace before the timer starts',
   );
   const firstExercise = page
-    .locator('.card')
+    .locator('.routine-exercise')
     .filter({ hasText: /barbell squat|squat con bilanciere/i })
     .first();
-  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('reps');
+  await setRoutineExerciseGoal(page, firstExercise, /^reps only$|^solo ripetizioni$/i);
   await expect(firstExercise.getByLabel(/load|carico/i)).toHaveCount(0);
   await expect(firstExercise.getByLabel(/seconds|secondi/i)).toHaveCount(0);
   await firstExercise
@@ -1361,19 +1464,101 @@ test('routine preparation and exercise settings remain editable', async ({ page 
     .getByLabel(/^reps$|^ripetizioni$/i)
     .last()
     .fill('9');
-  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('duration');
+  await setRoutineExerciseGoal(page, firstExercise, /^time$|^tempo$/i);
   await expect(firstExercise.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
-  await firstExercise.getByLabel(/tracking|tracciamento/i).selectOption('reps');
+  await setRoutineExerciseGoal(page, firstExercise, /^reps only$|^solo ripetizioni$/i);
   await expect(firstExercise.getByLabel(/^reps$|^ripetizioni$/i).last()).toHaveValue('9');
   await page.setViewportSize({ width: 320, height: 700 });
   await expect(page.getByLabel(/working sets|serie di lavoro/i).first()).toHaveJSProperty(
     'offsetHeight',
     48,
   );
-  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveJSProperty(
+  await expect(firstExercise.locator('.routine-exercise__summary')).toHaveJSProperty(
     'offsetHeight',
-    48,
+    56,
   );
+});
+
+test('routine editor keeps one compact exercise open and hides tracking jargon', async ({
+  page,
+}) => {
+  await openNeutralRoutineEditor(page);
+
+  const exercises = page.locator('.routine-exercise');
+  await expect(exercises).toHaveCount(6);
+  await expect(exercises.nth(0).locator('.routine-exercise__summary')).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await expect(exercises.nth(1).locator('.routine-exercise__summary')).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  await expect(page.getByText(/tracking|tracciamento/i)).toHaveCount(0);
+
+  await exercises.nth(1).locator('.routine-exercise__summary').click();
+  await expect(exercises.nth(0).getByLabel(/working sets|serie di lavoro/i)).toHaveCount(0);
+  await expect(exercises.nth(1).getByLabel(/working sets|serie di lavoro/i)).toBeVisible();
+});
+
+test('routine editor moves goal type and reorder fallbacks into exercise options', async ({
+  page,
+}) => {
+  await openNeutralRoutineEditor(page);
+  const exercises = page.locator('.routine-exercise');
+  const firstName = await exercises.nth(0).locator('.routine-exercise__name').innerText();
+  const secondName = await exercises.nth(1).locator('.routine-exercise__name').innerText();
+
+  await exercises
+    .nth(0)
+    .getByRole('button', { name: /exercise options|opzioni esercizio/i })
+    .click();
+  const options = page.getByRole('dialog', { name: /exercise options|opzioni esercizio/i });
+  await expect(options.getByRole('button', { name: /goal type|tipo di obiettivo/i })).toBeVisible();
+  await options.getByRole('button', { name: /move down|sposta giù/i }).click();
+  await expect(exercises.nth(0).locator('.routine-exercise__name')).toHaveText(secondName);
+  await expect(exercises.nth(1).locator('.routine-exercise__name')).toHaveText(firstName);
+
+  await exercises
+    .nth(0)
+    .getByRole('button', { name: /exercise options|opzioni esercizio/i })
+    .click();
+  await options.getByRole('button', { name: /goal type|tipo di obiettivo/i }).click();
+  const goalType = page.getByRole('dialog', { name: /goal type|tipo di obiettivo/i });
+  await expect(goalType.getByText(/weight and reps|carico e ripetizioni/i)).toBeVisible();
+  await goalType.getByRole('button', { name: /time|tempo/i }).click();
+  await expect(
+    exercises
+      .nth(0)
+      .getByLabel(/seconds|secondi/i)
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByText(/tracking|tracciamento/i)).toHaveCount(0);
+});
+
+test('routine editor reorders exercises by dragging the familiar grip', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  const exercises = page.locator('.routine-exercise');
+  const firstName = await exercises.nth(0).locator('.routine-exercise__name').innerText();
+  const secondName = await exercises.nth(1).locator('.routine-exercise__name').innerText();
+  await exercises.nth(0).locator('.routine-exercise__summary').click();
+
+  const firstGrip = exercises.nth(0).getByRole('button', { name: /reorder|riordina/i });
+  const secondGrip = exercises.nth(1).getByRole('button', { name: /reorder|riordina/i });
+  const from = await firstGrip.boundingBox();
+  const to = await secondGrip.boundingBox();
+  expect(from).not.toBeNull();
+  expect(to).not.toBeNull();
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(exercises.nth(0).locator('.routine-exercise__name')).toHaveText(secondName);
+  await expect(exercises.nth(1).locator('.routine-exercise__name')).toHaveText(firstName);
+  await page.getByRole('button', { name: /back|indietro/i }).click();
+  await openNeutralRoutineEditor(page);
+  await expect(exercises.nth(0).locator('.routine-exercise__name')).toHaveText(secondName);
 });
 
 test('routine editor formats journal dates and keeps labels readable on narrow screens', async ({
@@ -1382,14 +1567,14 @@ test('routine editor formats journal dates and keeps labels readable on narrow s
   await installCompletedWorkoutFixture(page);
   await openNeutralRoutineEditor(page);
 
-  await expect(page.getByText(/Journal 23 Aug · Legacy import/i)).toBeVisible();
+  await expect(page.locator('.routine-journal-link')).toContainText(/23 Aug · Legacy import/i);
   for (const viewport of [
     { width: 320, height: 700 },
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
     const labelSizes = await page
-      .locator('.card details label > span.mono.muted')
+      .locator('.routine-exercise__body label > span.mono.muted')
       .evaluateAll((labels) =>
         labels.map((label) => Number.parseFloat(getComputedStyle(label).fontSize)),
       );
@@ -1443,7 +1628,7 @@ test('routine editor persists rapid prescription edits after leaving', async ({ 
   await expect(page.getByRole('textbox', { name: /warm-up|riscaldamento/i })).toHaveValue(
     '5 min easy bike',
   );
-  await expect(page.getByLabel(/tracking|tracciamento/i).first()).toHaveValue('duration');
+  await expect(page.getByText(/tracking|tracciamento/i)).toHaveCount(0);
   await expect(page.getByLabel(/working sets|serie di lavoro/i).first()).toHaveValue('4');
   await expect(page.getByLabel(/seconds|secondi/i).first()).toHaveValue('6');
 });
@@ -1471,13 +1656,16 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
   await page.reload();
   await openNeutralRoutineEditor(page);
   const firstExercise = page
-    .locator('.card')
+    .locator('.routine-exercise')
     .filter({ hasText: /barbell squat|squat con bilanciere/i })
     .first();
-  await expect(firstExercise.getByLabel(/tracking|tracciamento/i)).toHaveValue('weight_reps');
   await firstExercise.getByLabel(/start weight|peso iniziale/i).fill('220.5');
-  await firstExercise.getByLabel(/increment|incremento/i).fill('');
+  await firstExercise.getByLabel(/progression|progressione/i).fill('');
   await firstExercise.getByLabel(/^max$/i).fill('');
+  await firstExercise
+    .locator('summary')
+    .filter({ hasText: /warm-up sets|serie di riscaldamento/i })
+    .click();
   await firstExercise
     .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
     .first()
@@ -1493,6 +1681,10 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
     .click();
   await expect(firstExercise.getByLabel(/load|carico/i)).toHaveCount(0);
   await firstExercise
+    .locator('summary')
+    .filter({ hasText: /warm-up sets|serie di riscaldamento/i })
+    .click();
+  await firstExercise
     .getByRole('button', { name: /add warm-up set|aggiungi serie di riscaldamento/i })
     .first()
     .click();
@@ -1501,13 +1693,13 @@ test('routine editor preserves optional and canonical prescriptions', async ({ p
   await page.getByRole('button', { name: /back|indietro/i }).click();
   await openNeutralRoutineEditor(page);
   const reopenedFirstExercise = page
-    .locator('.card')
+    .locator('.routine-exercise')
     .filter({ hasText: /barbell squat|squat con bilanciere/i })
     .first();
   await expect(reopenedFirstExercise.getByLabel(/start weight|peso iniziale/i)).toHaveValue(
     '220.5',
   );
-  await expect(reopenedFirstExercise.getByLabel(/increment|incremento/i)).toHaveValue('');
+  await expect(reopenedFirstExercise.getByLabel(/progression|progressione/i)).toHaveValue('');
   await expect(reopenedFirstExercise.getByLabel(/^max$/i)).toHaveValue('');
   await expect(reopenedFirstExercise.getByLabel(/load|carico/i)).toHaveValue('110.2');
   await expect(reopenedFirstExercise.getByLabel(/^reps$|^ripetizioni$/i)).toHaveValue('8');
@@ -1997,6 +2189,10 @@ test('create sheet contains focus and restores its trigger and scroll position',
   });
 
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/one reusable workout|un singolo allenamento/i)).toBeVisible();
+  await expect(
+    dialog.getByText(/ordered group of routines|gruppo ordinato di schede/i),
+  ).toBeVisible();
   await expect(newRoutine).toBeFocused();
   expect(
     await page.evaluate(() => ({
@@ -2157,8 +2353,12 @@ test('destructive routine sheet ignores its scrim and restores focus on Escape',
 
 test('routine warm-up removal restores focus within the exercise', async ({ page }) => {
   await openNeutralRoutineEditor(page);
-  const exerciseCards = page.locator('.screen.page > .stack > .card');
+  const exerciseCards = page.locator('.routine-exercise');
   const firstExercise = exerciseCards.first();
+  await firstExercise
+    .locator('summary')
+    .filter({ hasText: /warm-up sets|serie di riscaldamento/i })
+    .click();
   const addWarmup = firstExercise.getByRole('button', { name: /add warm-up set/i });
   await addWarmup.click();
   const warmupRemovals = firstExercise.getByRole('button', { name: /remove warm-up set/i });
@@ -2181,24 +2381,35 @@ test('routine warm-up removal restores focus within the exercise', async ({ page
   });
   await expect(dialog).toHaveCount(0);
   await expect(warmupRemovals).toHaveCount(initialWarmupCount - 1);
-  await expect(addWarmup).toBeFocused();
+  await expect(
+    firstExercise.locator('summary').filter({ hasText: /warm-up sets|serie di riscaldamento/i }),
+  ).toBeFocused();
 });
 
 test('routine exercise removal restores focus to add exercise', async ({ page }) => {
   await openNeutralRoutineEditor(page);
-  const exerciseCards = page.locator('.screen.page > .stack > .card');
+  const exerciseCards = page.locator('.routine-exercise');
   const initialExerciseCount = await exerciseCards.count();
-  const removeExercise = exerciseCards.first().getByRole('button', { name: /^remove exercise$/i });
-  await removeExercise.focus();
-  await page.keyboard.press('Enter');
+  const optionsTrigger = exerciseCards
+    .first()
+    .getByRole('button', { name: /exercise options|opzioni esercizio/i });
+  await optionsTrigger.click();
+  const removeExercise = page
+    .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
+    .getByRole('button', { name: /^remove exercise$|^rimuovi esercizio$/i });
+  await removeExercise.click();
   const dialog = page.getByRole('dialog', { name: /remove barbell squat/i });
   const cancel = dialog.getByRole('button', { name: /^cancel$/i });
   await expect(cancel).toBeFocused();
   await cancel.click();
-  await expect(removeExercise).toBeFocused();
+  await expect(optionsTrigger).toBeFocused();
   await expect(exerciseCards).toHaveCount(initialExerciseCount);
 
-  await removeExercise.click();
+  await optionsTrigger.click();
+  await page
+    .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
+    .getByRole('button', { name: /^remove exercise$|^rimuovi esercizio$/i })
+    .click();
   await dialog.getByRole('button', { name: /^remove$/i }).evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('remove-exercise button missing');
     button.click();
@@ -2213,9 +2424,9 @@ test('routine exercise removal restores focus to add exercise', async ({ page })
     .first()
     .click();
   await openNeutralRoutineEditor(page);
-  await expect(
-    page.locator('.screen.page > .stack > .card').filter({ hasText: /^Barbell Squat/ }),
-  ).toHaveCount(0);
+  await expect(page.locator('.routine-exercise').filter({ hasText: /^Barbell Squat/ })).toHaveCount(
+    0,
+  );
 });
 
 test('custom exercise sheet closes from its scrim', async ({ page }) => {
@@ -2265,6 +2476,8 @@ test('custom creation failure clears its alert when the sheet is dismissed', asy
 test('library keeps labelled search, filters, and scroll context through hardware Back', async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
   const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
   const searchId = await search.getAttribute('id');
@@ -2301,6 +2514,8 @@ test('library keeps labelled search, filters, and scroll context through hardwar
   await expect(search).toHaveValue('barbell');
   await expect(legs).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await page.waitForTimeout(350);
+  expect(pageErrors).toEqual([]);
 });
 
 test('library progressively reveals the complete catalog and tolerates an Italian typo', async ({
@@ -2365,9 +2580,7 @@ test('routine custom exercise creates once with its selected prescription tracki
   });
   await dialog.getByLabel(/exercise name|nome esercizio/i).fill('Band pull-apart');
   await dialog.getByLabel(/muscle group|gruppo muscolare/i).selectOption('shoulders');
-  await dialog
-    .getByLabel(/tracking for this routine|tracciamento per questa scheda/i)
-    .selectOption('reps');
+  await dialog.getByLabel(/goal type|tipo di obiettivo/i).selectOption('reps');
   const create = dialog.getByRole('button', { name: /^(create|crea)$/i });
   await create.evaluate((button: HTMLButtonElement) => {
     button.click();
@@ -2375,9 +2588,14 @@ test('routine custom exercise creates once with its selected prescription tracki
   });
 
   await expect(page.getByRole('heading', { name: /edit routine|modifica scheda/i })).toBeVisible();
-  const exercise = page.locator('.card').filter({ hasText: 'Band pull-apart' });
+  const exercise = page.locator('.routine-exercise').filter({ hasText: 'Band pull-apart' });
   await expect(exercise).toHaveCount(1);
-  await expect(exercise.getByLabel(/^(tracking|tracciamento)$/i)).toHaveValue('reps');
+  await exercise.getByRole('button', { name: /exercise options|opzioni esercizio/i }).click();
+  await expect(
+    page
+      .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
+      .getByRole('button', { name: /goal type|tipo di obiettivo/i }),
+  ).toContainText(/reps only|solo ripetizioni/i);
   expect(
     await page.evaluate(async () => {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -2481,7 +2699,34 @@ test('exercise detail promotes valid media, stays static when reduced, and defer
     /^How to|^Esecuzione/i.test(heading ?? ''),
   );
   expect(journalIndex).toBeGreaterThanOrEqual(0);
-  expect(instructionsIndex).toBeGreaterThan(journalIndex);
+  expect(instructionsIndex).toBeLessThan(journalIndex);
+});
+
+test('exercise detail keeps the journal collapsed and opens the exercise in Progress', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openExerciseDetail(page);
+
+  const lastTime = page.locator('.exercise-detail__performance');
+  await expect(lastTime.getByRole('heading', { name: /last time|ultima volta/i })).toBeVisible();
+  await expect(lastTime.locator('.exercise-performance-context')).toContainText(/25 Aug|25 ago/i);
+  await expect(lastTime.locator('.exercise-performance-context')).toContainText('Full Body A');
+  await expect(lastTime.locator('.exercise-performance-record')).toContainText(/record/i);
+  await expect(lastTime).not.toContainText(
+    /latest working performance|ultima prestazione di lavoro/i,
+  );
+
+  const journal = page.getByRole('button', { name: /journal.*entries|diario.*voci/i });
+  await expect(journal).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByText('Linked observation', { exact: true })).toHaveCount(0);
+  await journal.click();
+  await expect(journal).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByText('Linked observation', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: /open in progress|apri in progressi/i }).click();
+  await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
+  await expect(page.locator('#progress-exercise')).toHaveValue('Barbell_Squat');
 });
 
 test('two-frame exercise media can be paused by keyboard and disappears under reduced motion', async ({
@@ -2618,7 +2863,7 @@ test('programs group routines and are manageable', async ({ page }) => {
   await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
   await expect(page.getByText(/test program/i)).toHaveCount(0);
-  await expect(page.getByText(/day x/i)).toBeVisible();
+  await expect(page.getByText(/day x/i)).toHaveCount(0);
 });
 
 test('session notes stay on their workouts', async ({ page }) => {
@@ -2750,6 +2995,7 @@ for (const locale of ['it', 'en'] as const) {
         exact: true,
       }),
     ).toBeVisible();
+    await page.getByRole('button', { name: /journal|diario/i }).click();
     await expect(page.getByText('First session', { exact: true })).toBeVisible();
     const secondSession = page.getByRole('button', { name: /Second session/ });
     await expect(secondSession).toBeVisible();
@@ -2770,12 +3016,13 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
   await openExerciseDetail(page);
 
   await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Last time', exact: true })).toBeVisible();
   await expect(
-    page.getByRole('heading', { name: /latest working performance.*lb/i }),
+    page.locator('.exercise-performance-list').getByText('110.2 lb × 8', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('110.2 × 8', { exact: true })).toBeVisible();
-  await expect(page.getByText('44.1 × 5', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('44.1 lb × 5', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Journal', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /journal.*entries/i }).click();
   await expect(page.getByRole('button', { name: /Linked observation/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Older observation/ })).toBeVisible();
   await expect(page.getByText('Legacy import', { exact: true })).toBeVisible();
@@ -2864,16 +3111,16 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
 
   await openExerciseDetail(page, 'hanging leg raise', /hanging leg raise/i);
   await expect(page.getByRole('heading', { name: 'Hanging Leg Raise', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Last time', exact: true })).toBeVisible();
   await expect(
-    page.getByRole('heading', { name: 'Latest working performance · Reps', exact: true }),
+    page.locator('.exercise-performance-list').getByText('12 reps', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('12 reps', { exact: true })).toBeVisible();
   await openExerciseDetail(page, 'plank', /^plank core$/i);
   await expect(page.getByRole('heading', { name: 'Plank', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Last time', exact: true })).toBeVisible();
   await expect(
-    page.getByRole('heading', { name: 'Latest working performance · Duration', exact: true }),
+    page.locator('.exercise-performance-list').getByText('35 seconds', { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('35 seconds', { exact: true })).toBeVisible();
 });
 
 test('exercise journal links summary working metrics to chronological history', async ({
@@ -3022,11 +3269,12 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
   const summary = (name: string) => page.getByRole('group', { name: `${name} progress summary` });
   await expect(exercise).toHaveValue('Barbell_Squat');
   await expect(summary('Barbell Squat')).toContainText(
-    /Best\s*132\.3 lb × 4 reps.*Last\s*121\.3 lb × 8 reps.*Sessions\s*3/,
+    /Best\s*132\.3 lb × 4.*Last\s*121\.3 lb × 8.*Sessions\s*3/,
   );
+  await expect(summary('Barbell Squat')).not.toContainText('reps');
   const weightedChart = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i });
   const weightedCanvas = weightedChart.locator('canvas');
-  await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8 reps/);
+  await expect(weightedChart).toHaveAttribute('aria-label', /PR: 121\.3 lb × 8/);
   await expect(weightedCanvas).toHaveAttribute('aria-hidden', 'true');
   expect(
     await weightedCanvas.evaluate((node) =>
@@ -3034,7 +3282,7 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
     ),
   ).toBeGreaterThanOrEqual(12);
   const latestPr = page.getByText(/^Latest PR ·/);
-  await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8 reps');
+  await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8');
   await expect(page.getByRole('img', { name: /Weekly volume/i })).toHaveAttribute(
     'aria-label',
     /281\.1 lb.*661\.4 lb/,
@@ -3663,9 +3911,7 @@ test('hydrated custom exercises stay searchable and usable without the public ca
     await expect(coldPage.getByText('No exercises found')).toHaveCount(0);
 
     await customExercise.click();
-    await expect(
-      coldPage.getByRole('heading', { name: 'Latest working performance · kg' }),
-    ).toBeVisible();
+    await expect(coldPage.getByRole('heading', { name: 'Last time', exact: true })).toBeVisible();
     await expect(coldPage.locator('.exercise-detail__loading')).toHaveCount(0);
 
     releaseCatalog();

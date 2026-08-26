@@ -10,7 +10,7 @@ type LineChartProps = {
   formatValue?: (value: number) => string;
 };
 
-const PAD = { top: 14, right: 14, bottom: 20, left: 44 };
+const PAD = { top: 14, right: 14, bottom: 20, left: 60 };
 const TICKS = 4;
 
 /** Nice round step so the ~4 gridlines land on readable kg values. */

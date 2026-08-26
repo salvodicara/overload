@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   applyImport as dbApplyImport,
   clearAllUserData,
-  deleteFolder as dbDeleteFolder,
+  deleteFolderWithRoutines as dbDeleteFolderWithRoutines,
   deleteRoutine as dbDeleteRoutine,
   deleteMeasurement as dbDeleteMeasurement,
   deleteWorkout as dbDeleteWorkout,
@@ -42,6 +42,7 @@ import {
   type PersistedActiveSession,
 } from '../lib/session';
 import { workoutId } from '../lib/ids';
+import { routeMotion, transitionRoute } from '../lib/navigationMotion';
 import { unlockAudio, requestNotifyPermission } from '../lib/audio';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
@@ -69,7 +70,7 @@ export type Route =
   | { view: 'workout' }
   | { view: 'summary'; workoutId: string }
   | { view: 'workoutDetail'; id: string }
-  | { view: 'progress' }
+  | { view: 'progress'; exerciseId?: string }
   | { view: 'library'; pickFor?: { routineId: string } }
   | { view: 'exercise'; id: string; from?: 'workout' }
   | { view: 'importExport' }
@@ -272,6 +273,11 @@ function debouncedPushRoutine(owner: Owner, routineId: string): void {
   );
 }
 
+function cancelRoutinePush(routineId: string): void {
+  clearTimeout(routinePushTimers.get(routineId));
+  routinePushTimers.delete(routineId);
+}
+
 export type Store = {
   route: Route;
   user: AppUser | null | undefined;
@@ -419,7 +425,8 @@ export const useStore = create<Store>((set, get) => ({
   catalogReady: false,
 
   nav(route) {
-    scrollMemory.set(get().route.view, window.scrollY);
+    const previous = get().route;
+    scrollMemory.set(previous.view, window.scrollY);
     if (TAB_VIEWS.has(route.view)) {
       try {
         localStorage.setItem(ROUTE_KEY, route.view);
@@ -429,15 +436,17 @@ export const useStore = create<Store>((set, get) => ({
     }
     // Hardware/browser back works everywhere: detail screens stack on the
     // history, switching tabs replaces the entry (Android convention).
-    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(get().route.view);
+    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view);
     try {
       if (replace) history.replaceState({ route }, '');
       else history.pushState({ route }, '');
     } catch {
       /* history unavailable */
     }
-    set({ route });
-    applyScroll(route.view);
+    transitionRoute(routeMotion(previous, route), () => {
+      set({ route });
+      applyScroll(route.view);
+    });
   },
 
   async ensureCatalog() {
@@ -850,22 +859,24 @@ export const useStore = create<Store>((set, get) => ({
   async deleteFolder(id) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    // Routines inside a deleted folder become ungrouped, never deleted.
-    const moved = get()
+    const routineIds = get()
       .routines.filter((routine) => routine.folderId === id)
-      .map((routine) => ({ ...routine, folderId: undefined, updatedAt: Date.now() }));
+      .map((routine) => routine.id);
+    const deletedIds = new Set(routineIds);
     const result = await withOwnedLocalWrite(owner, async () => {
-      for (const routine of moved) await saveRoutine(routine);
-      await dbDeleteFolder(id);
-      return moved;
+      await dbDeleteFolderWithRoutines(id, routineIds);
+      return routineIds;
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    const movedById = new Map(moved.map((routine) => [routine.id, routine]));
+    for (const routineId of routineIds) cancelRoutinePush(routineId);
     set({
       folders: get().folders.filter((folder) => folder.id !== id),
-      routines: get().routines.map((routine) => movedById.get(routine.id) ?? routine),
+      routines: get().routines.filter((routine) => !deletedIds.has(routine.id)),
     });
-    for (const routine of moved) debouncedPushRoutine(owner, routine.id);
+    for (const routineId of routineIds) {
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+      await deleteRecord(owner.uid, 'routines', routineId);
+    }
     if (owns(owner)) await deleteRecord(owner.uid, 'folders', id);
     return accountActionForOwner(owner, undefined);
   },
@@ -1143,7 +1154,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('popstate', (event) => {
     const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
     scrollMemory.set(useStore.getState().route.view, window.scrollY);
-    useStore.setState({ route });
-    applyScroll(route.view);
+    transitionRoute('back', () => {
+      useStore.setState({ route });
+      applyScroll(route.view);
+    });
   });
 }
