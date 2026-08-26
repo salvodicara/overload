@@ -87,6 +87,13 @@ export async function deleteFolder(id: string): Promise<void> {
   await db.folders.delete(id);
 }
 
+export async function deleteFolderWithRoutines(id: string, routineIds: string[]): Promise<void> {
+  await db.transaction('rw', [db.folders, db.routines], async () => {
+    await db.routines.bulkDelete(routineIds);
+    await db.folders.delete(id);
+  });
+}
+
 export async function listFolders(): Promise<Folder[]> {
   return db.folders.toArray();
 }

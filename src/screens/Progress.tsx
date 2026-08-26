@@ -98,11 +98,11 @@ function topSets(
   return { tracking: current, sessions };
 }
 
-function TrainingSection() {
+function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
   useCatalog(workouts.length > 0);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialExerciseId ?? null);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const unit = settings.unit ?? 'kg';
 
@@ -260,6 +260,8 @@ type Segment = (typeof SEGMENTS)[number];
 
 export function Progress() {
   const { t } = useTranslation();
+  const route = useStore((state) => state.route);
+  const initialExerciseId = route.view === 'progress' ? route.exerciseId : undefined;
   const [segment, setSegment] = useState<Segment>('training');
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -308,7 +310,9 @@ export function Progress() {
           hidden={segment !== key}
           className="progress-panel"
         >
-          {segment === key && key === 'training' && <TrainingSection />}
+          {segment === key && key === 'training' && (
+            <TrainingSection initialExerciseId={initialExerciseId} />
+          )}
           {segment === key && key === 'body' && <ProgressBody />}
           {segment === key && key === 'diet' && <ProgressDiet />}
         </section>

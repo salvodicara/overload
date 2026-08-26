@@ -1,9 +1,13 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 
-const pushRecord = vi.hoisted(() => vi.fn(async () => undefined));
+const { deleteRecord, pushRecord } = vi.hoisted(() => ({
+  deleteRecord: vi.fn(async () => undefined),
+  pushRecord: vi.fn(async () => undefined),
+}));
 vi.mock('../sync', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../sync')>()),
+  deleteRecord,
   pushRecord,
   startSync: vi.fn(() => ({ stop: async () => undefined })),
 }));
@@ -53,6 +57,63 @@ async function signInForCurrentReceipt(): Promise<() => Promise<void>> {
 }
 
 describe('account-owned screen workflows', () => {
+  it('deleting a program removes its routines but preserves standalone routines and history', async () => {
+    const cleanUp = await signInForCurrentReceipt();
+    try {
+      const folder = { id: 'program-a', name: 'Program A', updatedAt: 0 };
+      const containedA = {
+        id: 'routine-a',
+        name: 'Routine A',
+        folderId: folder.id,
+        exercises: [],
+        updatedAt: 0,
+      };
+      const containedB = {
+        id: 'routine-b',
+        name: 'Routine B',
+        folderId: folder.id,
+        exercises: [],
+        updatedAt: 0,
+      };
+      const standalone = {
+        id: 'routine-standalone',
+        name: 'Standalone',
+        exercises: [],
+        updatedAt: 0,
+      };
+      const historicalWorkout = {
+        id: 'workout-a',
+        routineId: containedA.id,
+        date: '2026-01-12',
+        startTs: 1,
+        sets: [],
+        volumeKg: 0,
+        updatedAt: 1,
+        source: 'app' as const,
+      };
+
+      await useStore.getState().saveFolder(folder);
+      await useStore.getState().saveRoutine(containedA);
+      await useStore.getState().saveRoutine(containedB);
+      await useStore.getState().saveRoutine(standalone);
+      await db.workouts.put(historicalWorkout);
+      useStore.setState({ workouts: [historicalWorkout] });
+
+      await expect(useStore.getState().deleteFolder(folder.id)).resolves.toMatchObject({
+        status: 'applied',
+      });
+
+      expect(useStore.getState().folders).toEqual([]);
+      expect(useStore.getState().routines.map((routine) => routine.id)).toEqual([standalone.id]);
+      expect(useStore.getState().workouts).toEqual([historicalWorkout]);
+      expect(await db.folders.toArray()).toEqual([]);
+      expect((await db.routines.toArray()).map((routine) => routine.id)).toEqual([standalone.id]);
+      expect(await db.workouts.toArray()).toEqual([historicalWorkout]);
+    } finally {
+      await cleanUp();
+    }
+  });
+
   it('stops a template install before any routine when the folder action becomes stale', async () => {
     const saveFolder = vi.fn(async () => ({ status: 'stale' as const }));
     const saveRoutine = vi.fn(async () => ({

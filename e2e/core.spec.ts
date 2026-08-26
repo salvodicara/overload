@@ -34,6 +34,12 @@ test('Train keeps one program accordion open and separates ready-made programs',
     name: /full body a\/b.*2 (routines|schede)/i,
   });
   await expect(fullBody).toHaveAttribute('aria-expanded', 'true');
+  const programHeading = fullBody.locator('xpath=..');
+  const programOptions = programHeading.getByRole('button', {
+    name: /full body a\/b.*(program options|opzioni programma)/i,
+  });
+  await expect(programOptions).toBeVisible();
+  await expect(programOptions.locator('svg circle')).toHaveCount(3);
 
   await page.getByRole('button', { name: /^(explore|esplora)$/i }).click();
   const explore = page.getByRole('dialog', { name: /explore programs|esplora programmi/i });
@@ -1230,6 +1236,27 @@ test('Home week navigator browses earlier progress and opens a completed day', a
   ).toBeVisible();
 });
 
+test('Home switches training periods and swipes the overview to an earlier period', async ({
+  page,
+}) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  const periods = page.getByRole('tablist', { name: /training period|periodo di allenamento/i });
+  await periods.getByRole('tab', { name: /month|mese/i }).click();
+  const overview = page.locator('.home-period-overview');
+  const label = page.locator('.home-period-label');
+  const currentLabel = await label.textContent();
+
+  await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
+
+  await expect(label).not.toHaveText(currentLabel ?? '');
+  await expect(overview.getByRole('button', { name: /duration|durata/i })).toBeVisible();
+  await periods.getByRole('tab', { name: /year|anno/i }).click();
+  await expect(page.locator('.line-chart')).toBeVisible();
+});
+
 test('history groups truthful completed working activity by month', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
@@ -2105,6 +2132,10 @@ test('create sheet contains focus and restores its trigger and scroll position',
   });
 
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/one reusable workout|un singolo allenamento/i)).toBeVisible();
+  await expect(
+    dialog.getByText(/ordered group of routines|gruppo ordinato di schede/i),
+  ).toBeVisible();
   await expect(newRoutine).toBeFocused();
   expect(
     await page.evaluate(() => ({
@@ -2607,7 +2638,25 @@ test('exercise detail promotes valid media, stays static when reduced, and defer
     /^How to|^Esecuzione/i.test(heading ?? ''),
   );
   expect(journalIndex).toBeGreaterThanOrEqual(0);
-  expect(instructionsIndex).toBeGreaterThan(journalIndex);
+  expect(instructionsIndex).toBeLessThan(journalIndex);
+});
+
+test('exercise detail keeps the journal collapsed and opens the exercise in Progress', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openExerciseDetail(page);
+
+  const journal = page.getByRole('button', { name: /journal.*entries|diario.*voci/i });
+  await expect(journal).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByText('Linked observation', { exact: true })).toHaveCount(0);
+  await journal.click();
+  await expect(journal).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByText('Linked observation', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: /open in progress|apri in progressi/i }).click();
+  await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
+  await expect(page.locator('#progress-exercise')).toHaveValue('Barbell_Squat');
 });
 
 test('two-frame exercise media can be paused by keyboard and disappears under reduced motion', async ({
@@ -2744,7 +2793,7 @@ test('programs group routines and are manageable', async ({ page }) => {
   await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
   await expect(page.getByText(/test program/i)).toHaveCount(0);
-  await expect(page.getByText(/day x/i)).toBeVisible();
+  await expect(page.getByText(/day x/i)).toHaveCount(0);
 });
 
 test('session notes stay on their workouts', async ({ page }) => {
@@ -2876,6 +2925,7 @@ for (const locale of ['it', 'en'] as const) {
         exact: true,
       }),
     ).toBeVisible();
+    await page.getByRole('button', { name: /journal|diario/i }).click();
     await expect(page.getByText('First session', { exact: true })).toBeVisible();
     const secondSession = page.getByRole('button', { name: /Second session/ });
     await expect(secondSession).toBeVisible();
@@ -2902,6 +2952,7 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
   await expect(page.getByText('110.2 × 8', { exact: true })).toBeVisible();
   await expect(page.getByText('44.1 × 5', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Journal', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /journal.*entries/i }).click();
   await expect(page.getByRole('button', { name: /Linked observation/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Older observation/ })).toBeVisible();
   await expect(page.getByText('Legacy import', { exact: true })).toBeVisible();

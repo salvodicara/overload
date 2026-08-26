@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   applyImport as dbApplyImport,
   clearAllUserData,
-  deleteFolder as dbDeleteFolder,
+  deleteFolderWithRoutines as dbDeleteFolderWithRoutines,
   deleteRoutine as dbDeleteRoutine,
   deleteMeasurement as dbDeleteMeasurement,
   deleteWorkout as dbDeleteWorkout,
@@ -69,7 +69,7 @@ export type Route =
   | { view: 'workout' }
   | { view: 'summary'; workoutId: string }
   | { view: 'workoutDetail'; id: string }
-  | { view: 'progress' }
+  | { view: 'progress'; exerciseId?: string }
   | { view: 'library'; pickFor?: { routineId: string } }
   | { view: 'exercise'; id: string; from?: 'workout' }
   | { view: 'importExport' }
@@ -270,6 +270,11 @@ function debouncedPushRoutine(owner: Owner, routineId: string): void {
       if (rec) void pushRecord(owner.uid, 'routines', rec);
     }, 600),
   );
+}
+
+function cancelRoutinePush(routineId: string): void {
+  clearTimeout(routinePushTimers.get(routineId));
+  routinePushTimers.delete(routineId);
 }
 
 export type Store = {
@@ -850,22 +855,24 @@ export const useStore = create<Store>((set, get) => ({
   async deleteFolder(id) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    // Routines inside a deleted folder become ungrouped, never deleted.
-    const moved = get()
+    const routineIds = get()
       .routines.filter((routine) => routine.folderId === id)
-      .map((routine) => ({ ...routine, folderId: undefined, updatedAt: Date.now() }));
+      .map((routine) => routine.id);
+    const deletedIds = new Set(routineIds);
     const result = await withOwnedLocalWrite(owner, async () => {
-      for (const routine of moved) await saveRoutine(routine);
-      await dbDeleteFolder(id);
-      return moved;
+      await dbDeleteFolderWithRoutines(id, routineIds);
+      return routineIds;
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    const movedById = new Map(moved.map((routine) => [routine.id, routine]));
+    for (const routineId of routineIds) cancelRoutinePush(routineId);
     set({
       folders: get().folders.filter((folder) => folder.id !== id),
-      routines: get().routines.map((routine) => movedById.get(routine.id) ?? routine),
+      routines: get().routines.filter((routine) => !deletedIds.has(routine.id)),
     });
-    for (const routine of moved) debouncedPushRoutine(owner, routine.id);
+    for (const routineId of routineIds) {
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+      await deleteRecord(owner.uid, 'routines', routineId);
+    }
     if (owns(owner)) await deleteRecord(owner.uid, 'folders', id);
     return accountActionForOwner(owner, undefined);
   },
