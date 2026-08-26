@@ -63,7 +63,7 @@ export function normalizeActiveSession(active: PersistedActiveSession): ActiveSe
 function activeSet(
   tracking: TrackingType,
   kind: SetKind,
-  target: { weightKg?: number; reps?: number; durationSec?: number },
+  target: { weightKg?: number | null; reps?: number; durationSec?: number },
 ): ActiveSet {
   return {
     weightKg: tracking === 'weight_reps' ? (target.weightKg ?? null) : null,

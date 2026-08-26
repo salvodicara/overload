@@ -29,6 +29,12 @@ function addDays(date: Date, amount: number): Date {
   return next;
 }
 
+function dayOffset(start: string, end: string): number {
+  const startMs = new Date(`${start}T12:00:00`).getTime();
+  const endMs = new Date(`${end}T12:00:00`).getTime();
+  return Math.max(0, Math.round((endMs - startMs) / 86_400_000));
+}
+
 function workingSetCount(workout: Workout): number {
   return workout.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
 }
@@ -79,12 +85,34 @@ function rowsWithin(workouts: Workout[], start: string, end: string): Workout[] 
   return workouts.filter((workout) => workout.date >= start && workout.date <= end);
 }
 
-export function periodSummary(anchor: Date, unit: PeriodUnit, workouts: Workout[]): PeriodSummary {
+export function periodSummary(
+  anchor: Date,
+  unit: PeriodUnit,
+  workouts: Workout[],
+  now?: Date,
+): PeriodSummary {
   const bounds = periodBounds(anchor, unit);
   const previousBounds = periodBounds(shiftPeriod(anchor, unit, -1), unit);
+  const today = now ? toIso(atNoon(now)) : bounds.end;
+  const isCurrent = now ? bounds.start === periodBounds(now, unit).start : false;
+  const currentEnd = isCurrent && today < bounds.end ? today : bounds.end;
+  const previousEnd = isCurrent
+    ? toIso(
+        addDays(
+          new Date(`${previousBounds.start}T12:00:00`),
+          dayOffset(bounds.start, currentEnd),
+        ),
+      )
+    : previousBounds.end;
   return {
-    ...metrics(rowsWithin(workouts, bounds.start, bounds.end)),
-    previous: metrics(rowsWithin(workouts, previousBounds.start, previousBounds.end)),
+    ...metrics(rowsWithin(workouts, bounds.start, currentEnd)),
+    previous: metrics(
+      rowsWithin(
+        workouts,
+        previousBounds.start,
+        previousEnd < previousBounds.end ? previousEnd : previousBounds.end,
+      ),
+    ),
   };
 }
 
@@ -92,6 +120,7 @@ export function periodBuckets(
   anchor: Date,
   unit: PeriodUnit,
   workouts: Workout[],
+  now?: Date,
 ): TrainingBucket[] {
   const bounds = periodBounds(anchor, unit);
   const starts: Date[] = [];
@@ -108,10 +137,16 @@ export function periodBuckets(
     for (let month = 0; month < 12; month += 1) starts.push(new Date(year, month, 1, 12));
   }
 
-  return starts.map((start, index) => {
+  const visibleStarts =
+    now && bounds.start === periodBounds(now, unit).start
+      ? starts.filter((start) => toIso(start) <= toIso(atNoon(now)))
+      : starts;
+
+  return visibleStarts.map((start) => {
     const startIso = toIso(start);
-    const next = starts[index + 1];
+    const next = starts[starts.indexOf(start) + 1];
     const endIso = next ? toIso(addDays(next, -1)) : bounds.end;
-    return { date: startIso, ...metrics(rowsWithin(workouts, startIso, endIso)) };
+    const visibleEnd = now && endIso > toIso(atNoon(now)) ? toIso(atNoon(now)) : endIso;
+    return { date: startIso, ...metrics(rowsWithin(workouts, startIso, visibleEnd)) };
   });
 }

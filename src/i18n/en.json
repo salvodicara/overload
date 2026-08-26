@@ -90,6 +90,7 @@
     "removeSetTitle": "Remove set {{set}} from {{exercise}}?",
     "removeSetBody": "Its load, reps, duration, and completion will be lost.",
     "finish": "Finish workout",
+    "finishShort": "Finish",
     "abandonTitle": "Abandon this workout?",
     "abandonBody": "Checked sets will be lost.",
     "abandonConfirm": "Abandon",
@@ -100,10 +101,12 @@
     "restLess": "lower rest",
     "restMore": "raise rest",
     "minimize": "Minimize",
-    "moreActions": "More workout actions"
+    "moreActions": "More workout actions",
+    "enterLoad": "Enter the load before completing the set"
   },
   "suggest": {
     "start": "Start at {{weight}}",
+    "choose": "Choose a starting load",
     "increase": "Range closed last time: go up to {{weight}}",
     "increaseSets": "Increase only the loads for sets that reached their target",
     "repeat": "Keep the loads and add reps"
@@ -115,7 +118,7 @@
   },
   "summary": {
     "title": "Done.",
-    "volume": "{{unit}} of volume",
+    "volume": "Volume",
     "workingSetCount_one": "{{count}} working set",
     "workingSetCount_other": "{{count}} working sets",
     "duration": "{{min}} min",
@@ -137,7 +140,7 @@
     "workingSets": "Working sets",
     "warmupSet": "Warm-up set {{n}}",
     "workingSet": "Working set {{n}}",
-    "weightRepsSet": "{{weight}} × {{reps}} reps",
+    "weightRepsSet": "{{weight}} × {{reps}}",
     "repsSet": "{{reps}} reps",
     "durationSet": "{{seconds}} seconds",
     "overallNote": "Workout note",
@@ -165,6 +168,7 @@
     "chartSummary_other": "{{exercise}}. {{caption}} {{count}} sessions. First: {{first}}. Last: {{last}}.{{pr}}",
     "prValue": " PR: {{value}}.",
     "latestPr": "Latest PR",
+    "needAnotherSession": "Complete another session to see the trend.",
     "volumeWeek": "Weekly volume",
     "seg.training": "Training",
     "seg.body": "Body",

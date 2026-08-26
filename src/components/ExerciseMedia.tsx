@@ -114,6 +114,8 @@ export function ExerciseMedia({
             className={position === 1 ? 'exmedia-b' : undefined}
             src={src}
             alt=""
+            width={size === 'thumb' ? 56 : 600}
+            height={size === 'thumb' ? 56 : 400}
             loading={size === 'hero' && position === 0 ? 'eager' : 'lazy'}
             fetchPriority={size === 'hero' && position === 0 ? 'high' : 'auto'}
             onError={() => fail(index)}

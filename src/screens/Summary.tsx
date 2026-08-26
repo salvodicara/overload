@@ -48,9 +48,10 @@ export function Summary({ workoutId }: { workoutId: string }) {
           className="display"
           style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}
         >
-          {volume.toLocaleString(i18n.language)}
+          {volume.toLocaleString(i18n.language)}{' '}
+          <span style={{ fontSize: '0.42em' }}>{weightLabel(unit)}</span>
         </div>
-        <div className="muted">{t('summary.volume', { unit: weightLabel(unit) })}</div>
+        <div className="muted">{t('summary.volume')}</div>
         <div className="mono small muted" style={{ marginTop: 8 }}>
           {t('summary.workingSetCount', { count: workingSetCount })} ·{' '}
           {t('summary.duration', { min: mins })}

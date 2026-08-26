@@ -49,7 +49,6 @@ export function ExerciseSheet({ id }: { id: string }) {
 
   const ex = getCatalog().get(id);
   const name = ex ? (isIt ? ex.nameIt : ex.nameEn) : exerciseName(id, i18n.language);
-  const altName = ex ? (isIt ? ex.nameEn : ex.nameIt) : '';
   const note = notes.find((item) => item.id === id);
   const latestWorkout = previousWorkout(workouts, id);
   const latestWorkingSets = previousSets(workouts, id);
@@ -117,7 +116,6 @@ export function ExerciseSheet({ id }: { id: string }) {
       )}
 
       <div className="exercise-detail__identity">
-        {altName && altName !== name && <div className="muted small">{altName}</div>}
         {ex && (
           <div className="exercise-detail__metadata">
             <span>{t(`library.muscle.${muscleGroup(ex)}`)}</span>

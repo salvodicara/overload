@@ -121,9 +121,9 @@ export function WorkoutDetail({ id }: { id: string }) {
 
       <div className="card card-pad spread">
         <div>
-          <div className="mono small muted">{t('summary.volume', { unit: weightLabel(unit) })}</div>
+          <div className="mono small muted">{t('summary.volume')}</div>
           <div className="mono" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-            {displayVolume(workout.volumeKg, unit).toLocaleString(i18n.language)}
+            {displayVolume(workout.volumeKg, unit).toLocaleString(i18n.language)} {weightLabel(unit)}
           </div>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>

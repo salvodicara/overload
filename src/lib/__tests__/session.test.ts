@@ -91,6 +91,55 @@ describe('active session helpers', () => {
     expect(active.sets[0]).toMatchObject({ durationSec: null, reps: 12, weightKg: null });
   });
 
+  it('leaves an unknown first-session load blank', () => {
+    const active = buildActiveExercise(
+      {
+        exerciseId: 'bench',
+        sets: 2,
+        repMin: 8,
+        repMax: 12,
+        restSec: 90,
+      },
+      [],
+    );
+
+    expect(active.hintKey).toBe('suggest.choose');
+    expect(active.sets.map((set) => set.weightKg)).toEqual([null, null]);
+  });
+
+  it('does not complete a weighted row whose load is still blank', () => {
+    useStore.setState({
+      routines: [
+        {
+          id: 'routine',
+          name: 'Routine',
+          updatedAt: 1,
+          exercises: [
+            { exerciseId: 'bench', sets: 1, repMin: 8, repMax: 12, restSec: 90 },
+          ],
+        },
+      ],
+      active: {
+        routineId: 'routine',
+        startTs: 1,
+        ex: [
+          {
+            exerciseId: 'bench',
+            tracking: 'weight_reps',
+            hintKey: 'suggest.choose',
+            sets: [
+              { weightKg: null, reps: null, durationSec: null, kind: 'working', done: false },
+            ],
+          },
+        ],
+      },
+    });
+
+    useStore.getState().toggleDone(0, 0);
+
+    expect(useStore.getState().active?.ex[0].sets[0].done).toBe(false);
+  });
+
   it('serializes only completed rows and carries tracking and kind', () => {
     expect(
       completedSets({

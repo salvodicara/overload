@@ -262,7 +262,12 @@ export function RoutineEditor({ id }: { id: string }) {
     <div className="screen page">
       <PageHeader
         className="routine-editor-header"
-        title={t('editor.title')}
+        title={
+          <>
+            <span className="visually-hidden">{t('editor.title')}: </span>
+            <span>{routine.name}</span>
+          </>
+        }
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
         action={
           <button
