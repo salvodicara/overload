@@ -146,11 +146,11 @@ export function Workout() {
           // Active exercises preserve routine order, so the index identifies the exact
           // prescription even when the same catalog exercise appears more than once.
           const instanceId =
-            exercise.instanceId ?? `legacy:${active.routineId}:${exerciseIndex}:${exercise.exerciseId}`;
+            exercise.instanceId ??
+            `legacy:${active.routineId}:${exerciseIndex}:${exercise.exerciseId}`;
           const prescription =
-            routine.exercises.find(
-              (item) => item.occurrenceId === exercise.routineOccurrenceId,
-            ) ?? routine.exercises[exerciseIndex];
+            routine.exercises.find((item) => item.occurrenceId === exercise.routineOccurrenceId) ??
+            routine.exercises[exerciseIndex];
           const name = exerciseName(exercise.exerciseId, i18n.language);
           const priorWorkingSets = previousSets(workouts, exercise.exerciseId, routine.id);
           const firstWorkingWeight =
@@ -265,12 +265,14 @@ export function Workout() {
                 {(() => {
                   const note = notes.find((item) => item.id === exercise.exerciseId);
                   const techniqueKey = `${instanceId}:technique`;
-                  const sessionKey = `${exerciseIndex}:session`;
+                  const notePanelKey = `${instanceId}:notes`;
+                  const sessionKey = `${instanceId}:session`;
                   const editingTechnique = expandedNotes[techniqueKey] ?? false;
-                  const sessionExpanded = expandedNotes[sessionKey] ?? false;
+                  const notePanelExpanded = expandedNotes[notePanelKey] ?? false;
+                  const editingSession = expandedNotes[sessionKey] ?? false;
                   const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
                   const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
-                  const sessionContentId = `workout-note-${exerciseIndex}-session-content`;
+                  const noteContentId = `workout-note-${exerciseIndex}-content`;
                   const previousSession = exerciseJournal(workouts, note, exercise.exerciseId).find(
                     (entry) => entry.id.startsWith('workout:'),
                   );
@@ -282,20 +284,19 @@ export function Workout() {
                         <button
                           type="button"
                           className="workout-note__trigger"
-                          aria-expanded={sessionExpanded}
-                          aria-controls={sessionContentId}
-                          onClick={() => toggleNote(sessionKey)}
+                          aria-expanded={notePanelExpanded}
+                          aria-controls={noteContentId}
+                          onClick={() => toggleNote(notePanelKey)}
                         >
                           <IconNote width={16} height={16} aria-hidden />
                           <span className="workout-note__copy">
-                            <span id={sessionLabelId} className="workout-note__scope">
-                              {t('notes.session')}
+                            <span className="workout-note__scope">
+                              {t('notes.techniqueAndNotes')}
                             </span>
                             <span className="workout-note__summary">
                               {exercise.sessionNote ||
-                                (prescription?.note
-                                  ? t('notes.techniqueAvailable')
-                                  : t('notes.sessionPlaceholder'))}
+                                prescription?.note ||
+                                t('notes.sessionPlaceholder')}
                             </span>
                           </span>
                           <span className="workout-note__chevron" aria-hidden="true">
@@ -303,26 +304,32 @@ export function Workout() {
                           </span>
                         </button>
                         <div
-                          id={sessionContentId}
+                          id={noteContentId}
                           className="workout-note__content"
                           role="group"
-                          hidden={!sessionExpanded}
+                          hidden={!notePanelExpanded}
                         >
-                          {sessionExpanded && (
+                          {notePanelExpanded && (
                             <>
-                              <aside className="workout-coach-note">
-                                <span id={techniqueLabelId} className="mono small">
-                                  {t('notes.technique')}
-                                </span>
-                                {prescription?.note && <p>{prescription.note}</p>}
+                              <section className="workout-coach-note workout-note-scope">
+                                <div className="workout-note-scope__heading">
+                                  <span id={techniqueLabelId} className="workout-note-scope__label">
+                                    {t('notes.routineTechnique')}
+                                  </span>
+                                  {!editingTechnique && (
+                                    <button
+                                      type="button"
+                                      className="workout-note-scope__action"
+                                      onClick={() => toggleNote(techniqueKey)}
+                                    >
+                                      {t('workout.editTechnique')}
+                                    </button>
+                                  )}
+                                </div>
                                 {!editingTechnique && (
-                                  <button
-                                    type="button"
-                                    className="workout-technique-edit"
-                                    onClick={() => toggleNote(techniqueKey)}
-                                  >
-                                    {t('workout.editTechnique')}
-                                  </button>
+                                  <p className="workout-note-scope__text">
+                                    {prescription?.note || t('workout.techniqueEmpty')}
+                                  </p>
                                 )}
                                 {editingTechnique && (
                                   <NoteEditor
@@ -343,26 +350,50 @@ export function Workout() {
                                     }}
                                   />
                                 )}
-                              </aside>
-                              {previousSession && (
-                                <p className="workout-note__context">
-                                  <span>
-                                    {t('notes.previousSession', {
-                                      date: fmtDate(previousSession.date, i18n.language),
-                                    })}
+                              </section>
+                              <section className="workout-note-scope workout-note-scope--session">
+                                <div className="workout-note-scope__heading">
+                                  <span id={sessionLabelId} className="workout-note-scope__label">
+                                    {t('notes.todayNote')}
                                   </span>
-                                  <span>{previousSession.text}</span>
-                                </p>
-                              )}
-                              <NoteEditor
-                                key={`session:${exerciseIndex}`}
-                                initial={exercise.sessionNote ?? ''}
-                                placeholder={t('notes.sessionPlaceholder')}
-                                labelledBy={sessionLabelId}
-                                doneLabel={t('notes.done')}
-                                onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
-                                onDone={() => toggleNote(sessionKey)}
-                              />
+                                  {!editingSession && (
+                                    <button
+                                      type="button"
+                                      className="workout-note-scope__action"
+                                      aria-labelledby={sessionLabelId}
+                                      onClick={() => toggleNote(sessionKey)}
+                                    >
+                                      {t('notes.editTodayNote')}
+                                    </button>
+                                  )}
+                                </div>
+                                {!editingSession && (
+                                  <p className="workout-note-scope__text">
+                                    {exercise.sessionNote || t('notes.sessionPlaceholder')}
+                                  </p>
+                                )}
+                                {editingSession && (
+                                  <NoteEditor
+                                    key={`session:${exerciseIndex}`}
+                                    initial={exercise.sessionNote ?? ''}
+                                    placeholder={t('notes.sessionPlaceholder')}
+                                    labelledBy={sessionLabelId}
+                                    doneLabel={t('notes.done')}
+                                    onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
+                                    onDone={() => toggleNote(sessionKey)}
+                                  />
+                                )}
+                                {previousSession && (
+                                  <p className="workout-note__context">
+                                    <span>
+                                      {t('notes.previousSession', {
+                                        date: fmtDate(previousSession.date, i18n.language),
+                                      })}
+                                    </span>
+                                    <span>{previousSession.text}</span>
+                                  </p>
+                                )}
+                              </section>
                             </>
                           )}
                         </div>
@@ -571,11 +602,7 @@ export function Workout() {
       )}
 
       {exerciseOptions && (
-        <BottomSheet
-          open
-          title={exerciseOptions.name}
-          onClose={() => setExerciseOptions(null)}
-        >
+        <BottomSheet open title={exerciseOptions.name} onClose={() => setExerciseOptions(null)}>
           <div className="workout-exercise-options">
             <button
               className="btn btn-ghost"

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
+function autosize(field: HTMLTextAreaElement): void {
+  field.style.height = 'auto';
+  field.style.height = `${field.scrollHeight + field.offsetHeight - field.clientHeight}px`;
+}
+
 /**
  * Plain in-place note editor. Mount-time only: focus, caret at end, autosize.
  * After that the browser owns the caret — selection, copy and paste behave
@@ -31,8 +36,7 @@ export function NoteEditor({
     if (!el) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
+    autosize(el);
   }, []);
 
   async function done(): Promise<void> {
@@ -59,8 +63,7 @@ export function NoteEditor({
         disabled={disabled}
         onInput={(e) => {
           const el = e.currentTarget;
-          el.style.height = 'auto';
-          el.style.height = `${el.scrollHeight}px`;
+          autosize(el);
           onChangeText(el.value);
         }}
       />

@@ -104,7 +104,10 @@ test('the same exercise keeps a different technique note in each routine', async
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /start full body a|inizia full body a/i }).click();
   await expect(page.locator('.workout-coach-note').first()).toBeHidden();
-  await page.getByRole('button', { name: /^this session|^questa sessione/i }).first().click();
+  await page
+    .getByRole('button', { name: /^technique and notes|^tecnica e note/i })
+    .first()
+    .click();
   await expect(page.locator('.workout-coach-note').first()).toBeVisible();
   await expect(page.locator('.workout-coach-note').first()).toContainText(
     'Cue specifica del Giorno A',
@@ -120,7 +123,10 @@ test('the same exercise keeps a different technique note in each routine', async
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /start full body b|inizia full body b/i }).click();
   await expect(page.locator('.workout-coach-note').first()).toBeHidden();
-  await page.getByRole('button', { name: /^this session|^questa sessione/i }).first().click();
+  await page
+    .getByRole('button', { name: /^technique and notes|^tecnica e note/i })
+    .first()
+    .click();
   await expect(page.locator('.workout-coach-note').first()).toContainText(
     'Cue specifica del Giorno B',
   );
@@ -464,10 +470,14 @@ type StoredWorkoutJournalFact = {
 async function finishWithSessionNote(page: Page, text: string): Promise<void> {
   await startNeutralWorkout(page);
   await page
-    .getByRole('button', { name: /^this session|^questa sessione/i })
+    .getByRole('button', { name: /^technique and notes|^tecnica e note/i })
     .first()
     .click();
-  await page.getByLabel(/^this session|^questa sessione/i).fill(text);
+  await page
+    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .first()
+    .click();
+  await page.getByLabel(/^today's note|^nota di oggi/i).fill(text);
   await completeAndFinishOneSet(page);
 }
 
@@ -2227,7 +2237,7 @@ test('active workout adapts rows without shifting working previous values', asyn
   await expect(timed.locator('.set-row')).toHaveCount(2);
   await expect(timed.locator('.set-previous')).toHaveText(['—', '35s']);
   await expect(timed.getByLabel(/set 1 seconds/i)).toHaveValue('15');
-  await expect(page.getByText(/^(this session|questa sessione)$/i)).toHaveCount(3);
+  await expect(page.getByText(/^(technique and notes|tecnica e note)$/i)).toHaveCount(3);
   await expect(page.getByRole('button', { name: /barbell squat/i })).toHaveCount(1);
 
   await weighted.getByRole('button', { name: /^(set 1|serie 1)$/i }).click();
@@ -3059,7 +3069,9 @@ test('programs group routines and are manageable', async ({ page }) => {
 test('session notes stay on their workouts', async ({ page }) => {
   await startNeutralWorkout(page);
 
-  const session = page.getByRole('button', { name: /^this session|^questa sessione/i }).first();
+  const session = page
+    .getByRole('button', { name: /^technique and notes|^tecnica e note/i })
+    .first();
   await expect(session).toHaveAttribute('aria-expanded', 'false');
   expect(
     await page.locator('.workout-note__trigger').evaluateAll((triggers) =>
@@ -3083,15 +3095,17 @@ test('session notes stay on their workouts', async ({ page }) => {
 
   await session.click();
   await expect(session).toHaveAttribute('aria-expanded', 'true');
+  await page
+    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .first()
+    .click();
   expect(
-    await page
-      .getByRole('textbox', { name: /^this session|^questa sessione/i })
-      .evaluate((editor) => {
-        const labelId = editor.getAttribute('aria-labelledby');
-        return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
-      }),
-  ).toBe('This session');
-  await page.getByLabel(/^this session|^questa sessione/i).fill('First session');
+    await page.getByRole('textbox', { name: /^today's note|^nota di oggi/i }).evaluate((editor) => {
+      const labelId = editor.getAttribute('aria-labelledby');
+      return labelId !== null && document.getElementById(labelId)?.textContent?.trim();
+    }),
+  ).toBe("Today's note");
+  await page.getByLabel(/^today's note|^nota di oggi/i).fill('First session');
   await expect
     .poll(() =>
       page.evaluate(
@@ -3131,9 +3145,13 @@ test('session notes stay on their workouts', async ({ page }) => {
   await startNeutralWorkout(page);
   await expect(session).toContainText(/how this exercise felt|com'è andato/i);
   await session.click();
-  await expect(page.getByLabel(/^this session|^questa sessione/i)).toHaveValue('');
+  await page
+    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .first()
+    .click();
+  await expect(page.getByLabel(/^today's note|^nota di oggi/i)).toHaveValue('');
   await expect(page.locator('.workout-note__context')).toContainText('First session');
-  await page.getByLabel(/^this session|^questa sessione/i).fill('Second session');
+  await page.getByLabel(/^today's note|^nota di oggi/i).fill('Second session');
   await completeAndFinishOneSet(page);
 
   const sessionNotes = await page.evaluate(async () => {
@@ -3160,6 +3178,103 @@ test('session notes stay on their workouts', async ({ page }) => {
     sessionNotes.filter((text) => text === 'First session' || text === 'Second session'),
   ).toHaveLength(2);
 });
+
+test('active workout localizes technique and keeps both note scopes progressively disclosed', async ({
+  page,
+}) => {
+  await setStoredLocale(page, 'it');
+  await startNeutralWorkout(page);
+
+  const notes = page.getByRole('button', { name: /^tecnica e note/i }).first();
+  await expect(notes).toHaveAttribute('aria-expanded', 'false');
+  await notes.click();
+
+  const exercise = page.locator('.exercise-block').first();
+  await expect(exercise.getByText('Tecnica della scheda', { exact: true })).toBeVisible();
+  await expect(exercise.getByText('Nota di oggi', { exact: true })).toBeVisible();
+  await expect(exercise).not.toContainText(/notes\.technique/i);
+  await expect(exercise.getByRole('textbox')).toHaveCount(0);
+
+  await exercise.getByRole('button', { name: /modifica tecnica/i }).click();
+  const editor = exercise.getByRole('textbox', { name: 'Tecnica della scheda' });
+  await expect(editor).toBeVisible();
+  await editor.fill('Cue lungo '.repeat(20));
+  expect(await editor.evaluate((field) => field.scrollHeight <= field.clientHeight + 1)).toBe(true);
+});
+
+for (const locale of ['it', 'en'] as const) {
+  test(`completed workout editor follows the compact set-table grammar without responsive overlap (${locale})`, async ({
+    page,
+  }) => {
+    await installCompletedWorkoutFixture(page);
+    await setStoredLocale(page, locale);
+    await page.getByRole('button', { name: /^(home)$/i }).click();
+    const workout = page
+      .locator('.workout-row')
+      .filter({ hasText: locale === 'it' ? /25 ago/i : /25 Aug/i })
+      .first();
+    await workout.click();
+    await page.getByRole('button', { name: /workout options|opzioni allenamento/i }).click();
+    await page
+      .getByRole('dialog', { name: /workout options|opzioni allenamento/i })
+      .getByRole('button', { name: /edit workout|modifica allenamento/i })
+      .click();
+
+    const editor = page.locator('.workout-editor-screen');
+    await expect(editor).toBeVisible();
+    const firstExercise = editor.locator('.workout-editor-exercise').first();
+    const header = firstExercise.locator('.workout-editor-set-header');
+    await expect(header).toContainText(locale === 'it' ? 'Serie' : 'Set');
+    await expect(header).toContainText(locale === 'it' ? 'Precedente' : 'Previous');
+    await expect(header).toContainText('kg');
+    await expect(header).toContainText(/reps/i);
+    await expect(
+      firstExercise.getByRole('button', { name: /exercise options|opzioni esercizio/i }),
+    ).toBeVisible();
+    await expect(firstExercise.getByRole('button', { name: /^(remove|rimuovi)$/i })).toHaveCount(0);
+
+    for (const width of [320, 375, 412]) {
+      await page.setViewportSize({ width, height: 844 });
+      const overflow = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+          .map((element) => ({
+            tag: element.tagName,
+            className: element.className,
+            text: element.textContent?.trim().slice(0, 60),
+            right: element.getBoundingClientRect().right,
+          }))
+          .filter((item) => item.right > window.innerWidth + 0.5)
+          .slice(0, 8),
+      }));
+      expect(overflow.scrollWidth, JSON.stringify(overflow.offenders)).toBe(width);
+      const geometry = await editor.locator('.workout-editor-meta input').evaluateAll((inputs) =>
+        inputs.map((input) => {
+          const box = input.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+        }),
+      );
+      for (let left = 0; left < geometry.length; left += 1) {
+        for (let right = left + 1; right < geometry.length; right += 1) {
+          const a = geometry[left];
+          const b = geometry[right];
+          const intersects =
+            a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+          expect(intersects, JSON.stringify({ width, a, b })).toBe(false);
+        }
+      }
+    }
+
+    await firstExercise
+      .getByRole('button', { name: /exercise options|opzioni esercizio/i })
+      .click();
+    await expect(
+      page
+        .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
+        .getByRole('button', { name: /^(remove|rimuovi)$/i }),
+    ).toBeVisible();
+  });
+}
 
 for (const locale of ['it', 'en'] as const) {
   test(`exercise journal links session observations to distinct workouts (${locale})`, async ({
@@ -3516,8 +3631,9 @@ test('progress does not imply a trend from a single session', async ({ page }) =
   await expect(page.getByRole('status')).toContainText(
     'Complete another session to see the trend.',
   );
-  await expect(page.getByRole('group', { name: 'Dumbbell Bench Press progress summary' }))
-    .toContainText(/66\.1 lb × 10.*Sessions\s*1/);
+  await expect(
+    page.getByRole('group', { name: 'Dumbbell Bench Press progress summary' }),
+  ).toContainText(/66\.1 lb × 10.*Sessions\s*1/);
 });
 
 test('body filters show a disabled treatment without shifting during save', async ({ page }) => {
