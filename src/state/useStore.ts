@@ -291,7 +291,7 @@ export type Store = {
   restTotalSec: number | null;
   pendingRoutineChanges: {
     routineId: string;
-    items: { exerciseId: string; restSec?: number; sets?: number }[];
+    items: { exerciseId: string; exerciseIndex: number; restSec?: number; sets?: number }[];
   } | null;
   catalogReady: boolean;
 
@@ -722,13 +722,24 @@ export const useStore = create<Store>((set, get) => ({
     };
     // Hevy behavior: session-local tweaks (rest, extra sets) can be persisted
     // to the routine afterwards; collect the diff before discarding the session.
-    const items: { exerciseId: string; restSec?: number; sets?: number }[] = [];
+    const items: {
+      exerciseId: string;
+      exerciseIndex: number;
+      restSec?: number;
+      sets?: number;
+    }[] = [];
     if (routine) {
-      for (const e of active.ex) {
-        const rx = routine.exercises.find((x) => x.exerciseId === e.exerciseId);
-        if (!rx) continue;
-        const change: { exerciseId: string; restSec?: number; sets?: number } = {
+      for (const [exerciseIndex, e] of active.ex.entries()) {
+        const rx = routine.exercises[exerciseIndex];
+        if (!rx || rx.exerciseId !== e.exerciseId) continue;
+        const change: {
+          exerciseId: string;
+          exerciseIndex: number;
+          restSec?: number;
+          sets?: number;
+        } = {
           exerciseId: e.exerciseId,
+          exerciseIndex,
         };
         if (e.restOverride !== undefined && e.restOverride !== rx.restSec)
           change.restSec = e.restOverride;
@@ -981,10 +992,20 @@ export const useStore = create<Store>((set, get) => ({
     }
     const next = structuredClone(routine);
     for (const item of pending.items) {
-      const rx = next.exercises.find((x) => x.exerciseId === item.exerciseId);
-      if (!rx) continue;
+      const rx = next.exercises[item.exerciseIndex];
+      if (!rx || rx.exerciseId !== item.exerciseId) continue;
       if (item.restSec !== undefined) rx.restSec = item.restSec;
-      if (item.sets !== undefined) rx.sets = item.sets;
+      if (item.sets !== undefined) {
+        rx.sets = item.sets;
+        if (rx.setTargets?.length) {
+          const setTargets = rx.setTargets;
+          const lastTarget = setTargets[setTargets.length - 1]!;
+          rx.setTargets = Array.from(
+            { length: item.sets },
+            (_, index) => setTargets[index] ?? structuredClone(lastTarget),
+          );
+        }
+      }
     }
     next.updatedAt = Date.now();
     const result = await withOwnedLocalWrite(owner, async () => {

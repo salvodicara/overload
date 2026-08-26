@@ -295,7 +295,35 @@ describe('active session helpers', () => {
     ]);
     expect(rehydratedStore.getState().pendingRoutineChanges).toEqual({
       routineId: 'routine',
-      items: [{ exerciseId: 'squat', sets: 1 }],
+      items: [{ exerciseId: 'squat', exerciseIndex: 0, sets: 1 }],
+    });
+
+    rehydratedStore.setState({
+      routines: [
+        {
+          id: 'routine',
+          name: 'Legacy routine',
+          exercises: [
+            {
+              exerciseId: 'squat',
+              sets: 2,
+              repMin: 5,
+              repMax: 5,
+              restSec: 120,
+              setTargets: [
+                { repMin: 5, repMax: 5, startWeightKg: 60 },
+                { repMin: 8, repMax: 10, startWeightKg: 50 },
+              ],
+            },
+          ],
+          updatedAt: 1,
+        },
+      ],
+    });
+    await rehydratedStore.getState().applyRoutineChanges();
+    expect(rehydratedStore.getState().routines[0].exercises[0]).toMatchObject({
+      sets: 1,
+      setTargets: [{ repMin: 5, repMax: 5, startWeightKg: 60 }],
     });
   });
 });

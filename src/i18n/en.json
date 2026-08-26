@@ -30,7 +30,7 @@
     "resume": "Resume workout in progress",
     "suggested": "Suggested",
     "welcomeTitle": "Build your plan",
-    "welcomeBody": "Start from a template or create a routine that fits your training.",
+    "welcomeBody": "Explore a ready-made program or create a routine that fits your training.",
     "welcomeCta": "Choose a routine",
     "thisWeek": "This week",
     "selectedWeek": "Selected week",
@@ -87,6 +87,7 @@
   "suggest": {
     "start": "Start at {{weight}}",
     "increase": "Range closed last time: go up to {{weight}}",
+    "increaseSets": "Increase only the loads for sets that reached their target",
     "repeat": "Keep the loads and add reps"
   },
   "timer": {

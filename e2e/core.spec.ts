@@ -118,6 +118,76 @@ export async function openNeutralRoutineEditor(page: Page): Promise<void> {
   await expect(page.getByRole('textbox', { name: /routine name|nome scheda/i })).toBeVisible();
 }
 
+test('editing a uniform prescription replaces imported per-set targets cleanly', async ({
+  page,
+}) => {
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('overload');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const transaction = database.transaction('routines', 'readwrite');
+    const store = transaction.objectStore('routines');
+    const routine = await new Promise<{
+      exercises: Array<{
+        sets: number;
+        setTargets?: Array<{ repMin: number; repMax: number; startWeightKg: number }>;
+      }>;
+    }>((resolve, reject) => {
+      const request = store.get('full-body-a');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+    routine.exercises[0].sets = 3;
+    routine.exercises[0].setTargets = [
+      { repMin: 5, repMax: 5, startWeightKg: 80 },
+      { repMin: 8, repMax: 10, startWeightKg: 70 },
+      { repMin: 8, repMax: 10, startWeightKg: 70 },
+    ];
+    store.put(routine);
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  await page.reload();
+  await openNeutralRoutineEditor(page);
+  await page
+    .getByRole('spinbutton', { name: /working sets|serie di lavoro/i })
+    .first()
+    .fill('2');
+
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('overload');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        const routine = await new Promise<{
+          exercises: Array<{ sets: number; setTargets?: unknown[] }>;
+        }>((resolve, reject) => {
+          const request = database
+            .transaction('routines', 'readonly')
+            .objectStore('routines')
+            .get('full-body-a');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+        database.close();
+        return {
+          sets: routine.exercises[0].sets,
+          hasSetTargets: 'setTargets' in routine.exercises[0],
+        };
+      }),
+    )
+    .toEqual({ sets: 2, hasSetTargets: false });
+});
+
 export async function completeAndFinishOneSet(page: Page): Promise<void> {
   await page
     .getByRole('button', { name: /^(set 1|serie 1)$/i })
@@ -2246,6 +2316,27 @@ test('library progressively reveals the complete catalog and tolerates an Italia
   const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
   await search.fill('squat bilancerie');
   await expect(results.getByRole('button').first()).toContainText(/squat/i);
+});
+
+test('library keeps progressively revealed rows when returning from exercise detail', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  const results = page.getByRole('list', { name: /exercise results|risultati esercizi/i });
+  await page.getByRole('button', { name: /show more|mostra altri/i }).scrollIntoViewIfNeeded();
+  await expect.poll(() => results.getByRole('button').count()).toBeGreaterThan(60);
+
+  const selected = results.getByRole('button').nth(70);
+  const selectedName = (await selected.locator('.library-result__name').textContent())?.trim();
+  expect(selectedName).toBeTruthy();
+  await selected.scrollIntoViewIfNeeded();
+  await selected.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(selectedName ?? '');
+
+  await page.goBack();
+  await expect(results.getByRole('button')).toHaveCount(120);
+  await expect(results.getByText(selectedName ?? '', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
 test('Italian exercise surfaces localize dynamic equipment metadata', async ({ page }) => {

@@ -24,6 +24,11 @@ const GROUPS: MuscleGroup[] = ['chest', 'back', 'legs', 'shoulders', 'arms', 'co
 
 /** Long lists stay responsive on phones without a virtualiser. */
 const MAX_RESULTS = 60;
+const visibleCountMemory = new Map<string, number>();
+
+function resultPageKey(query: string, group: MuscleGroup | null, language: string): string {
+  return `${language}\0${group ?? ''}\0${query}`;
+}
 
 type LibraryHistoryState = {
   library?: { query?: unknown; group?: unknown };
@@ -88,7 +93,10 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const [pendingPick, setPendingPick] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(MAX_RESULTS);
+  const initialPageKey = resultPageKey(initialHistory.query, initialHistory.group, i18n.language);
+  const [visibleCount, setVisibleCount] = useState(
+    () => visibleCountMemory.get(initialPageKey) ?? MAX_RESULTS,
+  );
   const nameInputRef = useRef<HTMLInputElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(true);
@@ -118,10 +126,19 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   );
   const shown = results.slice(0, visibleCount);
   const hasMore = shown.length < results.length;
+  const pageKey = resultPageKey(query, group, i18n.language);
 
   useEffect(() => {
-    setVisibleCount(MAX_RESULTS);
-  }, [group, i18n.language, query]);
+    setVisibleCount(visibleCountMemory.get(pageKey) ?? MAX_RESULTS);
+  }, [pageKey]);
+
+  function revealMore(): void {
+    setVisibleCount((count) => {
+      const next = Math.min(count + MAX_RESULTS, results.length);
+      visibleCountMemory.set(pageKey, next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     const target = moreRef.current;
@@ -129,14 +146,14 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry?.isIntersecting) {
-          setVisibleCount((count) => Math.min(count + MAX_RESULTS, results.length));
+          revealMore();
         }
       },
       { rootMargin: '240px 0px' },
     );
     observer.observe(target);
     return () => observer.disconnect();
-  }, [hasMore, results.length, shown.length]);
+  }, [hasMore, pageKey, results.length, shown.length]);
 
   async function pick(id: string): Promise<void> {
     if (pendingPick) return;
@@ -324,14 +341,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
             {t('library.resultCount', { shown: shown.length, total: results.length })}
           </span>
           {hasMore && (
-            <button
-              ref={moreRef}
-              type="button"
-              className="btn btn-ghost"
-              onClick={() =>
-                setVisibleCount((count) => Math.min(count + MAX_RESULTS, results.length))
-              }
-            >
+            <button ref={moreRef} type="button" className="btn btn-ghost" onClick={revealMore}>
               {t('library.showMore')}
             </button>
           )}

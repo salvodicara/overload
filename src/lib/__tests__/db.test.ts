@@ -380,7 +380,7 @@ describe('account transitions', () => {
       restTotalSec: 90,
       pendingRoutineChanges: {
         routineId: 'r1',
-        items: [{ exerciseId: 'bench', restSec: 120 }],
+        items: [{ exerciseId: 'bench', exerciseIndex: 0, restSec: 120 }],
       },
     });
 

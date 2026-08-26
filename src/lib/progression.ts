@@ -70,7 +70,7 @@ export function suggest(rx: RoutineExercise, history: Workout[], routineId?: str
     return {
       weights,
       hintKey: weights.some((weight, index) => weight > lastWeights[index])
-        ? 'suggest.increase'
+        ? 'suggest.increaseSets'
         : 'suggest.repeat',
     };
   }

@@ -30,7 +30,7 @@
     "resume": "Riprendi l'allenamento in corso",
     "suggested": "Consigliata",
     "welcomeTitle": "Costruisci la tua scheda",
-    "welcomeBody": "Parti da un template o crea una scheda adatta al tuo allenamento.",
+    "welcomeBody": "Esplora un programma pronto o crea una scheda adatta al tuo allenamento.",
     "welcomeCta": "Scegli una scheda",
     "thisWeek": "Questa settimana",
     "selectedWeek": "Settimana selezionata",
@@ -87,6 +87,7 @@
   "suggest": {
     "start": "Parti da {{weight}}",
     "increase": "Range chiuso l'ultima volta: sali a {{weight}}",
+    "increaseSets": "Aumenta solo i carichi delle serie che hanno raggiunto l'obiettivo",
     "repeat": "Conferma i carichi e aggiungi ripetizioni"
   },
   "timer": {

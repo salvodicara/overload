@@ -140,7 +140,10 @@ describe('suggest', () => {
     });
     const history = [workout('same', '2026-08-20', [set(60, 8), set(50, 9), set(50, 10)])];
 
-    expect(suggest(prescription, history).weights).toEqual([62.5, 50, 52.5]);
+    expect(suggest(prescription, history)).toEqual({
+      weights: [62.5, 50, 52.5],
+      hintKey: 'suggest.increaseSets',
+    });
   });
 });
 

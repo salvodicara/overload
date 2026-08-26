@@ -343,7 +343,12 @@ export function RoutineEditor({ id }: { id: string }) {
                     value={rx.sets}
                     step={1}
                     fieldKey={`sets-${xi}-${rev}`}
-                    onCommit={(n) => commit((r) => void (r.exercises[xi].sets = n ?? 1))}
+                    onCommit={(n) =>
+                      commit((r) => {
+                        r.exercises[xi].sets = n ?? 1;
+                        delete r.exercises[xi].setTargets;
+                      })
+                    }
                   />
                   <NumField
                     label={t('editor.rest')}
@@ -357,14 +362,24 @@ export function RoutineEditor({ id }: { id: string }) {
                     value={rx.repMin}
                     step={1}
                     fieldKey={`min-${xi}-${rev}`}
-                    onCommit={(n) => commit((r) => void (r.exercises[xi].repMin = n ?? 1))}
+                    onCommit={(n) =>
+                      commit((r) => {
+                        r.exercises[xi].repMin = n ?? 1;
+                        delete r.exercises[xi].setTargets;
+                      })
+                    }
                   />
                   <NumField
                     label={maxLabel}
                     value={rx.repMax}
                     step={1}
                     fieldKey={`max-${xi}-${rev}`}
-                    onCommit={(n) => commit((r) => void (r.exercises[xi].repMax = n))}
+                    onCommit={(n) =>
+                      commit((r) => {
+                        r.exercises[xi].repMax = n;
+                        delete r.exercises[xi].setTargets;
+                      })
+                    }
                   />
                   {tracking === 'weight_reps' && (
                     <>
@@ -374,11 +389,11 @@ export function RoutineEditor({ id }: { id: string }) {
                         step={0.5}
                         fieldKey={`start-${xi}-${rev}`}
                         onCommit={(n) =>
-                          commit(
-                            (r) =>
-                              void (r.exercises[xi].startWeightKg =
-                                n === null ? undefined : canonicalWeight(n, unit)),
-                          )
+                          commit((r) => {
+                            r.exercises[xi].startWeightKg =
+                              n === null ? undefined : canonicalWeight(n, unit);
+                            delete r.exercises[xi].setTargets;
+                          })
                         }
                       />
                       <NumField
