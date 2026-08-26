@@ -474,7 +474,7 @@ async function finishWithSessionNote(page: Page, text: string): Promise<void> {
     .first()
     .click();
   await page
-    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .getByRole('button', { name: /^(edit note|modifica nota)$/i })
     .first()
     .click();
   await page.getByLabel(/^today's note|^nota di oggi/i).fill(text);
@@ -3096,7 +3096,7 @@ test('session notes stay on their workouts', async ({ page }) => {
   await session.click();
   await expect(session).toHaveAttribute('aria-expanded', 'true');
   await page
-    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .getByRole('button', { name: /^(edit note|modifica nota)$/i })
     .first()
     .click();
   expect(
@@ -3146,7 +3146,7 @@ test('session notes stay on their workouts', async ({ page }) => {
   await expect(session).toContainText(/how this exercise felt|com'è andato/i);
   await session.click();
   await page
-    .getByRole('button', { name: /^today's note|^nota di oggi/i })
+    .getByRole('button', { name: /^(edit note|modifica nota)$/i })
     .first()
     .click();
   await expect(page.getByLabel(/^today's note|^nota di oggi/i)).toHaveValue('');
@@ -3198,8 +3198,16 @@ test('active workout localizes technique and keeps both note scopes progressivel
   await exercise.getByRole('button', { name: /modifica tecnica/i }).click();
   const editor = exercise.getByRole('textbox', { name: 'Tecnica della scheda' });
   await expect(editor).toBeVisible();
-  await editor.fill('Cue lungo '.repeat(20));
+  const draftTechnique = 'Cue lungo '.repeat(20);
+  await editor.fill(draftTechnique);
   expect(await editor.evaluate((field) => field.scrollHeight <= field.clientHeight + 1)).toBe(true);
+  await notes.click();
+  await notes.click();
+  await expect(exercise.getByRole('textbox', { name: 'Tecnica della scheda' })).toHaveValue(
+    draftTechnique,
+  );
+  await exercise.getByRole('button', { name: /^fatto$/i }).click();
+  await expect(exercise).toContainText(draftTechnique.trim());
 });
 
 for (const locale of ['it', 'en'] as const) {
@@ -3273,6 +3281,49 @@ for (const locale of ['it', 'en'] as const) {
         .getByRole('dialog', { name: /exercise options|opzioni esercizio/i })
         .getByRole('button', { name: /^(remove|rimuovi)$/i }),
     ).toBeVisible();
+
+    if (locale === 'it') {
+      await page
+        .getByRole('dialog', { name: /opzioni esercizio/i })
+        .getByRole('button', { name: /^rimuovi$/i })
+        .click();
+    } else {
+      await page.keyboard.press('Escape');
+      await firstExercise.getByRole('button', { name: /remove set 1/i }).click();
+      await firstExercise.getByRole('button', { name: /remove set 1/i }).click();
+    }
+
+    await editor.getByRole('button', { name: /^(save|salva)$/i }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const database = await new Promise<IDBDatabase>((resolve, reject) => {
+            const request = indexedDB.open('overload');
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+          });
+          try {
+            const record = await new Promise<{
+              sets: Array<{ exerciseId: string }>;
+              exerciseNotes?: Array<{ exerciseId: string }>;
+            }>((resolve, reject) => {
+              const request = database
+                .transaction('workouts', 'readonly')
+                .objectStore('workouts')
+                .get('newest-detail');
+              request.onerror = () => reject(request.error);
+              request.onsuccess = () => resolve(request.result);
+            });
+            return {
+              hasSets: record.sets.some((set) => set.exerciseId === 'Barbell_Squat'),
+              hasNote: record.exerciseNotes?.some((note) => note.exerciseId === 'Barbell_Squat'),
+            };
+          } finally {
+            database.close();
+          }
+        }),
+      )
+      .toEqual({ hasSets: false, hasNote: false });
   });
 }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   draftFromWorkout,
+  removeExerciseFromDraft,
+  removeSetFromDraft,
   recomputeWorkoutFacts,
   validateWorkoutDraft,
   workoutFromDraft,
@@ -31,5 +33,51 @@ describe('completed workout editing', () => {
     const facts = recomputeWorkoutFacts([later, corrected]);
     expect(facts.find((item) => item.id === 'old')?.volumeKg).toBe(300);
     expect(facts.find((item) => item.id === 'later')?.sets[0].isPr).toBeFalsy();
+  });
+
+  it('removes the exact exercise occurrence and its attached metadata', () => {
+    const first = 'rx:routine:0:press';
+    const second = 'rx:routine:1:press';
+    const draft = {
+      ...draftFromWorkout(workout),
+      sets: [
+        { ...workout.sets[0], exerciseInstanceId: first },
+        { ...workout.sets[0], exerciseInstanceId: second },
+      ],
+      exerciseNotes: [
+        { exerciseId: 'press', exerciseInstanceId: first, text: 'First cue' },
+        { exerciseId: 'press', exerciseInstanceId: second, text: 'Second cue' },
+      ],
+      exerciseOrder: [first, second],
+    };
+
+    expect(removeExerciseFromDraft(draft, first)).toMatchObject({
+      sets: [{ exerciseInstanceId: second }],
+      exerciseNotes: [{ exerciseInstanceId: second, text: 'Second cue' }],
+      exerciseOrder: [second],
+    });
+  });
+
+  it('cleans occurrence metadata when its final set is removed', () => {
+    const first = 'rx:routine:0:press';
+    const second = 'rx:routine:1:row';
+    const draft = {
+      ...draftFromWorkout(workout),
+      sets: [
+        { ...workout.sets[0], exerciseInstanceId: first },
+        { ...workout.sets[0], exerciseId: 'row', exerciseInstanceId: second },
+      ],
+      exerciseNotes: [
+        { exerciseId: 'press', exerciseInstanceId: first, text: 'Press cue' },
+        { exerciseId: 'row', exerciseInstanceId: second, text: 'Row cue' },
+      ],
+      exerciseOrder: [first, second],
+    };
+
+    expect(removeSetFromDraft(draft, 0)).toMatchObject({
+      sets: [{ exerciseInstanceId: second }],
+      exerciseNotes: [{ exerciseInstanceId: second, text: 'Row cue' }],
+      exerciseOrder: [second],
+    });
   });
 });

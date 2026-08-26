@@ -39,6 +39,27 @@ export function validateWorkoutDraft(draft: WorkoutDraft): string[] {
   return errors;
 }
 
+export function removeExerciseFromDraft(draft: WorkoutDraft, key: string): WorkoutDraft {
+  return {
+    ...draft,
+    sets: draft.sets.filter((set) => (set.exerciseInstanceId ?? set.exerciseId) !== key),
+    exerciseNotes: draft.exerciseNotes.filter(
+      (note) => (note.exerciseInstanceId ?? note.exerciseId) !== key,
+    ),
+    exerciseOrder: draft.exerciseOrder.filter((instanceId) => instanceId !== key),
+  };
+}
+
+export function removeSetFromDraft(draft: WorkoutDraft, index: number): WorkoutDraft {
+  const target = draft.sets[index];
+  if (!target) return draft;
+  const key = target.exerciseInstanceId ?? target.exerciseId;
+  const sets = draft.sets.filter((_, setIndex) => setIndex !== index);
+  return sets.some((set) => (set.exerciseInstanceId ?? set.exerciseId) === key)
+    ? { ...draft, sets }
+    : removeExerciseFromDraft(draft, key);
+}
+
 export function workoutFromDraft(
   original: Workout,
   draft: WorkoutDraft,

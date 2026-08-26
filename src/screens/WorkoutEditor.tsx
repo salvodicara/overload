@@ -8,7 +8,13 @@ import { exerciseName, searchExercises } from '../lib/exercises';
 import { formatPreviousSet, previousSets } from '../lib/format';
 import { kindOf, trackingOf, type SetLog } from '../lib/types';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
-import { draftFromWorkout, validateWorkoutDraft, type WorkoutDraft } from '../lib/workoutEditing';
+import {
+  draftFromWorkout,
+  removeExerciseFromDraft,
+  removeSetFromDraft,
+  validateWorkoutDraft,
+  type WorkoutDraft,
+} from '../lib/workoutEditing';
 import { continueAccountAction, useStore } from '../state/useStore';
 
 type DraftGroup = { key: string; exerciseId: string; sets: { set: SetLog; index: number }[] };
@@ -62,18 +68,9 @@ export function WorkoutEditor({ id }: { id: string }) {
       return { ...current, sets };
     });
   const removeSet = (index: number): void =>
-    setDraft((current) =>
-      current ? { ...current, sets: current.sets.filter((_, item) => item !== index) } : current,
-    );
+    setDraft((current) => (current ? removeSetFromDraft(current, index) : current));
   const removeExercise = (key: string): void =>
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            sets: current.sets.filter((set) => (set.exerciseInstanceId ?? set.exerciseId) !== key),
-          }
-        : current,
-    );
+    setDraft((current) => (current ? removeExerciseFromDraft(current, key) : current));
 
   return (
     <div className="screen workout-editor-screen">
@@ -185,6 +182,9 @@ export function WorkoutEditor({ id }: { id: string }) {
                 {group.sets.map(({ set, index }, row) => {
                   const warmup = kindOf(set.kind) === 'warmup';
                   const previous = warmup ? undefined : priorWorkingSets[workingIndex++];
+                  const previousLabel = previous
+                    ? formatPreviousSet(previous, tracking, unit, false)
+                    : '—';
                   return (
                     <div
                       key={index}
@@ -195,8 +195,11 @@ export function WorkoutEditor({ id }: { id: string }) {
                       <span className="mono workout-editor-set__number">
                         {warmup ? 'W' : workingIndex}
                       </span>
-                      <span className="set-previous mono">
-                        {previous ? formatPreviousSet(previous, tracking, unit, false) : '—'}
+                      <span
+                        className="set-previous mono"
+                        aria-label={`${t('workout.previous')}: ${previousLabel}`}
+                      >
+                        {previousLabel}
                       </span>
                       {tracking === 'weight_reps' && (
                         <input

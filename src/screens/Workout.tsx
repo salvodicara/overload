@@ -71,6 +71,7 @@ export function Workout() {
   const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const [techniqueDrafts, setTechniqueDrafts] = useState<Record<string, string>>({});
   const [exerciseOptions, setExerciseOptions] = useState<{
     instanceId: string;
     name: string;
@@ -334,11 +335,16 @@ export function Workout() {
                                 {editingTechnique && (
                                   <NoteEditor
                                     key={`technique:${instanceId}`}
-                                    initial={prescription?.note ?? ''}
+                                    initial={techniqueDrafts[instanceId] ?? prescription?.note ?? ''}
                                     placeholder={t('workout.techniquePlaceholder')}
                                     labelledBy={techniqueLabelId}
                                     doneLabel={t('notes.done')}
-                                    onChangeText={() => undefined}
+                                    onChangeText={(text) =>
+                                      setTechniqueDrafts((current) => ({
+                                        ...current,
+                                        [instanceId]: text,
+                                      }))
+                                    }
                                     onDone={async (text) => {
                                       await updateRoutineTechnique(
                                         prescription?.occurrenceId ??
@@ -360,7 +366,6 @@ export function Workout() {
                                     <button
                                       type="button"
                                       className="workout-note-scope__action"
-                                      aria-labelledby={sessionLabelId}
                                       onClick={() => toggleNote(sessionKey)}
                                     >
                                       {t('notes.editTodayNote')}
