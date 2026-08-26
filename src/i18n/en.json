@@ -195,7 +195,7 @@
     "howTo": "How to",
     "create": "+ Create custom exercise",
     "exerciseName": "Exercise name",
-    "trackingForRoutine": "Tracking for this routine",
+    "trackingForRoutine": "Goal type",
     "trackingHint": "This choice only applies to this routine.",
     "creating": "Creating…",
     "addError": "Could not add the exercise. Try again.",
@@ -286,6 +286,7 @@
     "rest": "rest ″",
     "startWeight": "Start weight ({{unit}})",
     "increment": "Increment ({{unit}})",
+    "progression": "Progression ({{unit}})",
     "preparation": "Warm-up",
     "preparationPlaceholder": "e.g. 5 min easy bike",
     "settings": "Exercise settings",
@@ -293,6 +294,31 @@
     "trackingWeightReps": "Weight + reps",
     "trackingReps": "Reps",
     "trackingDuration": "Duration",
+    "exerciseOptions": "Exercise options",
+    "goalType": "Goal type",
+    "goalTypeHint": "Choose what you want to measure for this exercise in this routine.",
+    "goal": {
+      "weight_reps": {
+        "label": "Weight and reps",
+        "hint": "For free weights, machines, and cable exercises."
+      },
+      "reps": {
+        "label": "Reps only",
+        "hint": "For bodyweight exercises without added load."
+      },
+      "duration": {
+        "label": "Time",
+        "hint": "For holds, cardio, and timed exercises."
+      }
+    },
+    "restSeconds": "Rest (s)",
+    "secondsMin": "Min seconds",
+    "secondsMax": "Max seconds",
+    "techniqueNote": "Routine technique",
+    "added": "Added",
+    "reorderExercise": "Reorder {{exercise}}",
+    "reorderHint": "Drag to reorder. Use the up and down arrow keys with a keyboard.",
+    "movedTo": "{{exercise}} moved to position {{position}}.",
     "timeMin": "Min seconds",
     "timeMax": "Max seconds",
     "warmupSets": "Warm-up sets",

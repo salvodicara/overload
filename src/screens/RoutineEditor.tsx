@@ -1,7 +1,14 @@
-import { createRef, useRef, useState, type RefObject } from 'react';
+import {
+  createRef,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
-import { IconBack, IconDown, IconUp, IconX } from '../components/Icons';
+import { IconBack, IconDown, IconGrip, IconMore, IconUp, IconX } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
@@ -59,6 +66,26 @@ function display(value: number | undefined, unit: 'kg' | 'lb'): number | undefin
   return value === undefined ? undefined : displayWeight(value, unit);
 }
 
+function restSummary(seconds: number): string {
+  if (seconds < 60) return `${seconds}″`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}′ ${remainder}″` : `${minutes} min`;
+}
+
+function exerciseSummary(rx: RoutineExercise, unit: 'kg' | 'lb'): string {
+  const tracking = trackingOf(rx.tracking);
+  const range =
+    rx.repMax == null || rx.repMax === rx.repMin ? `${rx.repMin}` : `${rx.repMin}–${rx.repMax}`;
+  const target = tracking === 'duration' ? `${range} s` : range;
+  const parts = [`${rx.sets} × ${target}`];
+  if (tracking === 'weight_reps' && rx.startWeightKg != null) {
+    parts.push(`${displayWeight(rx.startWeightKg, unit)} ${weightLabel(unit)}`);
+  }
+  if (rx.restSec > 0) parts.push(restSummary(rx.restSec));
+  return parts.join(' · ');
+}
+
 function defaultWarmup(rx: RoutineExercise): NonNullable<RoutineExercise['warmupSets']>[number] {
   if (trackingOf(rx.tracking) === 'duration') return { durationSec: rx.repMin };
   if (trackingOf(rx.tracking) === 'reps') return { reps: rx.repMin };
@@ -78,6 +105,12 @@ export function RoutineEditor({ id }: { id: string }) {
   const deleteRoutine = useStore((s) => s.deleteRoutine);
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
+  const [expandedIndex, setExpandedIndex] = useState(0);
+  const [exerciseMenuIndex, setExerciseMenuIndex] = useState<number | null>(null);
+  const [goalTypeIndex, setGoalTypeIndex] = useState<number | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<PendingRoutineRemoval | null>(null);
   const draftRef = useRef<Routine | null>(null);
@@ -86,7 +119,9 @@ export function RoutineEditor({ id }: { id: string }) {
   const cancelRemovalRef = useRef<HTMLButtonElement>(null);
   const addExerciseRef = useRef<HTMLButtonElement>(null);
   const addWarmupRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
+  const warmupSummaryRefs = useRef<Array<RefObject<HTMLElement | null>>>([]);
   const removalCommittedRef = useRef(false);
+  const dragStartRef = useRef<{ index: number; x: number; y: number; moved: boolean } | null>(null);
 
   if (storedRoutine && draftRef.current?.id !== id)
     draftRef.current = structuredClone(storedRoutine);
@@ -130,6 +165,71 @@ export function RoutineEditor({ id }: { id: string }) {
     setPendingRemoval(removal);
   }
 
+  function moveExercise(from: number, to: number): void {
+    if (!routine) return;
+    if (from === to || to < 0 || to >= routine.exercises.length) return;
+    const movedName = exerciseName(routine.exercises[from].exerciseId, i18n.language);
+    commit((draft) => {
+      const [moved] = draft.exercises.splice(from, 1);
+      draft.exercises.splice(to, 0, moved);
+    }, true);
+    setExpandedIndex((current) => {
+      if (current === from) return to;
+      if (from < current && current <= to) return current - 1;
+      if (to <= current && current < from) return current + 1;
+      return current;
+    });
+    setReorderAnnouncement(t('editor.movedTo', { exercise: movedName, position: to + 1 }));
+  }
+
+  function exerciseAtPoint(x: number, y: number): number | null {
+    const card = document
+      .elementsFromPoint(x, y)
+      .map((element) => element.closest<HTMLElement>('[data-exercise-index]'))
+      .find(Boolean);
+    if (!card) return null;
+    const index = Number(card.dataset.exerciseIndex);
+    return Number.isFinite(index) ? index : null;
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, index: number): void {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartRef.current = { index, x: event.clientX, y: event.clientY, moved: false };
+  }
+
+  function continueDrag(event: PointerEvent<HTMLButtonElement>): void {
+    const start = dragStartRef.current;
+    if (!start) return;
+    if (!start.moved && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 8) return;
+    start.moved = true;
+    setDraggingIndex(start.index);
+    const target = exerciseAtPoint(event.clientX, event.clientY);
+    if (target !== null) setDragOverIndex(target);
+    if (event.clientY < 88) window.scrollBy({ top: -14 });
+    else if (event.clientY > window.innerHeight - 88) window.scrollBy({ top: 14 });
+  }
+
+  function finishDrag(event: PointerEvent<HTMLButtonElement>): void {
+    const start = dragStartRef.current;
+    dragStartRef.current = null;
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+    if (!start?.moved) return;
+    const target = exerciseAtPoint(event.clientX, event.clientY) ?? dragOverIndex;
+    if (target !== null) moveExercise(start.index, target);
+  }
+
+  function reorderWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const target = event.key === 'ArrowUp' ? index - 1 : index + 1;
+    moveExercise(index, target);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLButtonElement>(`[data-reorder-index="${target}"]`)?.focus(),
+    );
+  }
+
   function confirmRemoval(): void {
     if (!pendingRemoval || removalCommittedRef.current) return;
     removalCommittedRef.current = true;
@@ -150,6 +250,7 @@ export function RoutineEditor({ id }: { id: string }) {
     return (
       <div className="screen page">
         <PageHeader
+          className="routine-editor-header"
           title={t('editor.title')}
           back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
         />
@@ -157,14 +258,10 @@ export function RoutineEditor({ id }: { id: string }) {
       </div>
     );
 
-  const grid = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: 8,
-  } as const;
   return (
     <div className="screen page">
       <PageHeader
+        className="routine-editor-header"
         title={t('editor.title')}
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
         action={
@@ -232,291 +329,257 @@ export function RoutineEditor({ id }: { id: string }) {
         />
       </label>
 
-      <div className="stack">
+      <div className="routine-exercise-list">
         {routine.exercises.map((rx, xi) => {
           const tracking = trackingOf(rx.tracking);
           const note = notes.find((item) => item.id === rx.exerciseId);
           const warmups = rx.warmupSets ?? [];
-          const minLabel = tracking === 'duration' ? t('editor.timeMin') : t('editor.repMin');
-          const maxLabel = tracking === 'duration' ? t('editor.timeMax') : t('editor.repMax');
+          const expanded = expandedIndex === xi;
+          const name = exerciseName(rx.exerciseId, i18n.language);
+          const minLabel = tracking === 'duration' ? t('editor.secondsMin') : t('editor.repMin');
+          const maxLabel = tracking === 'duration' ? t('editor.secondsMax') : t('editor.repMax');
           const addWarmupRef =
             addWarmupRefs.current[xi] ??
             (addWarmupRefs.current[xi] = createRef<HTMLButtonElement>());
+          const warmupSummaryRef =
+            warmupSummaryRefs.current[xi] ??
+            (warmupSummaryRefs.current[xi] = createRef<HTMLElement>());
           return (
-            <div
-              key={`${rx.exerciseId}-${xi}-${rev}`}
-              className="card card-pad stack"
-              style={{ gap: 10 }}
+            <section
+              key={`${rx.exerciseId}-${xi}`}
+              className={`routine-exercise${expanded ? ' is-expanded' : ''}${draggingIndex === xi ? ' is-dragging' : ''}${dragOverIndex === xi ? ' is-drop-target' : ''}`}
+              data-exercise-index={xi}
             >
-              <div className="row">
-                <span
-                  style={{ flex: 1, minWidth: 0, fontWeight: 600 }}
-                  className={catalogReady ? undefined : 'muted'}
-                >
-                  {exerciseName(rx.exerciseId, i18n.language)}
-                </span>
+              <div className="routine-exercise__top">
                 <button
-                  className="iconbtn"
-                  style={ICON}
-                  aria-label={t('editor.moveUp')}
-                  disabled={xi === 0}
-                  onClick={() =>
-                    commit((r) => {
-                      [r.exercises[xi - 1], r.exercises[xi]] = [
-                        r.exercises[xi],
-                        r.exercises[xi - 1],
-                      ];
-                    }, true)
-                  }
+                  className="routine-exercise__drag"
+                  data-reorder-index={xi}
+                  aria-label={t('editor.reorderExercise', { exercise: name })}
+                  title={t('editor.reorderHint')}
+                  onPointerDown={(event) => startDrag(event, xi)}
+                  onPointerMove={continueDrag}
+                  onPointerUp={finishDrag}
+                  onPointerCancel={finishDrag}
+                  onKeyDown={(event) => reorderWithKeyboard(event, xi)}
                 >
-                  <IconUp width={16} height={16} />
+                  <IconGrip />
                 </button>
                 <button
-                  className="iconbtn"
-                  style={ICON}
-                  aria-label={t('editor.moveDown')}
-                  disabled={xi === routine.exercises.length - 1}
-                  onClick={() =>
-                    commit((r) => {
-                      [r.exercises[xi], r.exercises[xi + 1]] = [
-                        r.exercises[xi + 1],
-                        r.exercises[xi],
-                      ];
-                    }, true)
-                  }
+                  className="routine-exercise__summary"
+                  aria-expanded={expanded}
+                  aria-controls={`routine-exercise-${xi}`}
+                  onClick={() => setExpandedIndex(expanded ? -1 : xi)}
                 >
-                  <IconDown width={16} height={16} />
+                  <span className={`routine-exercise__name${catalogReady ? '' : ' muted'}`}>
+                    {name}
+                  </span>
+                  <span className="routine-exercise__prescription">
+                    {exerciseSummary(rx, unit)}
+                  </span>
                 </button>
                 <button
-                  className="iconbtn"
+                  className="iconbtn routine-exercise__menu"
                   style={ICON}
-                  aria-label={t('editor.removeExercise')}
-                  onClick={() =>
-                    requestRemoval({
-                      kind: 'exercise',
-                      exerciseIndex: xi,
-                      exercise: exerciseName(rx.exerciseId, i18n.language),
-                    })
-                  }
+                  aria-label={t('editor.exerciseOptions')}
+                  onClick={() => setExerciseMenuIndex(xi)}
                 >
-                  <IconX width={16} height={16} />
+                  <IconMore />
                 </button>
               </div>
-              <details open className="stack" style={{ gap: 10 }}>
-                <summary
-                  style={{
-                    minHeight: 44,
-                    display: 'flex',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                >
-                  {t('editor.settings')}
-                </summary>
-                <label className="stack" style={{ gap: 3 }}>
-                  <span
-                    className="mono muted"
-                    style={{ fontSize: 'var(--text-xs)', letterSpacing: '0.06em' }}
-                  >
-                    {t('editor.tracking')}
-                  </span>
-                  <select
-                    aria-label={t('editor.tracking')}
-                    value={tracking}
-                    style={{ minHeight: 48 }}
-                    onChange={(e) =>
-                      commit(
-                        (r) => void (r.exercises[xi].tracking = e.target.value as TrackingType),
-                        true,
-                      )
-                    }
-                  >
-                    <option value="weight_reps">{t('editor.trackingWeightReps')}</option>
-                    <option value="reps">{t('editor.trackingReps')}</option>
-                    <option value="duration">{t('editor.trackingDuration')}</option>
-                  </select>
-                </label>
-                <div style={grid}>
-                  <NumField
-                    label={t('editor.workingSets')}
-                    value={rx.sets}
-                    step={1}
-                    fieldKey={`sets-${xi}-${rev}`}
-                    onCommit={(n) =>
-                      commit((r) => {
-                        r.exercises[xi].sets = n ?? 1;
-                        delete r.exercises[xi].setTargets;
-                      })
-                    }
-                  />
-                  <NumField
-                    label={t('editor.rest')}
-                    value={rx.restSec}
-                    step={5}
-                    fieldKey={`rest-${xi}-${rev}`}
-                    onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))}
-                  />
-                  <NumField
-                    label={minLabel}
-                    value={rx.repMin}
-                    step={1}
-                    fieldKey={`min-${xi}-${rev}`}
-                    onCommit={(n) =>
-                      commit((r) => {
-                        r.exercises[xi].repMin = n ?? 1;
-                        delete r.exercises[xi].setTargets;
-                      })
-                    }
-                  />
-                  <NumField
-                    label={maxLabel}
-                    value={rx.repMax}
-                    step={1}
-                    fieldKey={`max-${xi}-${rev}`}
-                    onCommit={(n) =>
-                      commit((r) => {
-                        r.exercises[xi].repMax = n;
-                        delete r.exercises[xi].setTargets;
-                      })
-                    }
-                  />
-                  {tracking === 'weight_reps' && (
-                    <>
-                      <NumField
-                        label={t('editor.startWeight', { unit: weightLabel(unit) })}
-                        value={display(rx.startWeightKg, unit)}
-                        step={0.5}
-                        fieldKey={`start-${xi}-${rev}`}
-                        onCommit={(n) =>
+
+              {expanded && (
+                <div id={`routine-exercise-${xi}`} className="routine-exercise__body">
+                  <div className="routine-prescription-grid">
+                    <NumField
+                      label={t('editor.workingSets')}
+                      value={rx.sets}
+                      step={1}
+                      fieldKey={`sets-${xi}-${rev}`}
+                      onCommit={(n) =>
+                        commit((r) => {
+                          r.exercises[xi].sets = n ?? 1;
+                          delete r.exercises[xi].setTargets;
+                        })
+                      }
+                    />
+                    <NumField
+                      label={t('editor.restSeconds')}
+                      value={rx.restSec}
+                      step={5}
+                      fieldKey={`rest-${xi}-${rev}`}
+                      onCommit={(n) => commit((r) => void (r.exercises[xi].restSec = n ?? 60))}
+                    />
+                    <NumField
+                      label={minLabel}
+                      value={rx.repMin}
+                      step={1}
+                      fieldKey={`min-${xi}-${rev}`}
+                      onCommit={(n) =>
+                        commit((r) => {
+                          r.exercises[xi].repMin = n ?? 1;
+                          delete r.exercises[xi].setTargets;
+                        })
+                      }
+                    />
+                    <NumField
+                      label={maxLabel}
+                      value={rx.repMax}
+                      step={1}
+                      fieldKey={`max-${xi}-${rev}`}
+                      onCommit={(n) =>
+                        commit((r) => {
+                          r.exercises[xi].repMax = n;
+                          delete r.exercises[xi].setTargets;
+                        })
+                      }
+                    />
+                    {tracking === 'weight_reps' && (
+                      <>
+                        <NumField
+                          label={t('editor.startWeight', { unit: weightLabel(unit) })}
+                          value={display(rx.startWeightKg, unit)}
+                          step={0.5}
+                          fieldKey={`start-${xi}-${rev}`}
+                          onCommit={(n) =>
+                            commit((r) => {
+                              r.exercises[xi].startWeightKg =
+                                n === null ? undefined : canonicalWeight(n, unit);
+                              delete r.exercises[xi].setTargets;
+                            })
+                          }
+                        />
+                        <NumField
+                          label={t('editor.progression', { unit: weightLabel(unit) })}
+                          value={display(rx.incrementKg, unit)}
+                          step={0.5}
+                          fieldKey={`increment-${xi}-${rev}`}
+                          onCommit={(n) =>
+                            commit(
+                              (r) =>
+                                void (r.exercises[xi].incrementKg =
+                                  n === null ? undefined : canonicalWeight(n, unit)),
+                            )
+                          }
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  <details className="routine-disclosure" open={warmups.length > 0}>
+                    <summary ref={warmupSummaryRef}>
+                      <span>{t('editor.warmupSets')}</span>
+                      <span className="routine-disclosure__meta">{warmups.length}</span>
+                    </summary>
+                    <div className="routine-disclosure__body">
+                      {warmups.map((target, wi) => (
+                        <div key={`${wi}-${rev}`} className="routine-warmup-row">
+                          <div className="routine-warmup-fields">
+                            {tracking === 'weight_reps' && (
+                              <NumField
+                                label={t('editor.load', { unit: weightLabel(unit) })}
+                                value={display(target.weightKg, unit)}
+                                step={0.5}
+                                fieldKey={`warmup-weight-${xi}-${wi}-${rev}`}
+                                onCommit={(n) =>
+                                  updateWarmup(xi, wi, {
+                                    weightKg: n === null ? undefined : canonicalWeight(n, unit),
+                                  })
+                                }
+                              />
+                            )}
+                            {tracking !== 'duration' ? (
+                              <NumField
+                                label={t('editor.reps')}
+                                value={target.reps}
+                                step={1}
+                                fieldKey={`warmup-reps-${xi}-${wi}-${rev}`}
+                                onCommit={(n) => updateWarmup(xi, wi, { reps: n ?? undefined })}
+                              />
+                            ) : (
+                              <NumField
+                                label={t('editor.seconds')}
+                                value={target.durationSec}
+                                step={1}
+                                fieldKey={`warmup-seconds-${xi}-${wi}-${rev}`}
+                                onCommit={(n) =>
+                                  updateWarmup(xi, wi, { durationSec: n ?? undefined })
+                                }
+                              />
+                            )}
+                          </div>
+                          <button
+                            className="iconbtn"
+                            style={ICON}
+                            aria-label={t('editor.removeWarmupSet')}
+                            onClick={() =>
+                              requestRemoval({ kind: 'warmup', exerciseIndex: xi, warmupIndex: wi })
+                            }
+                          >
+                            <IconX width={16} height={16} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        ref={addWarmupRef}
+                        className="btn btn-ghost btn-block"
+                        onClick={() =>
                           commit((r) => {
-                            r.exercises[xi].startWeightKg =
-                              n === null ? undefined : canonicalWeight(n, unit);
-                            delete r.exercises[xi].setTargets;
+                            r.exercises[xi].warmupSets = [
+                              ...(r.exercises[xi].warmupSets ?? []),
+                              defaultWarmup(r.exercises[xi]),
+                            ];
+                          }, true)
+                        }
+                      >
+                        {t('editor.addWarmupSet')}
+                      </button>
+                    </div>
+                  </details>
+
+                  <details className="routine-disclosure" open={Boolean(rx.note)}>
+                    <summary>
+                      <span>{t('editor.techniqueNote')}</span>
+                      {rx.note && (
+                        <span className="routine-disclosure__meta">{t('editor.added')}</span>
+                      )}
+                    </summary>
+                    <div className="routine-disclosure__body">
+                      <textarea
+                        key={`routine-note-${rx.exerciseId}-${xi}-${rev}`}
+                        defaultValue={rx.note ?? ''}
+                        aria-label={t('notes.coach')}
+                        placeholder={t('notes.coachPlaceholder')}
+                        rows={3}
+                        onChange={(event) =>
+                          commit((draft) => {
+                            draft.exercises[xi].note = event.target.value.trim() || undefined;
                           })
                         }
                       />
-                      <NumField
-                        label={t('editor.increment', { unit: weightLabel(unit) })}
-                        value={display(rx.incrementKg, unit)}
-                        step={0.5}
-                        fieldKey={`increment-${xi}-${rev}`}
-                        onCommit={(n) =>
-                          commit(
-                            (r) =>
-                              void (r.exercises[xi].incrementKg =
-                                n === null ? undefined : canonicalWeight(n, unit)),
-                          )
-                        }
-                      />
-                    </>
+                    </div>
+                  </details>
+
+                  {note?.entries.at(-1) && (
+                    <button
+                      className="routine-journal-link"
+                      onClick={() => nav({ view: 'exercise', id: rx.exerciseId })}
+                    >
+                      <span>{t('editor.journalLatest')}</span>
+                      <span>
+                        {fmtDate(note.entries.at(-1)!.date, i18n.language)} ·{' '}
+                        {note.entries.at(-1)?.text}
+                      </span>
+                    </button>
                   )}
                 </div>
-                <div className="stack" style={{ gap: 8 }}>
-                  <span
-                    className="mono small muted"
-                    style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                  >
-                    {t('editor.warmupSets')}
-                  </span>
-                  {warmups.map((target, wi) => (
-                    <div key={`${wi}-${rev}`} className="row" style={{ alignItems: 'end', gap: 8 }}>
-                      <div style={{ ...grid, flex: 1 }}>
-                        {tracking === 'weight_reps' && (
-                          <NumField
-                            label={t('editor.load', { unit: weightLabel(unit) })}
-                            value={display(target.weightKg, unit)}
-                            step={0.5}
-                            fieldKey={`warmup-weight-${xi}-${wi}-${rev}`}
-                            onCommit={(n) =>
-                              updateWarmup(xi, wi, {
-                                weightKg: n === null ? undefined : canonicalWeight(n, unit),
-                              })
-                            }
-                          />
-                        )}
-                        {tracking !== 'duration' && (
-                          <NumField
-                            label={t('editor.reps')}
-                            value={target.reps}
-                            step={1}
-                            fieldKey={`warmup-reps-${xi}-${wi}-${rev}`}
-                            onCommit={(n) => updateWarmup(xi, wi, { reps: n ?? undefined })}
-                          />
-                        )}
-                        {tracking === 'duration' && (
-                          <NumField
-                            label={t('editor.seconds')}
-                            value={target.durationSec}
-                            step={1}
-                            fieldKey={`warmup-seconds-${xi}-${wi}-${rev}`}
-                            onCommit={(n) => updateWarmup(xi, wi, { durationSec: n ?? undefined })}
-                          />
-                        )}
-                      </div>
-                      <button
-                        className="iconbtn"
-                        style={ICON}
-                        aria-label={t('editor.removeWarmupSet')}
-                        onClick={() =>
-                          requestRemoval({ kind: 'warmup', exerciseIndex: xi, warmupIndex: wi })
-                        }
-                      >
-                        <IconX width={16} height={16} />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    ref={addWarmupRef}
-                    className="btn btn-ghost btn-block"
-                    onClick={() =>
-                      commit((r) => {
-                        r.exercises[xi].warmupSets = [
-                          ...(r.exercises[xi].warmupSets ?? []),
-                          defaultWarmup(r.exercises[xi]),
-                        ];
-                      }, true)
-                    }
-                  >
-                    {t('editor.addWarmupSet')}
-                  </button>
-                </div>
-              </details>
-              <label className="stack" style={{ gap: 4 }}>
-                <span
-                  className="mono small muted"
-                  style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                >
-                  {t('notes.coach')}
-                </span>
-                <textarea
-                  key={`routine-note-${rx.exerciseId}-${rev}`}
-                  defaultValue={rx.note ?? ''}
-                  aria-label={t('notes.coach')}
-                  placeholder={t('notes.coachPlaceholder')}
-                  rows={2}
-                  style={{ minHeight: 64, resize: 'vertical' }}
-                  onChange={(event) =>
-                    commit((draft) => {
-                      draft.exercises[xi].note = event.target.value.trim() || undefined;
-                    })
-                  }
-                />
-              </label>
-              {note?.entries.at(-1) && (
-                <button
-                  className="mono small muted"
-                  style={{ textAlign: 'left', padding: '2px 0', width: '100%', minHeight: 44 }}
-                  onClick={() => nav({ view: 'exercise', id: rx.exerciseId })}
-                >
-                  {t('editor.journalLatest')} {fmtDate(note.entries.at(-1)!.date, i18n.language)} ·{' '}
-                  {note.entries.at(-1)?.text}
-                </button>
               )}
-            </div>
+            </section>
           );
         })}
       </div>
+      <span className="sr-only" aria-live="polite">
+        {reorderAnnouncement}
+      </span>
       {routine.exercises.length === 0 && <div className="empty">{t('editor.noExercises')}</div>}
       <button
         ref={addExerciseRef}
@@ -533,6 +596,84 @@ export function RoutineEditor({ id }: { id: string }) {
       >
         {t('editor.deleteRoutine')}
       </button>
+      {exerciseMenuIndex !== null && routine.exercises[exerciseMenuIndex] && (
+        <BottomSheet
+          open
+          title={t('editor.exerciseOptions')}
+          onClose={() => setExerciseMenuIndex(null)}
+        >
+          <button
+            className="routine-sheet-action"
+            onClick={() => {
+              setGoalTypeIndex(exerciseMenuIndex);
+              setExerciseMenuIndex(null);
+            }}
+          >
+            <span>{t('editor.goalType')}</span>
+            <span className="muted small">
+              {t(`editor.goal.${trackingOf(routine.exercises[exerciseMenuIndex].tracking)}.label`)}
+            </span>
+          </button>
+          <button
+            className="routine-sheet-action"
+            disabled={exerciseMenuIndex === 0}
+            onClick={() => {
+              moveExercise(exerciseMenuIndex, exerciseMenuIndex - 1);
+              setExerciseMenuIndex(null);
+            }}
+          >
+            <span className="row" style={{ gap: 10 }}>
+              <IconUp /> {t('editor.moveUp')}
+            </span>
+          </button>
+          <button
+            className="routine-sheet-action"
+            disabled={exerciseMenuIndex === routine.exercises.length - 1}
+            onClick={() => {
+              moveExercise(exerciseMenuIndex, exerciseMenuIndex + 1);
+              setExerciseMenuIndex(null);
+            }}
+          >
+            <span className="row" style={{ gap: 10 }}>
+              <IconDown /> {t('editor.moveDown')}
+            </span>
+          </button>
+          <button
+            className="routine-sheet-action is-danger"
+            onClick={() => {
+              const index = exerciseMenuIndex;
+              const exercise = exerciseName(routine.exercises[index].exerciseId, i18n.language);
+              setExerciseMenuIndex(null);
+              requestRemoval({ kind: 'exercise', exerciseIndex: index, exercise });
+            }}
+          >
+            <span>{t('editor.removeExercise')}</span>
+          </button>
+        </BottomSheet>
+      )}
+      {goalTypeIndex !== null && routine.exercises[goalTypeIndex] && (
+        <BottomSheet open title={t('editor.goalType')} onClose={() => setGoalTypeIndex(null)}>
+          <p className="muted small">{t('editor.goalTypeHint')}</p>
+          {(['weight_reps', 'reps', 'duration'] as TrackingType[]).map((goal) => {
+            const selected = trackingOf(routine.exercises[goalTypeIndex].tracking) === goal;
+            return (
+              <button
+                key={goal}
+                className={`routine-goal-option${selected ? ' is-selected' : ''}`}
+                aria-pressed={selected}
+                onClick={() => {
+                  commit((draft) => void (draft.exercises[goalTypeIndex].tracking = goal), true);
+                  setExpandedIndex(goalTypeIndex);
+                  setGoalTypeIndex(null);
+                }}
+              >
+                <span>{t(`editor.goal.${goal}.label`)}</span>
+                <span>{t(`editor.goal.${goal}.hint`)}</span>
+              </button>
+            );
+          })}
+        </BottomSheet>
+      )}
       {pendingRemoval && (
         <BottomSheet
           open
@@ -545,7 +686,9 @@ export function RoutineEditor({ id }: { id: string }) {
           fallbackFocusRef={
             pendingRemoval.kind === 'exercise'
               ? addExerciseRef
-              : addWarmupRefs.current[pendingRemoval.exerciseIndex]
+              : (routine.exercises[pendingRemoval.exerciseIndex].warmupSets?.length ?? 0) === 1
+                ? warmupSummaryRefs.current[pendingRemoval.exerciseIndex]
+                : addWarmupRefs.current[pendingRemoval.exerciseIndex]
           }
           onClose={() => setPendingRemoval(null)}
         >

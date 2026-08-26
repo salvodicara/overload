@@ -195,7 +195,7 @@
     "howTo": "Esecuzione",
     "create": "+ Crea esercizio personalizzato",
     "exerciseName": "Nome esercizio",
-    "trackingForRoutine": "Tracciamento per questa scheda",
+    "trackingForRoutine": "Tipo di obiettivo",
     "trackingHint": "Questa scelta vale solo per questa scheda.",
     "creating": "Creazione…",
     "addError": "Impossibile aggiungere l'esercizio. Riprova.",
@@ -286,6 +286,7 @@
     "rest": "rec ″",
     "startWeight": "Peso iniziale ({{unit}})",
     "increment": "Incremento ({{unit}})",
+    "progression": "Progressione ({{unit}})",
     "preparation": "Riscaldamento",
     "preparationPlaceholder": "es. 5 min di cyclette leggera",
     "settings": "Impostazioni esercizio",
@@ -293,6 +294,31 @@
     "trackingWeightReps": "Peso + ripetizioni",
     "trackingReps": "Ripetizioni",
     "trackingDuration": "Durata",
+    "exerciseOptions": "Opzioni esercizio",
+    "goalType": "Tipo di obiettivo",
+    "goalTypeHint": "Scegli cosa vuoi misurare per questo esercizio in questa scheda.",
+    "goal": {
+      "weight_reps": {
+        "label": "Carico e ripetizioni",
+        "hint": "Per esercizi con pesi, macchine o cavi."
+      },
+      "reps": {
+        "label": "Solo ripetizioni",
+        "hint": "Per esercizi a corpo libero senza carico."
+      },
+      "duration": {
+        "label": "Tempo",
+        "hint": "Per tenute, cardio ed esercizi a tempo."
+      }
+    },
+    "restSeconds": "Recupero (s)",
+    "secondsMin": "Secondi min",
+    "secondsMax": "Secondi max",
+    "techniqueNote": "Tecnica della scheda",
+    "added": "Inserita",
+    "reorderExercise": "Riordina {{exercise}}",
+    "reorderHint": "Trascina per riordinare. Usa le frecce su e giù con la tastiera.",
+    "movedTo": "{{exercise}} spostato in posizione {{position}}.",
     "timeMin": "Secondi minimi",
     "timeMax": "Secondi massimi",
     "warmupSets": "Serie di riscaldamento",
