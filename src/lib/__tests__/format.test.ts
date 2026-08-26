@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatPreviousSet } from '../format';
+import { formatCompactNumber, formatPreviousSet } from '../format';
 import type { SetLog, TrackingType } from '../types';
 
 const set = (patch: Partial<SetLog> = {}): SetLog => ({
@@ -26,4 +26,25 @@ describe('formatPreviousSet', () => {
   it('omits the repeated unit inside a table whose weight column already names it', () => {
     expect(formatPreviousSet(set(), 'weight_reps', 'lb', false)).toBe('88.2 × 8');
   });
+});
+
+describe('formatCompactNumber', () => {
+  it.each([
+    [999, '999'],
+    [999.99, '1K'],
+    [100_000, '100K'],
+    [999_999, '1M'],
+    [1_250_000, '1,3M'],
+    [-1_250_000, '−1,3M'],
+    [1_000_000_000, '1B'],
+  ])('formats %s without overflowing the metric', (value, expected) => {
+    expect(formatCompactNumber(value, 'it-IT')).toBe(expected);
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'uses a safe placeholder for %s',
+    (value) => {
+      expect(formatCompactNumber(value, 'it-IT')).toBe('—');
+    },
+  );
 });

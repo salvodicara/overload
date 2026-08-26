@@ -10,7 +10,7 @@ type LineChartProps = {
   formatValue?: (value: number) => string;
 };
 
-const PAD = { top: 14, right: 14, bottom: 20, left: 60 };
+const PAD = { top: 14, right: 14, bottom: 20 };
 const TICKS = 4;
 
 /** Nice round step so the ~4 gridlines land on readable kg values. */
@@ -64,19 +64,30 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       ctx.font = `${labelSize} ${mono}`;
       ctx.textBaseline = 'middle';
 
-      const plotW = width - PAD.left - PAD.right;
-      const plotH = height - PAD.top - PAD.bottom;
-      if (plotW <= 0 || plotH <= 0 || points.length === 0) return;
-
-      const values = points.map((p) => p.value);
+      const safePoints = points.filter((point) => Number.isFinite(point.value));
+      if (safePoints.length === 0) return;
+      const values = safePoints.map((p) => p.value);
       const rawMin = Math.min(...values);
       const rawMax = Math.max(...values);
       const step = niceStep(Math.max(rawMax - rawMin, 1));
       const min = Math.floor(rawMin / step) * step;
       const max = Math.max(min + step * (TICKS - 1), Math.ceil(rawMax / step) * step);
+      const ticks = Array.from(
+        { length: Math.max(1, Math.round((max - min) / step) + 1) },
+        (_, index) => min + index * step,
+      );
+      const valueLabel = (value: number): string =>
+        formatValue ? formatValue(value) : value.toLocaleString(locale);
+      const widestTick = Math.max(
+        ...ticks.map((value) => ctx.measureText(valueLabel(value)).width),
+      );
+      const left = Math.min(Math.max(36, Math.ceil(widestTick) + 12), Math.max(36, width * 0.38));
+      const plotW = width - left - PAD.right;
+      const plotH = height - PAD.top - PAD.bottom;
+      if (plotW <= 0 || plotH <= 0) return;
 
       const x = (i: number): number =>
-        PAD.left + (points.length === 1 ? plotW / 2 : (plotW * i) / (points.length - 1));
+        left + (safePoints.length === 1 ? plotW / 2 : (plotW * i) / (safePoints.length - 1));
       const y = (v: number): number => PAD.top + plotH - (plotH * (v - min)) / (max - min);
 
       // Gridlines and caller-formatted value labels.
@@ -84,13 +95,13 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       ctx.strokeStyle = line;
       ctx.fillStyle = muted;
       ctx.textAlign = 'right';
-      for (let v = min; v <= max + 0.001; v += step) {
+      for (const v of ticks) {
         const gy = Math.round(y(v)) + 0.5;
         ctx.beginPath();
-        ctx.moveTo(PAD.left, gy);
+        ctx.moveTo(left, gy);
         ctx.lineTo(width - PAD.right, gy);
         ctx.stroke();
-        ctx.fillText(formatValue ? formatValue(v) : v.toLocaleString(locale), PAD.left - 8, gy);
+        ctx.fillText(valueLabel(v), left - 8, gy);
       }
 
       // series line
@@ -99,7 +110,7 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.beginPath();
-      points.forEach((p, i) =>
+      safePoints.forEach((p, i) =>
         i === 0 ? ctx.moveTo(x(i), y(p.value)) : ctx.lineTo(x(i), y(p.value)),
       );
       ctx.stroke();
@@ -114,22 +125,18 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
         ctx.strokeStyle = surface;
         ctx.stroke();
       };
-      points.forEach((p, i) => {
+      safePoints.forEach((p, i) => {
         if (p.highlight) dot(x(i), y(p.value), 4, good);
       });
 
       // last point emphasised + its value direct-labelled (text never wears the series color)
-      const lastI = points.length - 1;
-      const last = points[lastI];
+      const lastI = safePoints.length - 1;
+      const last = safePoints[lastI];
       dot(x(lastI), y(last.value), 4.5, accent);
       ctx.fillStyle = ink;
       ctx.textAlign = 'right';
       const labelY = Math.max(PAD.top - 4, y(last.value) - 12);
-      ctx.fillText(
-        formatValue ? formatValue(last.value) : last.value.toLocaleString(locale),
-        width - PAD.right,
-        labelY,
-      );
+      ctx.fillText(valueLabel(last.value), width - PAD.right, labelY);
 
       // first / last date labels only
       const fmt = (iso: string): string =>
@@ -137,8 +144,8 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       ctx.fillStyle = muted;
       const baseY = height - PAD.bottom / 2;
       ctx.textAlign = 'left';
-      ctx.fillText(fmt(points[0].date), PAD.left, baseY);
-      if (points.length > 1) {
+      ctx.fillText(fmt(safePoints[0].date), left, baseY);
+      if (safePoints.length > 1) {
         ctx.textAlign = 'right';
         ctx.fillText(fmt(last.date), width - PAD.right, baseY);
       }

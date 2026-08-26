@@ -14,6 +14,26 @@ export function fmtDate(
   return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', opts);
 }
 
+/** Compact, locale-aware figures with deliberately short cross-locale suffixes. */
+export function formatCompactNumber(value: number, locale: string): string {
+  if (!Number.isFinite(value)) return '—';
+  const absolute = Math.abs(value);
+  let magnitude = absolute < 1_000 ? 0 : Math.floor(Math.log10(absolute) / 3);
+  const suffixes = ['', 'K', 'M', 'B', 'T', 'Q'];
+  if (absolute / 1_000 ** magnitude >= 999.95) magnitude += 1;
+  if (magnitude >= suffixes.length) {
+    return new Intl.NumberFormat(locale, {
+      notation: 'scientific',
+      maximumFractionDigits: 1,
+    })
+      .format(value)
+      .replace('-', '−');
+  }
+  const scaled = absolute / 1_000 ** magnitude;
+  const formatted = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(scaled);
+  return `${value < 0 ? '−' : ''}${formatted}${suffixes[magnitude]}`;
+}
+
 export function previousWorkout(
   workouts: Workout[],
   exerciseId: string,

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { LineChart } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
+import { formatCompactNumber } from '../lib/format';
 import { nextRoutine } from '../lib/routines';
 import {
   periodBounds,
@@ -29,9 +30,7 @@ export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
     day.setDate(monday.getDate() + index);
     return {
       iso: day.toLocaleDateString('sv'),
-      label: day
-        .toLocaleDateString(locale, { weekday: 'narrow' })
-        .toLocaleUpperCase(locale),
+      label: day.toLocaleDateString(locale, { weekday: 'narrow' }).toLocaleUpperCase(locale),
     };
   });
 }
@@ -69,6 +68,17 @@ export function Home() {
   const now = new Date();
   const bounds = periodBounds(periodAnchor, periodUnit);
   const currentBounds = periodBounds(now, periodUnit);
+  const earliestWorkoutDate = workouts.reduce<string | null>(
+    (earliest, workout) =>
+      workingSetCount(workout) > 0 && (!earliest || workout.date < earliest)
+        ? workout.date
+        : earliest,
+    null,
+  );
+  const earliestBounds = periodBounds(
+    earliestWorkoutDate ? new Date(`${earliestWorkoutDate}T12:00:00`) : now,
+    periodUnit,
+  );
   const summary = periodSummary(periodAnchor, periodUnit, workouts, now);
   const buckets = periodBuckets(periodAnchor, periodUnit, workouts, now);
   const periodWorkouts = workouts.filter(
@@ -80,10 +90,9 @@ export function Home() {
   const unit = settings.unit ?? 'kg';
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const isCurrentPeriod = bounds.start === currentBounds.start;
+  const isEarliestPeriod = bounds.start <= earliestBounds.start;
   const signed = (value: number) =>
-    new Intl.NumberFormat(locale, { signDisplay: 'always', maximumFractionDigits: 1 }).format(
-      value,
-    );
+    `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatCompactNumber(Math.abs(value), locale)}`;
   const metricDelta = (
     current: number,
     previous: number,
@@ -119,19 +128,27 @@ export function Home() {
   const periodTitle = isCurrentPeriod
     ? t(`home.this${periodUnit[0].toUpperCase()}${periodUnit.slice(1)}`)
     : t(`home.selected${periodUnit[0].toUpperCase()}${periodUnit.slice(1)}`);
+  const monthLeadingDays = (new Date(`${bounds.start}T12:00:00`).getDay() + 6) % 7;
+  const monthDayCount = Number(bounds.end.slice(-2));
+  const monthTrailingDays = 42 - monthLeadingDays - monthDayCount;
   const chartPoints = buckets.map((bucket) => ({
     date: bucket.date,
     value: chartMetric === 'volume' ? displayVolume(bucket.volume, unit) : bucket[chartMetric],
   }));
   const chartValue = (value: number) =>
     chartMetric === 'volume'
-      ? `${value.toLocaleString(locale)} ${unit}`
+      ? `${formatCompactNumber(value, locale)} ${unit}`
       : chartMetric === 'durationMin'
-        ? `${value.toLocaleString(locale)} min`
-        : value.toLocaleString(locale);
+        ? `${formatCompactNumber(value, locale)} min`
+        : formatCompactNumber(value, locale);
+  const exact = (value: number) =>
+    Number.isFinite(value)
+      ? new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value)
+      : '—';
 
   function movePeriod(amount: -1 | 1): void {
     if (amount > 0 && isCurrentPeriod) return;
+    if (amount < 0 && isEarliestPeriod) return;
     setPeriodMotion(amount < 0 ? 'previous' : 'next');
     setPeriodAnchor((anchor) => shiftPeriod(anchor, periodUnit, amount));
   }
@@ -140,7 +157,8 @@ export function Home() {
     const start = swipeStartX.current;
     if (start === null) return 0;
     const raw = clientX - start;
-    const resisted = isCurrentPeriod && raw < 0 ? raw * 0.2 : raw;
+    const atBoundary = (isCurrentPeriod && raw < 0) || (isEarliestPeriod && raw > 0);
+    const resisted = atBoundary ? raw * 0.2 : raw;
     setDragX(Math.max(-280, Math.min(280, resisted)));
     return resisted;
   }
@@ -273,40 +291,17 @@ export function Home() {
               if (event.key === 'ArrowLeft') movePeriod(-1);
               if (event.key === 'ArrowRight') movePeriod(1);
             }}
-            onPointerDown={(event) => {
-              swipeStartX.current = event.clientX;
-              setPeriodMotion('idle');
-            }}
-            onPointerMove={(event) => {
-              if (Math.abs(trackSwipe(event.clientX)) < 8) return;
-              try {
-                event.currentTarget.setPointerCapture(event.pointerId);
-              } catch {
-                /* pointer capture is an enhancement */
-              }
-            }}
-            onPointerUp={finishSwipe}
-            onPointerCancel={() => {
-              swipeStartX.current = null;
-              setDragX(0);
-            }}
           >
-            <div
-              key={`${periodUnit}-${bounds.start}`}
-              className="home-period-page"
-              data-dragging={swipeStartX.current !== null || undefined}
-              data-motion={periodMotion}
-              style={{ '--period-drag': `${dragX}px` } as CSSProperties}
-            >
-              <div className="home-week-heading">
-                <div>
-                  <h2 id="period-summary" className="display section-title home-section-title">
-                    {periodTitle}
-                  </h2>
-                  <span className="home-period-label mono small muted" aria-live="polite">
-                    {periodLabel}
-                  </span>
-                </div>
+            <div className="home-week-heading">
+              <div>
+                <h2 id="period-summary" className="display section-title home-section-title">
+                  {periodTitle}
+                </h2>
+                <span className="home-period-label mono small muted" aria-live="polite">
+                  {periodUnit === 'year' ? '\u00A0' : periodLabel}
+                </span>
+              </div>
+              <div className="home-period-today-slot">
                 {!isCurrentPeriod && (
                   <button
                     type="button"
@@ -320,94 +315,139 @@ export function Home() {
                   </button>
                 )}
               </div>
-              <div className="week-band">
-                {periodUnit === 'week' && (
-                  <div className="week-days" aria-label={t('home.weekDays')}>
-                    {days.map((day) => {
-                      const dayWorkouts = periodWorkouts.filter(
-                        (workout) => workout.date === day.iso,
-                      );
-                      const trained = dayWorkouts.length > 0;
-                      const className = `week-day${trained ? ' week-day--trained' : ''}`;
-                      const label = `${day.iso}${trained ? ` ${t('home.trained')}` : ''}`;
-                      return trained ? (
-                        <button
-                          type="button"
-                          key={day.iso}
-                          className={className}
-                          aria-label={label}
-                          aria-current={day.iso === today ? 'date' : undefined}
-                          onClick={() => {
-                            const latest = [...dayWorkouts].sort(
-                              (a, b) => b.startTs - a.startTs,
-                            )[0];
-                            nav({ view: 'workoutDetail', id: latest.id });
-                          }}
-                        >
-                          {day.label}
-                        </button>
-                      ) : (
-                        <span
-                          key={day.iso}
-                          className={className}
-                          aria-label={label}
-                          aria-current={day.iso === today ? 'date' : undefined}
-                        >
+            </div>
+            <div className="week-band">
+              <div
+                className="home-period-pager"
+                data-unit={periodUnit}
+                onPointerDown={(event) => {
+                  swipeStartX.current = event.clientX;
+                  setPeriodMotion('idle');
+                }}
+                onPointerMove={(event) => {
+                  if (Math.abs(trackSwipe(event.clientX)) < 8) return;
+                  try {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                  } catch {
+                    /* pointer capture is an enhancement */
+                  }
+                }}
+                onPointerUp={finishSwipe}
+                onPointerCancel={() => {
+                  swipeStartX.current = null;
+                  setDragX(0);
+                }}
+              >
+                <div
+                  key={`${periodUnit}-${bounds.start}`}
+                  className="home-period-pager__page"
+                  data-dragging={swipeStartX.current !== null || undefined}
+                  data-motion={periodMotion}
+                  style={{ '--period-drag': `${dragX}px` } as CSSProperties}
+                >
+                  {periodUnit === 'week' && (
+                    <div className="week-days" aria-label={t('home.weekDays')}>
+                      {days.map((day) => {
+                        const dayWorkouts = periodWorkouts.filter(
+                          (workout) => workout.date === day.iso,
+                        );
+                        const trained = dayWorkouts.length > 0;
+                        const className = `week-day${trained ? ' week-day--trained' : ''}`;
+                        const label = `${day.iso}${trained ? ` ${t('home.trained')}` : ''}`;
+                        return trained ? (
+                          <button
+                            type="button"
+                            key={day.iso}
+                            className={className}
+                            aria-label={label}
+                            aria-current={day.iso === today ? 'date' : undefined}
+                            onClick={() => {
+                              const latest = [...dayWorkouts].sort(
+                                (a, b) => b.startTs - a.startTs,
+                              )[0];
+                              nav({ view: 'workoutDetail', id: latest.id });
+                            }}
+                          >
+                            {day.label}
+                          </button>
+                        ) : (
+                          <span
+                            key={day.iso}
+                            className={className}
+                            aria-label={label}
+                            aria-current={day.iso === today ? 'date' : undefined}
+                          >
+                            {day.label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {periodUnit === 'month' && (
+                    <div className="month-calendar" aria-label={t('home.monthCalendar')}>
+                      {currentDays.map((day) => (
+                        <span key={day.iso} className="month-calendar__weekday" aria-hidden>
                           {day.label}
                         </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {periodUnit === 'month' && (
-                  <div className="month-calendar" aria-label={t('home.monthCalendar')}>
-                    {currentDays.map((day) => (
-                      <span key={day.iso} className="month-calendar__weekday" aria-hidden>
-                        {day.label}
-                      </span>
-                    ))}
-                    {Array.from(
-                      { length: (new Date(`${bounds.start}T12:00:00`).getDay() + 6) % 7 },
-                      (_, index) => (
+                      ))}
+                      {Array.from({ length: monthLeadingDays }, (_, index) => (
                         <span key={`blank-${index}`} aria-hidden />
-                      ),
-                    )}
-                    {Array.from({ length: Number(bounds.end.slice(-2)) }, (_, index) => {
-                      const iso = `${bounds.start.slice(0, 8)}${String(index + 1).padStart(2, '0')}`;
-                      const dayWorkouts = periodWorkouts.filter((workout) => workout.date === iso);
-                      const trained = dayWorkouts.length > 0;
-                      const content = (
-                        <>
-                          <span>{index + 1}</span>
-                          {trained && <i aria-hidden />}
-                        </>
-                      );
-                      return trained ? (
-                        <button
-                          key={iso}
-                          className="month-calendar__day month-calendar__day--trained"
-                          aria-label={`${iso} ${t('home.trained')}`}
-                          onClick={() => {
-                            const latest = [...dayWorkouts].sort(
-                              (a, b) => b.startTs - a.startTs,
-                            )[0];
-                            nav({ view: 'workoutDetail', id: latest.id });
-                          }}
-                        >
-                          {content}
-                        </button>
-                      ) : (
-                        <span key={iso} className="month-calendar__day">
-                          {content}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
+                      ))}
+                      {Array.from({ length: monthDayCount }, (_, index) => {
+                        const iso = `${bounds.start.slice(0, 8)}${String(index + 1).padStart(2, '0')}`;
+                        const dayWorkouts = periodWorkouts.filter(
+                          (workout) => workout.date === iso,
+                        );
+                        const trained = dayWorkouts.length > 0;
+                        const content = (
+                          <>
+                            <span>{index + 1}</span>
+                            {trained && <i aria-hidden />}
+                          </>
+                        );
+                        return trained ? (
+                          <button
+                            key={iso}
+                            className="month-calendar__day month-calendar__day--trained"
+                            aria-label={`${iso} ${t('home.trained')}`}
+                            onClick={() => {
+                              const latest = [...dayWorkouts].sort(
+                                (a, b) => b.startTs - a.startTs,
+                              )[0];
+                              nav({ view: 'workoutDetail', id: latest.id });
+                            }}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          <span key={iso} className="month-calendar__day">
+                            {content}
+                          </span>
+                        );
+                      })}
+                      {Array.from({ length: monthTrailingDays }, (_, index) => (
+                        <span key={`tail-${index}`} aria-hidden />
+                      ))}
+                    </div>
+                  )}
+                  {periodUnit === 'year' && (
+                    <div className="home-year-pager display" aria-label={periodLabel}>
+                      {bounds.start.slice(0, 4)}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div
+                key={`${periodUnit}-${bounds.start}-content`}
+                className="home-period-content"
+                data-motion={periodMotion}
+              >
                 <div className="week-metrics">
                   <div className="week-metric">
                     <div className="week-metric__value">
-                      <strong className="display">{summary.workouts}</strong>
+                      <strong className="display" aria-label={exact(summary.workouts)}>
+                        {formatCompactNumber(summary.workouts, locale)}
+                      </strong>
                       <span
                         className="week-metric__delta mono"
                         data-direction={deltas.workouts.direction}
@@ -423,7 +463,9 @@ export function Home() {
                   </div>
                   <div className="week-metric">
                     <div className="week-metric__value">
-                      <strong className="display">{summary.workingSets}</strong>
+                      <strong className="display" aria-label={exact(summary.workingSets)}>
+                        {formatCompactNumber(summary.workingSets, locale)}
+                      </strong>
                       <span
                         className="week-metric__delta mono"
                         data-direction={deltas.workingSets.direction}
@@ -433,10 +475,13 @@ export function Home() {
                     </div>
                     <span>{t('home.workingSets', { count: summary.workingSets })}</span>
                   </div>
-                  <div className="week-metric">
+                  <div className="week-metric week-metric--volume">
                     <div className="week-metric__value">
-                      <strong className="display">
-                        {displayVolume(summary.volume, unit).toLocaleString(locale)} {unit}
+                      <strong
+                        className="display"
+                        aria-label={`${exact(displayVolume(summary.volume, unit))} ${unit}`}
+                      >
+                        {formatCompactNumber(displayVolume(summary.volume, unit), locale)} {unit}
                       </strong>
                       <span
                         className="week-metric__delta mono"
@@ -449,7 +494,9 @@ export function Home() {
                   </div>
                   <div className="week-metric week-metric--duration">
                     <div className="week-metric__value">
-                      <strong className="display">{summary.durationMin}</strong>
+                      <strong className="display" aria-label={exact(summary.durationMin)}>
+                        {formatCompactNumber(summary.durationMin, locale)}
+                      </strong>
                       <span
                         className="week-metric__delta mono"
                         data-direction={deltas.durationMin.direction}

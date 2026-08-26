@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
-import { fmtDate } from '../lib/format';
+import { fmtDate, formatCompactNumber } from '../lib/format';
 import { kindOf, type Workout } from '../lib/types';
 import { displayVolume } from '../lib/units';
 import { useStore } from '../state/useStore';
@@ -80,6 +80,10 @@ export function WorkoutList({ workouts, limit, onOpen }: WorkoutListProps) {
                   (set) => set.done && kindOf(set.kind) === 'working',
                 ).length;
                 const lines = exerciseLines(workout, i18n.language);
+                const volume = displayVolume(workout.volumeKg, unit);
+                const exactVolume = Number.isFinite(volume)
+                  ? volume.toLocaleString(locale, { maximumFractionDigits: 1 })
+                  : '—';
                 return (
                   <li key={workout.id}>
                     <button className="workout-row" onClick={() => onOpen(workout)}>
@@ -95,8 +99,8 @@ export function WorkoutList({ workouts, limit, onOpen }: WorkoutListProps) {
                       </span>
                       <span className="workout-row__metrics mono">
                         {minutes !== null && <span>{t('summary.duration', { min: minutes })}</span>}
-                        <span>
-                          {displayVolume(workout.volumeKg, unit).toLocaleString(locale)} {unit}
+                        <span aria-label={`${exactVolume} ${unit}`}>
+                          {formatCompactNumber(volume, locale)} {unit}
                         </span>
                         <span>{t('history.workingSetCount', { count: workingSets })}</span>
                         {hasPr && <span className="workout-row__positive">{t('history.pr')}</span>}

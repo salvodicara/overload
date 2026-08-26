@@ -1275,25 +1275,37 @@ test('Home week navigator browses earlier progress and opens a completed day', a
   await page.getByRole('button', { name: /2026-08-24.*trained|2026-08-24.*allenato/i }).click();
   await expect(page.getByRole('heading', { name: /truthful august/i })).toBeVisible();
   await page.goBack();
+  await page.waitForTimeout(400);
 
   const overview = page.locator('.home-period-overview');
-  await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
-  await overview.dispatchEvent('pointermove', { clientX: 150, pointerId: 1 });
+  const pager = page.locator('.home-period-pager');
+  const metrics = page.locator('.week-metrics');
+  const chart = page.locator('.line-chart');
+  const metricsBefore = await metrics.boundingBox();
+  const chartBefore = await chart.boundingBox();
+  await pager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await pager.dispatchEvent('pointermove', { clientX: 150, pointerId: 1 });
   await expect
     .poll(() =>
-      overview
-        .locator('.home-period-page')
+      pager
+        .locator('.home-period-pager__page')
         .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
     )
     .toBeGreaterThan(50);
-  await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
+  const metricsDuring = await metrics.boundingBox();
+  const chartDuring = await chart.boundingBox();
+  expect(Math.abs((metricsDuring?.x ?? 0) - (metricsBefore?.x ?? 0))).toBeLessThan(0.5);
+  expect(Math.abs((metricsDuring?.y ?? 0) - (metricsBefore?.y ?? 0))).toBeLessThan(0.5);
+  expect(Math.abs((chartDuring?.x ?? 0) - (chartBefore?.x ?? 0))).toBeLessThan(0.5);
+  expect(Math.abs((chartDuring?.y ?? 0) - (chartBefore?.y ?? 0))).toBeLessThan(0.5);
+  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
   await expect(page.getByText(/17.*23.*aug|17.*23.*ago/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /today|oggi/i })).toBeVisible();
   await expect(page.locator('.home-week-comparison')).toHaveCount(0);
   await expect(page.locator('.week-metric__delta')).toHaveCount(4);
   await page.getByRole('button', { name: /today|oggi/i }).click();
   await expect(page.getByRole('button', { name: /today|oggi/i })).toHaveCount(0);
-  await expect(overview.locator('.home-period-page')).toHaveAttribute('data-motion', 'today');
+  await expect(overview.locator('.home-period-content')).toHaveAttribute('data-motion', 'today');
 });
 
 test('Home switches training periods and swipes the overview to an earlier period', async ({
@@ -1311,8 +1323,9 @@ test('Home switches training periods and swipes the overview to an earlier perio
   const label = page.locator('.home-period-label');
   const currentLabel = await label.textContent();
 
-  await overview.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
-  await overview.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
+  const monthPager = page.locator('.home-period-pager');
+  await monthPager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
+  await monthPager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
 
   await expect(label).not.toHaveText(currentLabel ?? '');
   await overview.focus();
@@ -1321,7 +1334,76 @@ test('Home switches training periods and swipes the overview to an earlier perio
   await expect(label).not.toHaveText(swipedLabel ?? '');
   await expect(overview.getByRole('button', { name: /duration|durata/i })).toBeVisible();
   await periods.getByRole('tab', { name: /year|anno/i }).click();
+  await expect(page.locator('.home-year-pager')).toContainText('2026');
   await expect(page.locator('.line-chart')).toBeVisible();
+});
+
+test('Home stops at the first meaningful workout period', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page
+    .getByRole('tablist', { name: /training period|periodo di allenamento/i })
+    .getByRole('tab', { name: /month|mese/i })
+    .click();
+
+  const overview = page.locator('.home-period-overview');
+  await overview.focus();
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  const earliestLabel = await page.locator('.home-period-label').textContent();
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('.home-period-label')).toHaveText(earliestLabel ?? '');
+
+  const pager = page.locator('.home-period-pager');
+  await pager.dispatchEvent('pointerdown', { clientX: 40, pointerId: 2 });
+  await pager.dispatchEvent('pointermove', { clientX: 240, pointerId: 2 });
+  await expect
+    .poll(() =>
+      pager
+        .locator('.home-period-pager__page')
+        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
+    )
+    .toBeLessThan(80);
+  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 2 });
+  await expect(page.locator('.home-period-label')).toHaveText(earliestLabel ?? '');
+});
+
+test('Home compacts extreme metrics and keeps the chart inside a narrow viewport', async ({
+  page,
+}) => {
+  await installCoreSurfaceFixture(page);
+  await putStoredRow(page, 'workouts', {
+    id: 'extreme-volume',
+    routineId: 'full-body-a',
+    dayLabel: 'Extreme volume',
+    date: '2026-08-26',
+    startTs: Date.parse('2026-08-26T12:00:00Z'),
+    endTs: Date.parse('2026-08-26T13:00:00Z'),
+    sets: [
+      {
+        exerciseId: 'Barbell_Squat',
+        weightKg: 100_000,
+        reps: 1_000,
+        done: true,
+        kind: 'working',
+      },
+    ],
+    volumeKg: 100_000_000,
+    updatedAt: Date.parse('2026-08-26T13:00:00Z'),
+    source: 'app',
+  });
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.reload();
+  await page.getByRole('button', { name: /^home$/i }).click();
+
+  const volume = page.locator('.week-metric--volume strong');
+  await expect(volume).toContainText(/100M kg/i);
+  await expect(volume).toHaveAttribute('aria-label', /100[.,\s]000[.,\s]\d{3} kg/i);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  const chart = await page.locator('.line-chart').boundingBox();
+  expect(chart?.x).toBeGreaterThanOrEqual(0);
+  expect((chart?.x ?? 0) + (chart?.width ?? 0)).toBeLessThanOrEqual(320);
+  await expect(page.getByRole('button', { name: /extreme volume/i })).toContainText(/100M kg/i);
 });
 
 test('history groups truthful completed working activity by month', async ({ page }) => {

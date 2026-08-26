@@ -398,29 +398,67 @@ body {
 
 .home-period-overview {
   overflow: clip;
-  touch-action: pan-y;
 }
 
-.home-period-page {
+.home-week-heading {
+  display: flex;
+  min-width: 0;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.home-period-today-slot {
+  display: flex;
+  width: 72px;
+  min-height: 44px;
+  flex: none;
+  justify-content: flex-end;
+}
+
+.home-period-pager {
+  width: 100%;
+  overflow: clip;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.home-period-pager[data-unit='week'] {
+  height: 30px;
+}
+
+.home-period-pager[data-unit='month'] {
+  height: 298px;
+}
+
+.home-period-pager[data-unit='year'] {
+  height: 56px;
+}
+
+.home-period-pager__page {
+  width: 100%;
   transform: translate3d(var(--period-drag, 0), 0, 0);
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.home-period-page[data-dragging='true'] {
+.home-period-pager__page[data-dragging='true'] {
   transition: none;
   will-change: transform;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .home-period-page[data-motion='previous'] {
+  .home-period-pager__page[data-motion='previous'] {
     animation: period-from-previous 240ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .home-period-page[data-motion='next'] {
+  .home-period-pager__page[data-motion='next'] {
     animation: period-from-next 240ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .home-period-page[data-motion='today'] {
+  .home-period-pager__page[data-motion='today'],
+  .home-period-content[data-motion='previous'],
+  .home-period-content[data-motion='next'],
+  .home-period-content[data-motion='today'] {
     animation: period-today 180ms ease-out;
   }
 
@@ -443,6 +481,15 @@ body {
       opacity: 0;
     }
   }
+}
+
+.home-year-pager {
+  display: grid;
+  height: 56px;
+  place-items: center;
+  color: var(--ink);
+  font-size: clamp(var(--text-xl), 8vw, 32px);
+  font-variant-numeric: tabular-nums;
 }
 
 .home-period-overview:focus-visible {
@@ -538,17 +585,26 @@ body {
 }
 
 .week-metric strong {
+  display: block;
+  max-width: 100%;
   min-width: 0;
   font-size: clamp(19px, 6vw, var(--text-xl));
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .week-metric__value {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
+}
+
+.week-metric__value strong {
+  flex: none;
 }
 
 .week-metric__delta {
@@ -590,6 +646,7 @@ body {
 .month-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: 16px repeat(6, 44px);
   gap: 3px;
 }
 
@@ -605,7 +662,7 @@ body {
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 36px;
+  min-height: 44px;
   place-items: center;
   border-radius: 8px;
   color: var(--muted);
