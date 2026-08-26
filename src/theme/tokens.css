@@ -1806,6 +1806,13 @@ textarea:disabled {
   text-align: center;
 }
 
+.library-more {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
 .library-create-action {
   margin-top: var(--space-4);
 }

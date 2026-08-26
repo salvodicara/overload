@@ -15,6 +15,25 @@ export type CatalogExercise = Exercise & { instructions: string[] };
 
 export type MuscleGroup = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core' | 'calves';
 
+const EQUIPMENT_KEYS: Record<string, string> = {
+  bands: 'bands',
+  barbell: 'barbell',
+  'body only': 'bodyOnly',
+  cable: 'cable',
+  dumbbell: 'dumbbell',
+  'e-z curl bar': 'ezCurlBar',
+  'exercise ball': 'exerciseBall',
+  'foam roll': 'foamRoll',
+  kettlebells: 'kettlebells',
+  machine: 'machine',
+  'medicine ball': 'medicineBall',
+  other: 'other',
+};
+
+export function equipmentLabelKey(equipment: string): string {
+  return `library.equipment.${EQUIPMENT_KEYS[equipment.trim().toLowerCase()] ?? 'other'}`;
+}
+
 const GROUP_OF: Record<string, MuscleGroup> = {
   chest: 'chest',
   back: 'back',
@@ -126,23 +145,81 @@ export function searchExercises(
   group: MuscleGroup | null,
   locale: string,
 ): CatalogExercise[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizeSearch(query);
   const all = [...getCatalog().values()];
   return all
-    .filter((ex) => {
-      if (group && muscleGroup(ex) !== group) return false;
-      if (!q) return true;
-      return (
-        ex.nameIt.toLowerCase().includes(q) ||
-        ex.nameEn.toLowerCase().includes(q) ||
-        (ex.aliases ?? []).some((a) => a.toLowerCase().includes(q))
-      );
+    .flatMap((exercise) => {
+      if (group && muscleGroup(exercise) !== group) return [];
+      const score = q ? searchScore(exercise, q) : 0;
+      return score === null ? [] : [{ exercise, score }];
     })
     .sort((a, b) => {
-      const an = locale === 'it' ? a.nameIt : a.nameEn;
-      const bn = locale === 'it' ? b.nameIt : b.nameEn;
+      if (a.score !== b.score) return a.score - b.score;
+      const an = locale === 'it' ? a.exercise.nameIt : a.exercise.nameEn;
+      const bn = locale === 'it' ? b.exercise.nameIt : b.exercise.nameEn;
       return an.localeCompare(bn, locale);
-    });
+    })
+    .map(({ exercise }) => exercise);
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function searchScore(exercise: CatalogExercise, query: string): number | null {
+  const names = [exercise.nameIt, exercise.nameEn, ...(exercise.aliases ?? [])]
+    .map(normalizeSearch)
+    .filter(Boolean);
+  if (names.some((name) => name === query)) return 0;
+  if (names.some((name) => name.startsWith(query))) return 10;
+  if (names.some((name) => name.includes(query))) return 20;
+
+  const queryTokens = query.split(' ');
+  let best: number | null = null;
+  for (const name of names) {
+    const words = name.split(' ');
+    const exactTokens = queryTokens.every((token) =>
+      words.some((word) => (token.length < 3 ? word === token : word.includes(token))),
+    );
+    if (exactTokens) {
+      best = Math.min(best ?? 30, 30);
+      continue;
+    }
+    const fuzzyTokens = queryTokens.every((token) =>
+      words.some((word) => isCloseToken(token, word)),
+    );
+    if (fuzzyTokens) best = Math.min(best ?? 50, 50);
+  }
+  return best;
+}
+
+function isCloseToken(query: string, candidate: string): boolean {
+  if (query.length < 5 || candidate.length < 5) return false;
+  const threshold = Math.min(2, Math.floor(Math.max(query.length, candidate.length) / 4));
+  if (Math.abs(query.length - candidate.length) > threshold) return false;
+  return editDistanceWithin(query, candidate, threshold);
+}
+
+function editDistanceWithin(a: string, b: string, limit: number): boolean {
+  let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let ai = 1; ai <= a.length; ai += 1) {
+    const current = [ai];
+    let rowBest = current[0];
+    for (let bi = 1; bi <= b.length; bi += 1) {
+      const cost = a[ai - 1] === b[bi - 1] ? 0 : 1;
+      const value = Math.min(current[bi - 1] + 1, previous[bi] + 1, previous[bi - 1] + cost);
+      current.push(value);
+      rowBest = Math.min(rowBest, value);
+    }
+    if (rowBest > limit) return false;
+    previous = current;
+  }
+  return previous[b.length] <= limit;
 }
 
 /** Hevy exercise_title → exerciseId map for the CSV importer. */

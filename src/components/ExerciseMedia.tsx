@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { CatalogExercise } from '../lib/exercises';
+import { IconPause, IconPlay } from './Icons';
 
 /**
  * Component-scoped CSS (tokens.css is owned elsewhere). React 19 hoists and
@@ -30,14 +31,16 @@ const CSS = `
   right: var(--space-2);
   bottom: var(--space-2);
   z-index: 1;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: var(--r-control);
+  border-radius: 999px;
   background: color-mix(in srgb, var(--surface) 90%, transparent);
   color: var(--ink);
-  font-size: var(--text-sm);
-  font-weight: 700;
+  box-shadow: var(--shadow-sm);
 }
 @media (prefers-reduced-motion: no-preference) {
   .exmedia-b { animation: exmedia-xfade 2.2s ease-in-out infinite; }
@@ -125,9 +128,11 @@ export function ExerciseMedia({
         <button
           className="exmedia-toggle"
           type="button"
+          aria-label={t(paused ? 'library.resumeMedia' : 'library.pauseMedia')}
+          aria-pressed={paused}
           onClick={() => setPaused((value) => !value)}
         >
-          {t(paused ? 'library.resumeMedia' : 'library.pauseMedia')}
+          {paused ? <IconPlay /> : <IconPause />}
         </button>
       )}
     </div>

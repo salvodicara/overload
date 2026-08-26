@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import {
   exerciseName,
+  equipmentLabelKey,
   getCatalog,
   italianInstructions,
   loadItalianInstructions,
@@ -122,7 +123,7 @@ export function ExerciseSheet({ id }: { id: string }) {
             {ex.equipment && (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{ex.equipment}</span>
+                <span>{t(equipmentLabelKey(ex.equipment))}</span>
               </>
             )}
           </div>

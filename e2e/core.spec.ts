@@ -2203,6 +2203,34 @@ test('library keeps labelled search, filters, and scroll context through hardwar
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
+test('library progressively reveals the complete catalog and tolerates an Italian typo', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  const results = page.getByRole('list', { name: /exercise results|risultati esercizi/i });
+  await expect(results.getByRole('button')).toHaveCount(60);
+
+  await page.getByRole('button', { name: /show more|mostra altri/i }).scrollIntoViewIfNeeded();
+  await expect.poll(() => results.getByRole('button').count()).toBeGreaterThan(60);
+
+  const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
+  await search.fill('squat bilancerie');
+  await expect(results.getByRole('button').first()).toContainText(/squat/i);
+});
+
+test('Italian exercise surfaces localize dynamic equipment metadata', async ({ page }) => {
+  await setStoredLocale(page, 'it');
+  await page.getByRole('button', { name: 'Esercizi' }).click();
+  const search = page.getByRole('searchbox', { name: 'Cerca esercizi' });
+  await search.fill('squat con bilanciere');
+  const result = page.getByRole('list', { name: 'Risultati esercizi' }).getByRole('button').first();
+  await expect(result).toContainText('Bilanciere');
+  await expect(result).not.toContainText(/\bbarbell\b/i);
+  await result.click();
+  await expect(page.locator('.exercise-detail__metadata')).toContainText('Bilanciere');
+  await expect(page.locator('.exercise-detail__metadata')).not.toContainText(/\bbarbell\b/i);
+});
+
 test('routine custom exercise creates once with its selected prescription tracking', async ({
   page,
 }) => {
@@ -2349,6 +2377,7 @@ test('two-frame exercise media can be paused by keyboard and disappears under re
   const media = page.locator('.exercise-detail__media .exmedia');
   const pause = media.getByRole('button', { name: 'Pause demo' });
   await expect(pause).toBeVisible();
+  await expect(pause).toHaveText('');
   await pause.focus();
   await page.keyboard.press('Enter');
   const resume = media.getByRole('button', { name: 'Resume demo' });

@@ -10,7 +10,8 @@ import { useStore } from '../state/useStore';
 
 type WeekDay = { iso: string; label: string };
 
-function weekDays(now = new Date()): WeekDay[] {
+export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
+  const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
   const monday = new Date(now);
   monday.setHours(12, 0, 0, 0);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -19,7 +20,7 @@ function weekDays(now = new Date()): WeekDay[] {
     day.setDate(monday.getDate() + index);
     return {
       iso: day.toLocaleDateString('sv'),
-      label: day.toLocaleDateString(undefined, { weekday: 'narrow' }),
+      label: day.toLocaleDateString(locale, { weekday: 'narrow' }).toLocaleUpperCase(locale),
     };
   });
 }
@@ -34,7 +35,7 @@ export function Home() {
   const nav = useStore((state) => state.nav);
   const startWorkout = useStore((state) => state.startWorkout);
   const ensureCatalog = useStore((state) => state.ensureCatalog);
-  const days = weekDays();
+  const days = weekDays(new Date(), i18n.language);
   const daySet = new Set(days.map((day) => day.iso));
   const weeklyWorkouts = workouts.filter(
     (workout) => daySet.has(workout.date) && workingSetCount(workout) > 0,

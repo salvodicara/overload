@@ -157,6 +157,22 @@
     "loading": "Caricamento esercizi",
     "pauseMedia": "Metti in pausa la demo",
     "resumeMedia": "Riprendi la demo",
+    "resultCount": "{{shown}} di {{total}}",
+    "showMore": "Mostra altri",
+    "equipment": {
+      "bands": "Elastici",
+      "barbell": "Bilanciere",
+      "bodyOnly": "Corpo libero",
+      "cable": "Cavi",
+      "dumbbell": "Manubri",
+      "ezCurlBar": "Bilanciere EZ",
+      "exerciseBall": "Fitball",
+      "foamRoll": "Foam roller",
+      "kettlebells": "Kettlebell",
+      "machine": "Macchina",
+      "medicineBall": "Palla medica",
+      "other": "Altro"
+    },
     "muscle": {
       "chest": "Petto",
       "back": "Schiena",

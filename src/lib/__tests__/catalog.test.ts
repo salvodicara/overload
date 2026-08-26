@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 type CatalogRow = {
   id: string;
   name: string;
+  equipment?: string;
   primaryMuscles: string[];
   instructions: string[];
   images: string[];
@@ -131,6 +132,51 @@ it('keeps aggregate custom muscle groups in their selected filters', async () =>
   expect(searchExercises('', 'back', 'en').map((exercise) => exercise.id)).toEqual(['custom:back']);
   expect(searchExercises('', 'legs', 'en').map((exercise) => exercise.id)).toEqual(['custom:legs']);
   expect(searchExercises('', 'arms', 'en').map((exercise) => exercise.id)).toEqual(['custom:arms']);
+});
+
+it('localizes every upstream equipment value instead of rendering raw catalog English', async () => {
+  const { equipmentLabelKey } = await freshCatalog();
+
+  expect(equipmentLabelKey('machine')).toBe('library.equipment.machine');
+  expect(equipmentLabelKey('other')).toBe('library.equipment.other');
+  expect(equipmentLabelKey('e-z curl bar')).toBe('library.equipment.ezCurlBar');
+  expect(equipmentLabelKey('unknown upstream value')).toBe('library.equipment.other');
+});
+
+it('ranks bilingual token-order and conservative typo matches', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      response([
+        {
+          ...PUBLIC_ROW,
+          id: 'Barbell_Squat',
+          name: 'Barbell Squat',
+          primaryMuscles: ['quadriceps'],
+        },
+        {
+          ...PUBLIC_ROW,
+          id: 'Dumbbell_Bench_Press',
+          name: 'Dumbbell Bench Press',
+          primaryMuscles: ['chest'],
+        },
+        {
+          ...PUBLIC_ROW,
+          id: 'Seated_Cable_Rows',
+          name: 'Seated Cable Rows',
+          primaryMuscles: ['middle back'],
+        },
+      ]),
+    ),
+  );
+  const { loadCatalog, searchExercises } = await freshCatalog();
+  await loadCatalog();
+
+  expect(searchExercises('bilanciere squat', null, 'it')[0]?.id).toBe('Barbell_Squat');
+  expect(searchExercises('panca manubri', null, 'en')[0]?.id).toBe('Dumbbell_Bench_Press');
+  expect(searchExercises('bilancerie', null, 'it')[0]?.id).toBe('Barbell_Squat');
+  expect(searchExercises('pulley', null, 'en')[0]?.id).toBe('Seated_Cable_Rows');
+  expect(searchExercises('totally unrelated', null, 'it')).toEqual([]);
 });
 
 it('cancels overlapping retry timers when the catalog consumer unmounts', async () => {

@@ -5,7 +5,12 @@ import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
-import { muscleGroup, searchExercises, type MuscleGroup } from '../lib/exercises';
+import {
+  equipmentLabelKey,
+  muscleGroup,
+  searchExercises,
+  type MuscleGroup,
+} from '../lib/exercises';
 import type { TrackingType } from '../lib/types';
 import {
   isAccountActionCurrent,
@@ -83,7 +88,9 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
   const [pendingPick, setPendingPick] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(MAX_RESULTS);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const mountedRef = useRef(true);
   const sheetGenerationRef = useRef(0);
   const submitGenerationRef = useRef<number | null>(null);
@@ -109,7 +116,27 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
     () => searchExercises(query, group, i18n.language),
     [catalogReady, query, group, i18n.language],
   );
-  const shown = results.slice(0, MAX_RESULTS);
+  const shown = results.slice(0, visibleCount);
+  const hasMore = shown.length < results.length;
+
+  useEffect(() => {
+    setVisibleCount(MAX_RESULTS);
+  }, [group, i18n.language, query]);
+
+  useEffect(() => {
+    const target = moreRef.current;
+    if (!target || !hasMore || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisibleCount((count) => Math.min(count + MAX_RESULTS, results.length));
+        }
+      },
+      { rootMargin: '240px 0px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, results.length, shown.length]);
 
   async function pick(id: string): Promise<void> {
     if (pendingPick) return;
@@ -279,7 +306,7 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
                       {exercise.equipment && (
                         <>
                           <span aria-hidden="true">·</span>
-                          <span id={equipmentId}>{exercise.equipment}</span>
+                          <span id={equipmentId}>{t(equipmentLabelKey(exercise.equipment))}</span>
                         </>
                       )}
                     </span>
@@ -289,6 +316,26 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
             );
           })}
         </ul>
+      )}
+
+      {results.length > 0 && (
+        <div className="library-more">
+          <span className="mono small muted" role="status">
+            {t('library.resultCount', { shown: shown.length, total: results.length })}
+          </span>
+          {hasMore && (
+            <button
+              ref={moreRef}
+              type="button"
+              className="btn btn-ghost"
+              onClick={() =>
+                setVisibleCount((count) => Math.min(count + MAX_RESULTS, results.length))
+              }
+            >
+              {t('library.showMore')}
+            </button>
+          )}
+        </div>
       )}
 
       <button

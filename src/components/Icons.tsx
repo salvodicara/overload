@@ -58,6 +58,12 @@ export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+export const IconPause = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <path d="M8 6v12M16 6v12" strokeWidth="3" />
+  </svg>
+);
+
 export const IconMinus = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}>
     <path d="M5.5 12h13" />
