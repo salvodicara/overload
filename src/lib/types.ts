@@ -10,6 +10,8 @@ export const kindOf = (value?: SetKind): SetKind => value ?? 'working';
 
 export type SetLog = {
   exerciseId: string;
+  /** Stable identity of this exercise occurrence inside the workout. */
+  exerciseInstanceId?: string;
   weightKg: number;
   reps: number;
   done: boolean;
@@ -27,16 +29,22 @@ export type Workout = {
   date: string;
   startTs: number;
   endTs?: number;
+  /** Active elapsed time, excluding pauses. */
+  durationSec?: number;
   sets: SetLog[];
   volumeKg: number;
   note?: string;
-  exerciseNotes?: { exerciseId: string; text: string }[];
+  exerciseNotes?: { exerciseId: string; exerciseInstanceId?: string; text: string }[];
+  /** Stable display order for exercise occurrences, including duplicates. */
+  exerciseOrder?: string[];
   updatedAt: number;
   source: 'app' | 'hevy';
 };
 
 export type RoutineExercise = {
   exerciseId: string;
+  /** Stable identity for this exact occurrence in the routine. */
+  occurrenceId?: string;
   sets: number;
   repMin: number;
   /** null = open-ended (e.g. "max") */

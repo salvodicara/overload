@@ -261,6 +261,7 @@ describe('active session helpers', () => {
       ex: [
         {
           exerciseId: 'squat',
+          instanceId: 'legacy:routine:0:squat',
           hintKey: 'suggest.repeat',
           sets: [{ weightKg: 60, reps: 5, done: true }],
         },
@@ -282,6 +283,7 @@ describe('active session helpers', () => {
       ex: [
         {
           exerciseId: 'squat',
+          instanceId: 'legacy:routine:0:squat',
           tracking: 'weight_reps',
           hintKey: 'suggest.repeat',
           sets: [
@@ -335,6 +337,7 @@ describe('active session helpers', () => {
     expect(workout?.sets).toEqual([
       {
         exerciseId: 'squat',
+        exerciseInstanceId: 'legacy:routine:0:squat',
         weightKg: 60,
         reps: 5,
         done: true,
@@ -342,10 +345,7 @@ describe('active session helpers', () => {
         kind: 'working',
       },
     ]);
-    expect(rehydratedStore.getState().pendingRoutineChanges).toEqual({
-      routineId: 'routine',
-      items: [{ exerciseId: 'squat', exerciseIndex: 0, sets: 1 }],
-    });
+    expect(rehydratedStore.getState().pendingRoutineChanges).toBeNull();
 
     rehydratedStore.setState({
       routines: [
@@ -371,8 +371,11 @@ describe('active session helpers', () => {
     });
     await rehydratedStore.getState().applyRoutineChanges();
     expect(rehydratedStore.getState().routines[0].exercises[0]).toMatchObject({
-      sets: 1,
-      setTargets: [{ repMin: 5, repMax: 5, startWeightKg: 60 }],
+      sets: 2,
+      setTargets: [
+        { repMin: 5, repMax: 5, startWeightKg: 60 },
+        { repMin: 8, repMax: 10, startWeightKg: 50 },
+      ],
     });
   });
 });

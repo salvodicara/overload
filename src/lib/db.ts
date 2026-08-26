@@ -53,6 +53,12 @@ export async function saveWorkout(w: Workout): Promise<void> {
   await db.workouts.put(w);
 }
 
+export async function saveWorkouts(workouts: Workout[]): Promise<void> {
+  await db.transaction('rw', db.workouts, async () => {
+    await db.workouts.bulkPut(workouts);
+  });
+}
+
 export async function deleteWorkout(id: string): Promise<void> {
   await db.workouts.delete(id);
 }

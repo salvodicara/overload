@@ -16,6 +16,7 @@ export type SurfaceStateMap = {
     routineId?: string;
     exerciseId?: string;
     visibleCount?: number;
+    selectedDay?: string | null;
   };
   library: { query?: string; group?: string | null; visibleCount?: number };
   progress: { section?: string; exerciseId?: string; metric?: string; range?: string };

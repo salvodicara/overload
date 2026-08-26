@@ -1,6 +1,17 @@
 // Rest-timer beep. Short Web Audio tones request transient audio focus on
 // Android, so they duck over background music (Hevy-like) instead of pausing it.
 let ctx: AudioContext | null = null;
+export const REST_NOTIFICATION_TAG = 'overload-rest-over';
+
+export async function closeRestNotifications(): Promise<void> {
+  try {
+    const registration = await navigator.serviceWorker?.ready;
+    const notifications = await registration?.getNotifications({ tag: REST_NOTIFICATION_TAG });
+    notifications?.forEach((notification) => notification.close());
+  } catch {
+    /* best effort */
+  }
+}
 
 /** Call from a user gesture (workout start) to satisfy autoplay policy. */
 export function unlockAudio(): void {
@@ -40,8 +51,15 @@ export function beep(): void {
 export async function notifyRestOver(title: string, body: string): Promise<void> {
   try {
     if (Notification.permission !== 'granted') return;
+    await closeRestNotifications();
     const reg = await navigator.serviceWorker?.ready;
-    await reg?.showNotification(title, { body, tag: 'rest-over' });
+    await reg?.showNotification(title, {
+      body,
+      tag: REST_NOTIFICATION_TAG,
+      requireInteraction: false,
+      data: { expiresAt: Date.now() + 15_000 },
+    });
+    setTimeout(() => void closeRestNotifications(), 15_000);
   } catch {
     /* best effort */
   }

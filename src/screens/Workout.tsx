@@ -1,7 +1,15 @@
 import { createRef, useEffect, useRef, useState, type FocusEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
-import { IconCheck, IconDown, IconMinus, IconNote } from '../components/Icons';
+import {
+  IconCheck,
+  IconDown,
+  IconMinus,
+  IconMore,
+  IconNote,
+  IconPause,
+  IconPlay,
+} from '../components/Icons';
 import { NoteEditor } from '../components/NoteEditor';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
@@ -9,6 +17,8 @@ import { exerciseName } from '../lib/exercises';
 import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
 import type { TrackingType } from '../lib/types';
+import { elapsedWorkoutMs } from '../lib/workoutTiming';
+import { normalizeRoutineOccurrences } from '../lib/workoutOccurrences';
 import { canonicalWeight, displayWeight, formatWeight, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
 
@@ -52,10 +62,20 @@ export function Workout() {
   const notes = useStore((s) => s.notes);
   const updateSessionNote = useStore((s) => s.updateSessionNote);
   const setRestOverride = useStore((s) => s.setRestOverride);
+  const updateRoutineTechnique = useStore((s) => s.updateRoutineTechnique);
+  const removeWorkoutExercise = useStore((s) => s.removeWorkoutExercise);
+  const moveWorkoutExercise = useStore((s) => s.moveWorkoutExercise);
+  const pauseWorkoutClock = useStore((s) => s.pauseWorkoutClock);
+  const resumeWorkoutClock = useStore((s) => s.resumeWorkoutClock);
   const [confirming, setConfirming] = useState(false);
   const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
+  const [exerciseOptions, setExerciseOptions] = useState<{
+    instanceId: string;
+    name: string;
+    index: number;
+  } | null>(null);
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
   const addSetRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
@@ -67,7 +87,8 @@ export function Workout() {
     return () => clearInterval(id);
   }, []);
 
-  const routine = routines.find((r) => r.id === active?.routineId);
+  const routineSource = routines.find((r) => r.id === active?.routineId);
+  const routine = routineSource ? normalizeRoutineOccurrences(routineSource) : undefined;
   const broken = routines.length > 0 && (!active || !routine);
   useEffect(() => {
     if (broken) abandon();
@@ -75,7 +96,7 @@ export function Workout() {
   if (!active || !routine) return null;
 
   const unit = settings.unit ?? 'kg';
-  const elapsed = Math.floor((Date.now() - active.startTs) / 1000);
+  const elapsed = Math.floor(elapsedWorkoutMs(active) / 1000);
 
   return (
     <div className="screen workout-screen">
@@ -84,9 +105,18 @@ export function Workout() {
         sticky
         title={<span className="workout-header__title">{routine.name}</span>}
         eyebrow={
-          <span className="workout-header__elapsed">
-            {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-          </span>
+          <button
+            type="button"
+            className="workout-header__clock"
+            aria-label={t(active.pausedAt ? 'workout.resumeClock' : 'workout.pauseClock')}
+            aria-pressed={Boolean(active.pausedAt)}
+            onClick={active.pausedAt ? resumeWorkoutClock : pauseWorkoutClock}
+          >
+            {active.pausedAt ? <IconPlay width={14} /> : <IconPause width={14} />}
+            <span className="workout-header__elapsed">
+              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+            </span>
+          </button>
         }
         back={{
           label: t('workout.minimize'),
@@ -115,7 +145,12 @@ export function Workout() {
         {active.ex.map((exercise, exerciseIndex) => {
           // Active exercises preserve routine order, so the index identifies the exact
           // prescription even when the same catalog exercise appears more than once.
-          const prescription = routine.exercises[exerciseIndex];
+          const instanceId =
+            exercise.instanceId ?? `legacy:${active.routineId}:${exerciseIndex}:${exercise.exerciseId}`;
+          const prescription =
+            routine.exercises.find(
+              (item) => item.occurrenceId === exercise.routineOccurrenceId,
+            ) ?? routine.exercises[exerciseIndex];
           const name = exerciseName(exercise.exerciseId, i18n.language);
           const priorWorkingSets = previousSets(workouts, exercise.exerciseId, routine.id);
           const firstWorkingWeight =
@@ -149,16 +184,26 @@ export function Workout() {
           let workingIndex = 0;
 
           return (
-            <section key={exercise.exerciseId} className="exercise-block card">
+            <section key={instanceId} className="exercise-block card">
               <div className="card-pad exercise-block__header">
-                <button
-                  className="exercise-block__name"
-                  onClick={() =>
-                    nav({ view: 'exercise', id: exercise.exerciseId, from: 'workout' })
-                  }
-                >
-                  {name}
-                </button>
+                <div className="exercise-block__title-row">
+                  <button
+                    className="exercise-block__name"
+                    onClick={() =>
+                      nav({ view: 'exercise', id: exercise.exerciseId, from: 'workout' })
+                    }
+                  >
+                    {name}
+                  </button>
+                  <button
+                    type="button"
+                    className="iconbtn exercise-block__options"
+                    aria-label={t('workout.exerciseOptions')}
+                    onClick={() => setExerciseOptions({ instanceId, name, index: exerciseIndex })}
+                  >
+                    <IconMore />
+                  </button>
+                </div>
                 <div className="exercise-block__meta">
                   {target && <span className="exercise-block__target">{target}</span>}
                   {prescription && (
@@ -219,8 +264,11 @@ export function Workout() {
 
                 {(() => {
                   const note = notes.find((item) => item.id === exercise.exerciseId);
+                  const techniqueKey = `${instanceId}:technique`;
                   const sessionKey = `${exerciseIndex}:session`;
+                  const editingTechnique = expandedNotes[techniqueKey] ?? false;
                   const sessionExpanded = expandedNotes[sessionKey] ?? false;
+                  const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
                   const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
                   const sessionContentId = `workout-note-${exerciseIndex}-session-content`;
                   const previousSession = exerciseJournal(workouts, note, exercise.exerciseId).find(
@@ -262,12 +310,40 @@ export function Workout() {
                         >
                           {sessionExpanded && (
                             <>
-                              {prescription?.note && (
-                                <aside className="workout-coach-note">
-                                  <span className="mono small">{t('notes.coach')}</span>
-                                  <p>{prescription.note}</p>
-                                </aside>
-                              )}
+                              <aside className="workout-coach-note">
+                                <span id={techniqueLabelId} className="mono small">
+                                  {t('notes.technique')}
+                                </span>
+                                {prescription?.note && <p>{prescription.note}</p>}
+                                {!editingTechnique && (
+                                  <button
+                                    type="button"
+                                    className="workout-technique-edit"
+                                    onClick={() => toggleNote(techniqueKey)}
+                                  >
+                                    {t('workout.editTechnique')}
+                                  </button>
+                                )}
+                                {editingTechnique && (
+                                  <NoteEditor
+                                    key={`technique:${instanceId}`}
+                                    initial={prescription?.note ?? ''}
+                                    placeholder={t('workout.techniquePlaceholder')}
+                                    labelledBy={techniqueLabelId}
+                                    doneLabel={t('notes.done')}
+                                    onChangeText={() => undefined}
+                                    onDone={async (text) => {
+                                      await updateRoutineTechnique(
+                                        prescription?.occurrenceId ??
+                                          exercise.routineOccurrenceId ??
+                                          instanceId,
+                                        text,
+                                      );
+                                      toggleNote(techniqueKey);
+                                    }}
+                                  />
+                                )}
+                              </aside>
                               {previousSession && (
                                 <p className="workout-note__context">
                                   <span>
@@ -445,6 +521,14 @@ export function Workout() {
         })}
       </div>
 
+      <button
+        type="button"
+        className="btn btn-ghost btn-block workout-add-exercise"
+        onClick={() => nav({ view: 'library', pickFor: { activeWorkout: true } })}
+      >
+        {t('workout.addExercise')}
+      </button>
+
       <details className="workout-actions">
         <summary>{t('workout.moreActions')}</summary>
         <button className="btn btn-danger btn-block" onClick={() => setConfirming(true)}>
@@ -483,6 +567,61 @@ export function Workout() {
           >
             {t('workout.cancel')}
           </button>
+        </BottomSheet>
+      )}
+
+      {exerciseOptions && (
+        <BottomSheet
+          open
+          title={exerciseOptions.name}
+          onClose={() => setExerciseOptions(null)}
+        >
+          <div className="workout-exercise-options">
+            <button
+              className="btn btn-ghost"
+              disabled={exerciseOptions.index === 0}
+              onClick={() => {
+                moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index - 1);
+                setExerciseOptions(null);
+              }}
+            >
+              {t('routines.moveUp')}
+            </button>
+            <button
+              className="btn btn-ghost"
+              disabled={exerciseOptions.index === active.ex.length - 1}
+              onClick={() => {
+                moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index + 1);
+                setExerciseOptions(null);
+              }}
+            >
+              {t('routines.moveDown')}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() =>
+                nav({
+                  view: 'library',
+                  pickFor: {
+                    activeWorkout: true,
+                    replaceInstanceId: exerciseOptions.instanceId,
+                  },
+                })
+              }
+            >
+              {t('workout.replaceExercise')}
+            </button>
+            <button
+              className="btn btn-danger"
+              disabled={active.ex.length <= 1}
+              onClick={() => {
+                removeWorkoutExercise(exerciseOptions.instanceId);
+                setExerciseOptions(null);
+              }}
+            >
+              {t('workout.removeExercise')}
+            </button>
+          </div>
         </BottomSheet>
       )}
 

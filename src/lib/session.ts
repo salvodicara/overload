@@ -19,6 +19,8 @@ export type ActiveSet = {
 
 export type ActiveExercise = {
   exerciseId: string;
+  instanceId?: string;
+  routineOccurrenceId?: string;
   tracking: TrackingType;
   sets: ActiveSet[];
   hintKey: string;
@@ -33,10 +35,13 @@ export type ActiveSession = {
   restUntil?: number | null;
   restExerciseId?: string | null;
   restTotalSec?: number | null;
+  pausedAt?: number;
+  pausedTotalMs?: number;
 };
 
 export type PersistedActiveSession = Omit<ActiveSession, 'ex'> & {
-  ex: (Omit<ActiveExercise, 'tracking' | 'sets'> & {
+  ex: (Omit<ActiveExercise, 'tracking' | 'sets' | 'instanceId'> & {
+    instanceId?: string;
     tracking?: TrackingType;
     sets: (Omit<ActiveSet, 'durationSec' | 'kind'> & {
       durationSec?: number | null;
@@ -48,8 +53,9 @@ export type PersistedActiveSession = Omit<ActiveSession, 'ex'> & {
 export function normalizeActiveSession(active: PersistedActiveSession): ActiveSession {
   return {
     ...active,
-    ex: active.ex.map((exercise) => ({
+    ex: active.ex.map((exercise, index) => ({
       ...exercise,
+      instanceId: exercise.instanceId ?? `legacy:${active.routineId}:${index}:${exercise.exerciseId}`,
       tracking: trackingOf(exercise.tracking),
       sets: exercise.sets.map((set) => ({
         ...set,
@@ -93,6 +99,8 @@ export function buildActiveExercise(
 
   return {
     exerciseId: rx.exerciseId,
+    instanceId: rx.occurrenceId ?? `ax:${crypto.randomUUID()}`,
+    ...(rx.occurrenceId ? { routineOccurrenceId: rx.occurrenceId } : {}),
     tracking,
     hintKey: suggestion.hintKey,
     sets: [...warmups, ...working],
@@ -104,6 +112,7 @@ export function completedSets(active: ActiveExercise): SetLog[] {
     .filter((set) => set.done)
     .map((set) => ({
       exerciseId: active.exerciseId,
+      ...(active.instanceId ? { exerciseInstanceId: active.instanceId } : {}),
       weightKg: set.weightKg ?? 0,
       reps: set.reps ?? 0,
       done: true,

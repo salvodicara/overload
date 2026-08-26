@@ -72,9 +72,11 @@ export function WorkoutList({ workouts, limit, onOpen }: WorkoutListProps) {
             </h3>
             <ul className="workout-group__list">
               {month.workouts.map((workout) => {
-                const minutes = workout.endTs
-                  ? Math.max(1, Math.round((workout.endTs - workout.startTs) / 60_000))
-                  : null;
+                const durationSec =
+                  workout.durationSec ??
+                  (workout.endTs ? (workout.endTs - workout.startTs) / 1000 : null);
+                const minutes =
+                  durationSec !== null ? Math.max(1, Math.round(durationSec / 60)) : null;
                 const hasPr = workout.sets.some((set) => set.isPr);
                 const workingSets = workout.sets.filter(
                   (set) => set.done && kindOf(set.kind) === 'working',

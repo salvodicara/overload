@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCatalog } from '../hooks/useCatalog';
-import { beep, notifyRestOver } from '../lib/audio';
+import { beep, closeRestNotifications, notifyRestOver } from '../lib/audio';
 import { exerciseName } from '../lib/exercises';
 import { useStore } from '../state/useStore';
 
@@ -13,6 +13,18 @@ export function RestWatcher() {
   const stopRest = useStore((s) => s.stopRest);
   const firedFor = useRef<number | null>(null);
   useCatalog(Boolean(restUntil && restExerciseId));
+
+  useEffect(() => {
+    const clearWhenVisible = (): void => {
+      if (document.visibilityState === 'visible') void closeRestNotifications();
+    };
+    window.addEventListener('focus', clearWhenVisible);
+    document.addEventListener('visibilitychange', clearWhenVisible);
+    return () => {
+      window.removeEventListener('focus', clearWhenVisible);
+      document.removeEventListener('visibilitychange', clearWhenVisible);
+    };
+  }, []);
 
   useEffect(() => {
     if (!restUntil) return;

@@ -27,6 +27,9 @@ const Summary = lazy(() =>
 const WorkoutDetail = lazy(() =>
   import('./screens/WorkoutDetail').then(({ WorkoutDetail }) => ({ default: WorkoutDetail })),
 );
+const WorkoutEditor = lazy(() =>
+  import('./screens/WorkoutEditor').then(({ WorkoutEditor }) => ({ default: WorkoutEditor })),
+);
 const Progress = lazy(() =>
   import('./screens/Progress').then(({ Progress }) => ({ default: Progress })),
 );
@@ -47,6 +50,22 @@ initI18n();
 
 function Screen() {
   const route = useStore((s) => s.route);
+  const { t } = useTranslation();
+  useEffect(() => {
+    const section =
+      route.view === 'home'
+        ? t('nav.home')
+        : route.view === 'history' || route.view === 'workoutDetail' || route.view === 'workoutEditor'
+          ? t('history.title')
+          : route.view === 'workout' || route.view === 'train' || route.view === 'routineEditor'
+            ? t('nav.workout')
+            : route.view === 'progress'
+              ? t('nav.progress')
+              : route.view === 'profile' || route.view === 'importExport'
+                ? t('nav.profile')
+                : t('nav.library');
+    document.title = `${section} · ${t('app.name')}`;
+  }, [route.view, t]);
   switch (route.view) {
     case 'home':
       return <Home />;
@@ -62,6 +81,8 @@ function Screen() {
       return <Summary workoutId={route.workoutId} />;
     case 'workoutDetail':
       return <WorkoutDetail id={route.id} />;
+    case 'workoutEditor':
+      return <WorkoutEditor id={route.id} />;
     case 'progress':
       return <Progress />;
     case 'library':
@@ -79,7 +100,7 @@ function RouteFallback() {
   const { t } = useTranslation();
   const route = useStore((state) => state.route);
   const title =
-    route.view === 'history' || route.view === 'workoutDetail'
+    route.view === 'history' || route.view === 'workoutDetail' || route.view === 'workoutEditor'
       ? t('history.title')
       : route.view === 'train' || route.view === 'workout'
         ? t('nav.workout')

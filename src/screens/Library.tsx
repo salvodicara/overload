@@ -31,9 +31,11 @@ export async function createCustomExerciseFlow(
     name: string;
     muscleGroup: MuscleGroup;
     tracking?: TrackingType;
-    pickFor?: { routineId: string };
+    pickFor?: { routineId: string } | { activeWorkout: true; replaceInstanceId?: string };
   },
   actions: Pick<Store, 'createCustomExercise' | 'addExerciseToRoutine' | 'nav'> & {
+    addWorkoutExercise?(exerciseId: string): void;
+    replaceWorkoutExercise?(instanceId: string, exerciseId: string): void;
     close(): void;
     isUiCurrent(): boolean;
   },
@@ -45,6 +47,13 @@ export async function createCustomExerciseFlow(
 
   const id = created.value;
   if (input.pickFor) {
+    if ('activeWorkout' in input.pickFor) {
+      if (input.pickFor.replaceInstanceId)
+        actions.replaceWorkoutExercise?.(input.pickFor.replaceInstanceId, id);
+      else actions.addWorkoutExercise?.(id);
+      actions.close();
+      return created;
+    }
     const added = await actions.addExerciseToRoutine(
       input.pickFor.routineId,
       id,
@@ -60,12 +69,18 @@ export async function createCustomExerciseFlow(
   return created;
 }
 
-export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
+export function Library({
+  pickFor,
+}: {
+  pickFor?: { routineId: string } | { activeWorkout: true; replaceInstanceId?: string };
+}) {
   const { t, i18n } = useTranslation();
   useCatalog();
   const catalogReady = useStore((s) => s.catalogReady);
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
+  const addWorkoutExercise = useStore((s) => s.addWorkoutExercise);
+  const replaceWorkoutExercise = useStore((s) => s.replaceWorkoutExercise);
   const createCustomExercise = useStore((s) => s.createCustomExercise);
   const [surface, setSurface] = useSurfaceState('library', {
     query: '',
@@ -136,6 +151,11 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
       nav({ view: 'exercise', id });
       return;
     }
+    if ('activeWorkout' in pickFor) {
+      if (pickFor.replaceInstanceId) replaceWorkoutExercise(pickFor.replaceInstanceId, id);
+      else addWorkoutExercise(id);
+      return;
+    }
 
     setOperationError(null);
     setPendingPick(id);
@@ -192,6 +212,8 @@ export function Library({ pickFor }: { pickFor?: { routineId: string } }) {
         {
           createCustomExercise,
           addExerciseToRoutine,
+          addWorkoutExercise,
+          replaceWorkoutExercise,
           nav,
           isUiCurrent,
           close: () => {

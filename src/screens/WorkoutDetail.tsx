@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
-import { IconBack } from '../components/Icons';
+import { IconBack, IconMore } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
@@ -50,7 +50,11 @@ export function WorkoutDetail({ id }: { id: string }) {
   const unit = useStore((state) => state.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const deleteWorkout = useStore((s) => s.deleteWorkout);
+  const repeatWorkout = useStore((s) => s.repeatWorkout);
+  const saveWorkoutAsRoutine = useStore((s) => s.saveWorkoutAsRoutine);
   const [confirming, setConfirming] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [routineName, setRoutineName] = useState('');
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
   const workout = workouts.find((candidate) => candidate.id === id);
@@ -64,6 +68,13 @@ export function WorkoutDetail({ id }: { id: string }) {
   const workingSetCount = workout.sets.filter(
     (set) => set.done && kindOf(set.kind) === 'working',
   ).length;
+  const durationMin = Math.max(
+    1,
+    Math.round(
+      (workout.durationSec ??
+        (workout.endTs ? (workout.endTs - workout.startTs) / 1000 : 0)) / 60,
+    ),
+  );
 
   const setValue = (set: SetLog): string => {
     const tracking = trackingOf(set.tracking);
@@ -117,6 +128,18 @@ export function WorkoutDetail({ id }: { id: string }) {
         }
         eyebrow={fmtDate(workout.date, i18n.language)}
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+        action={
+          <button
+            className="iconbtn"
+            aria-label={t('history.workoutOptions')}
+            onClick={() => {
+              setRoutineName(workout.dayLabel ?? t('nav.workout'));
+              setOptionsOpen(true);
+            }}
+          >
+            <IconMore />
+          </button>
+        }
       />
 
       <div className="card card-pad spread">
@@ -128,6 +151,7 @@ export function WorkoutDetail({ id }: { id: string }) {
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <span className="chip">{t('history.workingSetCount', { count: workingSetCount })}</span>
+          <span className="chip">{t('summary.duration', { min: durationMin })}</span>
           {workout.source !== 'app' && <span className="chip">{t('history.imported')}</span>}
         </div>
       </div>
@@ -176,13 +200,53 @@ export function WorkoutDetail({ id }: { id: string }) {
         </section>
       )}
 
-      <button
-        className="btn btn-danger btn-block"
-        style={{ marginTop: 20 }}
-        onClick={() => setConfirming(true)}
-      >
-        {t('history.delete')}
-      </button>
+      {optionsOpen && (
+        <BottomSheet open title={t('history.workoutOptions')} onClose={() => setOptionsOpen(false)}>
+          <button
+            className="btn btn-solid btn-block"
+            onClick={() => nav({ view: 'workoutEditor', id: workout.id })}
+          >
+            {t('history.editWorkout')}
+          </button>
+          <button
+            className="btn btn-ghost btn-block"
+            onClick={() => void repeatWorkout(workout.id)}
+          >
+            {t('history.repeatWorkout')}
+          </button>
+          <label className="field-label" htmlFor="save-workout-routine">
+            {t('history.saveAsRoutine')}
+          </label>
+          <div className="row">
+            <input
+              id="save-workout-routine"
+              value={routineName}
+              onChange={(event) => setRoutineName(event.target.value)}
+            />
+            <button
+              className="btn btn-ghost"
+              disabled={!routineName.trim()}
+              onClick={() =>
+                void continueAccountAction(
+                  saveWorkoutAsRoutine(workout.id, routineName),
+                  () => setOptionsOpen(false),
+                )
+              }
+            >
+              {t('common.save')}
+            </button>
+          </div>
+          <button
+            className="btn btn-danger btn-block"
+            onClick={() => {
+              setOptionsOpen(false);
+              setConfirming(true);
+            }}
+          >
+            {t('history.delete')}
+          </button>
+        </BottomSheet>
+      )}
 
       {confirming && (
         <BottomSheet
@@ -195,7 +259,7 @@ export function WorkoutDetail({ id }: { id: string }) {
           <button
             className="btn btn-danger btn-block"
             onClick={() => {
-              void continueAccountAction(deleteWorkout(workout.id), () => nav({ view: 'home' }));
+              void continueAccountAction(deleteWorkout(workout.id), () => history.back());
             }}
           >
             {t('history.deleteConfirm')}
