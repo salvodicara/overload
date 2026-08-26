@@ -1160,7 +1160,10 @@ select {
 textarea:not(.note-editor__field) {
   width: 100%;
   min-height: 64px;
+  field-sizing: content;
   padding: var(--space-3);
+  overflow-y: hidden;
+  resize: none;
   border: 1px solid var(--line);
   border-radius: var(--r-control);
   background: var(--surface2);

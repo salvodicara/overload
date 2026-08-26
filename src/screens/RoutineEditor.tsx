@@ -423,7 +423,6 @@ export function RoutineEditor({ id }: { id: string }) {
           aria-label={t('editor.preparation')}
           placeholder={t('editor.preparationPlaceholder')}
           rows={2}
-          style={{ minHeight: 64, resize: 'vertical' }}
           onChange={(e) => commit((r) => void (r.warmup = e.target.value.trim() || undefined))}
         />
       </label>

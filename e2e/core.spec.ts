@@ -1492,6 +1492,40 @@ test('routine preparation and exercise settings remain editable', async ({ page 
   );
 });
 
+test('long routine notes expand to keep all text visible while editing', async ({ page }) => {
+  await openNeutralRoutineEditor(page);
+  const longNote = [
+    'Set the bench one notch below upright.',
+    'Keep the shoulder blades down and back.',
+    'Pause briefly in the stretched position.',
+    'Drive without losing contact with the pad.',
+    'Stop the set if the shoulder rolls forward.',
+  ].join('\n');
+  const expectExpansion = async (field: Locator) => {
+    const start = await field.evaluate((element) => element.clientHeight);
+    await field.fill(longNote);
+    await expect
+      .poll(() => field.evaluate((element) => element.clientHeight))
+      .toBeGreaterThan(start);
+    const fullyVisible = await field.evaluate(
+      (element) => element.scrollHeight <= element.clientHeight + 1,
+    );
+    expect(fullyVisible).toBe(true);
+  };
+
+  const preparation = page.getByRole('textbox', { name: /warm-up|riscaldamento/i });
+  await expectExpansion(preparation);
+
+  await page
+    .locator('.routine-exercise')
+    .first()
+    .locator('summary')
+    .filter({ hasText: /routine technique|tecnica della scheda/i })
+    .click();
+  const technique = page.getByLabel(/technique|tecnica/i).first();
+  await expectExpansion(technique);
+});
+
 test('routine editor keeps one compact exercise open and hides tracking jargon', async ({
   page,
 }) => {
