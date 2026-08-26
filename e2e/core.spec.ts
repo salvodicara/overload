@@ -126,6 +126,11 @@ export async function startNeutralWorkout(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /start full body a|inizia full body a/i }).click();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
+  const loads = page.getByRole('spinbutton', { name: /load|carico/i });
+  for (let index = 0; index < (await loads.count()); index += 1) {
+    const input = loads.nth(index);
+    if ((await input.inputValue()) === '') await input.fill('0');
+  }
 }
 
 export async function openNeutralRoutineEditor(page: Page): Promise<void> {
@@ -1419,6 +1424,9 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
 
 test('routine preparation and exercise settings remain editable', async ({ page }) => {
   await openNeutralRoutineEditor(page);
+  await expect(page.locator('.routine-editor-header .page-header__title')).toContainText(
+    NEUTRAL_ROUTINE,
+  );
   await page.getByRole('textbox', { name: /warm-up|riscaldamento/i }).fill('5 min easy bike');
   await setRoutineExerciseGoal(page, page.locator('.routine-exercise').first(), /^time$|^tempo$/i);
   await page
@@ -1744,6 +1752,7 @@ test('active workout keeps finish and previous values in reach', async ({ page }
     name: /finish workout|termina allenamento/i,
   });
   await expect(finish).toBeVisible();
+  await expect(finish).toHaveText(/^(Finish|Termina)$/);
   await expect(page.getByText(/previous|precedente/i).first()).toBeVisible();
   await expect(page.locator('.workout-header')).toHaveCSS('position', 'sticky');
   expect(
@@ -2146,7 +2155,7 @@ test('log a workout end to end', async ({ page }) => {
   await checks.nth(1).click();
 
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
-  await expect(page.getByText(/kg of volume|kg di volume/i)).toBeVisible();
+  await expect(page.locator('.summary-pop')).toContainText(/\d+\s*kg.*Volume/is);
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
   await expect(page.getByText(/this week|questa settimana/i)).toBeVisible();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
@@ -2565,6 +2574,7 @@ test('Italian exercise surfaces localize dynamic equipment metadata', async ({ p
   await result.click();
   await expect(page.locator('.exercise-detail__metadata')).toContainText('Bilanciere');
   await expect(page.locator('.exercise-detail__metadata')).not.toContainText(/\bbarbell\b/i);
+  await expect(page.locator('.exercise-detail__identity')).not.toContainText('Barbell Squat');
 });
 
 test('routine custom exercise creates once with its selected prescription tracking', async ({
@@ -2672,6 +2682,8 @@ test('exercise detail promotes valid media, stays static when reduced, and defer
   await expect(media.locator('img')).toHaveCount(1);
   await expect(media.locator('img')).toHaveAttribute('src', /Barbell_Squat\/1\.jpg$/);
   await expect(media.locator('img')).toHaveAttribute('loading', 'eager');
+  await expect(media.locator('img')).toHaveAttribute('width', '600');
+  await expect(media.locator('img')).toHaveAttribute('height', '400');
   await expect(media.locator('.exmedia-fallback')).toHaveCount(0);
 
   await page.unroute('**/exercise-media/Barbell_Squat/0.jpg');
@@ -3054,18 +3066,18 @@ test('exercise journal links truthful tracking, legacy and note-only workout rec
 
   await page.getByRole('button', { name: /Linked observation/ }).click();
   await expect(page.getByRole('heading', { name: 'Full Body A', exact: true })).toBeVisible();
-  await expect(page.getByText('661.4', { exact: true })).toBeVisible();
-  await expect(page.getByText('lb of volume', { exact: true })).toBeVisible();
+  await expect(page.getByText('661.4 lb', { exact: true })).toBeVisible();
+  await expect(page.getByText('Volume', { exact: true })).toBeVisible();
   const squat = page.locator('section.card').filter({
     has: page.getByRole('heading', { name: 'Barbell Squat', exact: true }),
   });
   await expect(squat.getByRole('heading', { name: 'Warm-up sets' })).toBeVisible();
   await expect(squat.getByLabel('Warm-up set 1', { exact: true })).toContainText(
-    /W\s*· 44\.1 lb × 5 reps/,
+    /W\s*· 44\.1 lb × 5/,
   );
   await expect(squat.getByRole('heading', { name: 'Working sets' })).toBeVisible();
   await expect(squat.getByLabel('Working set 1', { exact: true })).toContainText(
-    /1\s*· 110\.2 lb × 8 reps/,
+    /1\s*· 110\.2 lb × 8/,
   );
 
   const repetitions = page.locator('section.card').filter({
@@ -3143,8 +3155,7 @@ test('exercise journal links summary working metrics to chronological history', 
   await expect(summaryTitle).toHaveJSProperty('tagName', 'H1');
   await expect(page.locator('.summary-pop .mono.small.muted')).toContainText('1 working set');
   await expect(page.getByText('+579.5 lb vs your last Full Body A', { exact: true })).toBeVisible();
-  await expect(page.getByText('800', { exact: true })).toBeVisible();
-  await expect(page.getByText('lb of volume', { exact: true })).toBeVisible();
+  await expect(page.locator('.summary-pop')).toContainText(/800\s*lb.*Volume/is);
 });
 
 test('summary and workout detail preserve canonical kg volume rounding', async ({ page }) => {
@@ -3161,8 +3172,7 @@ test('summary and workout detail preserve canonical kg volume rounding', async (
   await firstSession.getByRole('button', { name: /^set 3$/i }).click();
   await page.getByRole('button', { name: /finish workout/i }).click();
 
-  await expect(page.getByText('128', { exact: true })).toBeVisible();
-  await expect(page.getByText('kg of volume', { exact: true })).toBeVisible();
+  await expect(page.locator('.summary-pop')).toContainText(/128\s*kg.*Volume/is);
   await expect(page.getByText('+128 kg vs your last Full Body A', { exact: true })).toBeVisible();
   expect(
     await page.evaluate(async () => {
@@ -3208,8 +3218,8 @@ test('summary and workout detail preserve canonical kg volume rounding', async (
     .getByRole('main')
     .getByRole('button', { name: /Full Body A.*128 kg/i })
     .click();
-  await expect(page.getByText('128', { exact: true })).toBeVisible();
-  await expect(page.getByText('kg of volume', { exact: true })).toBeVisible();
+  await expect(page.getByText('128 kg', { exact: true })).toBeVisible();
+  await expect(page.getByText('Volume', { exact: true })).toBeVisible();
 });
 
 test('mid-workout rest tweak can update the routine', async ({ page }) => {
@@ -3317,6 +3327,19 @@ test('progress chart redraws when the system theme changes', async ({ page }) =>
       }, lightRender),
     )
     .toEqual({ accent: '#c9f73a', redrawn: true });
+});
+
+test('progress does not imply a trend from a single session', async ({ page }) => {
+  await installCompletedWorkoutFixture(page);
+  await page.getByRole('button', { name: /^progress$/i }).click();
+  await page.getByLabel('Exercise').selectOption({ label: 'Dumbbell Bench Press' });
+
+  await expect(page.getByRole('img', { name: /Dumbbell Bench Press/i })).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText(
+    'Complete another session to see the trend.',
+  );
+  await expect(page.getByRole('group', { name: 'Dumbbell Bench Press progress summary' }))
+    .toContainText(/66\.1 lb × 10.*Sessions\s*1/);
 });
 
 test('body filters show a disabled treatment without shifting during save', async ({ page }) => {

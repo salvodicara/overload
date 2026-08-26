@@ -81,4 +81,46 @@ describe('training periods', () => {
       volume: 300,
     });
   });
+
+  it('does not chart future empty buckets in the current period', () => {
+    const now = new Date('2026-08-26T12:00:00');
+
+    expect(periodBuckets(now, 'week', [], now).map((bucket) => bucket.date)).toEqual([
+      '2026-08-24',
+      '2026-08-25',
+      '2026-08-26',
+    ]);
+    expect(periodBuckets(now, 'month', [], now).map((bucket) => bucket.date)).toEqual([
+      '2026-08-01',
+      '2026-08-08',
+      '2026-08-15',
+      '2026-08-22',
+    ]);
+    expect(periodBuckets(now, 'year', [], now)).toHaveLength(8);
+  });
+
+  it('compares the current partial period with the same elapsed part of the previous period', () => {
+    const now = new Date('2026-08-26T12:00:00');
+    const current = workout(
+      'current',
+      '2026-08-26',
+      [{ exerciseId: 'squat', weightKg: 100, reps: 5, done: true }],
+      30,
+    );
+    const previousTuesday = workout(
+      'previous-tuesday',
+      '2026-08-18',
+      [{ exerciseId: 'squat', weightKg: 80, reps: 5, done: true }],
+      20,
+    );
+    const previousSunday = workout(
+      'previous-sunday',
+      '2026-08-23',
+      [{ exerciseId: 'squat', weightKg: 90, reps: 5, done: true }],
+      40,
+    );
+
+    expect(periodSummary(now, 'week', [current, previousTuesday, previousSunday], now).previous)
+      .toEqual({ workouts: 1, workingSets: 1, volume: 400, durationMin: 20 });
+  });
 });

@@ -1,6 +1,6 @@
 import { kindOf, type RoutineExercise, type Workout } from './types';
 
-export type Suggestion = { weights: number[]; hintKey: string };
+export type Suggestion = { weights: Array<number | null>; hintKey: string };
 
 const DEFAULT_INCREMENT_KG = 2.5;
 
@@ -46,9 +46,14 @@ export function suggest(rx: RoutineExercise, history: Workout[], routineId?: str
         repMax: rx.repMax,
         startWeightKg: rx.startWeightKg,
       }));
-  const startWeights = targets.map((target) => target.startWeightKg ?? rx.startWeightKg ?? 0);
+  const startWeights = targets.map((target) => target.startWeightKg ?? rx.startWeightKg ?? null);
   const last = lastWorkoutWith(history, rx.exerciseId, routineId);
-  if (!last) return { weights: startWeights, hintKey: 'suggest.start' };
+  if (!last) {
+    return {
+      weights: startWeights,
+      hintKey: startWeights.some((weight) => weight === null) ? 'suggest.choose' : 'suggest.start',
+    };
+  }
 
   const lastSets = last.sets.filter(
     (s) => s.done && kindOf(s.kind) === 'working' && s.exerciseId === rx.exerciseId,

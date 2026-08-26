@@ -203,7 +203,14 @@ function TrainingSection({ initialExerciseId }: { initialExerciseId?: string }) 
         <h2 id="progress-chart-title" className="progress-section-title">
           {name}
         </h2>
-        <LineChart points={points} label={chartLabel} formatValue={formatAxisValue} />
+        {points.length > 1 ? (
+          <LineChart points={points} label={chartLabel} formatValue={formatAxisValue} />
+        ) : (
+          <div className="progress-state progress-single-session" role="status">
+            <strong className="mono">{formatSession(last)}</strong>
+            <span>{t('progress.needAnotherSession')}</span>
+          </div>
+        )}
         <p className="small muted">{caption}</p>
         {pr && (
           <p className="small mono">

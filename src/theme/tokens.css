@@ -2738,6 +2738,18 @@ dialog.sheet-scrim::backdrop {
   gap: var(--space-2);
 }
 
+.progress-single-session {
+  display: grid;
+  min-height: 132px;
+  place-content: center;
+  gap: var(--space-2);
+}
+
+.progress-single-session strong {
+  color: var(--ink);
+  font-size: var(--text-lg);
+}
+
 .line-chart canvas {
   display: block;
   width: 100%;

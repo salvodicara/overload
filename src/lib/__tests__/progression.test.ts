@@ -42,9 +42,9 @@ describe('suggest', () => {
     expect(s).toEqual({ weights: [20, 20, 20], hintKey: 'suggest.start' });
   });
 
-  it('rule 1: no start weight means zeroes', () => {
+  it('rule 1: no start weight asks for a real load instead of recommending zero', () => {
     const s = suggest(rx({ startWeightKg: undefined }), []);
-    expect(s).toEqual({ weights: [0, 0, 0], hintKey: 'suggest.start' });
+    expect(s).toEqual({ weights: [null, null, null], hintKey: 'suggest.choose' });
   });
 
   it('rule 1: workouts without done sets of the exercise do not count as history', () => {

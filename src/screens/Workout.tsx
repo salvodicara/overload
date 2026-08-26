@@ -94,8 +94,12 @@ export function Workout() {
           onClick: () => nav({ view: 'train' }),
         }}
         action={
-          <button className="btn btn-accent workout-header__finish" onClick={() => void finish()}>
-            {t('workout.finish')}
+          <button
+            className="btn btn-accent workout-header__finish"
+            aria-label={t('workout.finish')}
+            onClick={() => void finish()}
+          >
+            {t('workout.finishShort')}
           </button>
         }
       />

@@ -90,6 +90,7 @@
     "removeSetTitle": "Rimuovere la serie {{set}} da {{exercise}}?",
     "removeSetBody": "Carico, ripetizioni, durata e completamento andranno persi.",
     "finish": "Termina allenamento",
+    "finishShort": "Termina",
     "abandonTitle": "Abbandonare l'allenamento?",
     "abandonBody": "Le serie spuntate andranno perse.",
     "abandonConfirm": "Abbandona",
@@ -100,10 +101,12 @@
     "restLess": "riduci recupero",
     "restMore": "aumenta recupero",
     "minimize": "Riduci a icona",
-    "moreActions": "Altre azioni allenamento"
+    "moreActions": "Altre azioni allenamento",
+    "enterLoad": "Inserisci il carico prima di completare la serie"
   },
   "suggest": {
     "start": "Parti da {{weight}}",
+    "choose": "Scegli il carico iniziale",
     "increase": "Range chiuso l'ultima volta: sali a {{weight}}",
     "increaseSets": "Aumenta solo i carichi delle serie che hanno raggiunto l'obiettivo",
     "repeat": "Conferma i carichi e aggiungi ripetizioni"
@@ -115,7 +118,7 @@
   },
   "summary": {
     "title": "Fatto.",
-    "volume": "{{unit}} di volume",
+    "volume": "Volume",
     "workingSetCount_one": "{{count}} serie di lavoro",
     "workingSetCount_other": "{{count}} serie di lavoro",
     "duration": "{{min}} min",
@@ -137,7 +140,7 @@
     "workingSets": "Serie di lavoro",
     "warmupSet": "Serie di riscaldamento {{n}}",
     "workingSet": "Serie di lavoro {{n}}",
-    "weightRepsSet": "{{weight}} × {{reps}} ripetizioni",
+    "weightRepsSet": "{{weight}} × {{reps}}",
     "repsSet": "{{reps}} ripetizioni",
     "durationSet": "{{seconds}} secondi",
     "overallNote": "Nota allenamento",
@@ -165,6 +168,7 @@
     "chartSummary_other": "{{exercise}}. {{caption}} {{count}} sessioni. Prima: {{first}}. Ultima: {{last}}.{{pr}}",
     "prValue": " Record: {{value}}.",
     "latestPr": "Ultimo record",
+    "needAnotherSession": "Completa un'altra sessione per vedere l'andamento.",
     "volumeWeek": "Volume settimanale",
     "seg.training": "Allenamento",
     "seg.body": "Corpo",

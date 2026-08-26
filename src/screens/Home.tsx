@@ -29,7 +29,11 @@ export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
     day.setDate(monday.getDate() + index);
     return {
       iso: day.toLocaleDateString('sv'),
-      label: day.toLocaleDateString(locale, { weekday: 'narrow' }).toLocaleUpperCase(locale),
+      label: day
+        .toLocaleDateString(locale, { weekday: 'short' })
+        .replace('.', '')
+        .slice(0, 2)
+        .toLocaleUpperCase(locale),
     };
   });
 }
@@ -64,10 +68,11 @@ export function Home() {
   const swipeStartX = useRef<number | null>(null);
   const days = weekDays(periodAnchor, i18n.language);
   const currentDays = weekDays(new Date(), i18n.language);
+  const now = new Date();
   const bounds = periodBounds(periodAnchor, periodUnit);
-  const currentBounds = periodBounds(new Date(), periodUnit);
-  const summary = periodSummary(periodAnchor, periodUnit, workouts);
-  const buckets = periodBuckets(periodAnchor, periodUnit, workouts);
+  const currentBounds = periodBounds(now, periodUnit);
+  const summary = periodSummary(periodAnchor, periodUnit, workouts, now);
+  const buckets = periodBuckets(periodAnchor, periodUnit, workouts, now);
   const periodWorkouts = workouts.filter(
     (workout) =>
       workout.date >= bounds.start && workout.date <= bounds.end && workingSetCount(workout) > 0,

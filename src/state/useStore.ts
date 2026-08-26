@@ -638,6 +638,10 @@ export const useStore = create<Store>((set, get) => ({
     const next = structuredClone(active);
     const s = next.ex[ei].sets[si];
     const exerciseId = next.ex[ei].exerciseId;
+    if (!s.done && next.ex[ei].tracking === 'weight_reps' && s.weightKg === null) {
+      toast(i18nToast('workout.enterLoad'));
+      return;
+    }
     s.done = !s.done;
     // Resolve by exercise id, not position: the routine may have been
     // edited/reordered while this session was in progress.
