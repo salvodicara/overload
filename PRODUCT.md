@@ -58,6 +58,14 @@ The repository contains neutral starter packs, a local exercise catalog with pub
 5. Users own their data and training configuration.
 6. Accessibility, interruption recovery, and truthful export boundaries are product behavior, not polish.
 
+## Interaction Grammar Constitution
+
+- Established strength-training patterns are the default. Before changing a workout, routine, program, history, calendar, progress, or exercise surface, compare the same flow in Hevy first and then in Strong, StrengthLog, or Fitbod when a second reference is useful.
+- Reuse the shared interaction grammar, not competitor assets or trade dress: dense set tables, persistent previous-performance context, a slim add-set row, contextual exercise actions behind `…`, familiar swipe/context actions with an accessible non-gesture fallback, and clearly separated routine-scoped technique from session-scoped notes.
+- A novel interaction is allowed only when the leading apps do not cover the use case or when it produces a concrete, documented benefit for Overload's local-first or accessibility constraints. The reason and the reference comparison must be recorded before implementation.
+- Visual acceptance is based on rendered screenshots and interaction checks, never source inspection alone. Every material UI change must be verified at representative phone widths in Italian and English, including long text, large numbers, empty states, focus/keyboard behavior, and both themes when affected.
+- Compactness must not reduce usability: tap targets remain accessible while visual controls, spacing, and destructive actions follow the density users already know from leading workout loggers.
+
 ## Accessibility and Inclusion
 
 Meet WCAG 2.2 AA for the web UI. Preserve visible focus and logical keyboard order, support reduced motion and system theme, keep controls usable at mobile touch sizes, synchronize the document language with the selected locale, and never rely on color alone for state.
