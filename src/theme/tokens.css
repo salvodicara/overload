@@ -400,6 +400,22 @@ body {
   touch-action: pan-y;
 }
 
+.home-period-overview:focus-visible {
+  border-radius: var(--r-control);
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.home-period-today {
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
 .week-band {
   padding: var(--space-4) 0;
   border-top: 1px solid var(--line);
@@ -483,15 +499,33 @@ body {
   white-space: nowrap;
 }
 
+.week-metric__value {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.week-metric__delta {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.week-metric__delta[data-direction='increase'] {
+  color: var(--good);
+}
+
+.week-metric__delta[data-direction='decrease'] {
+  color: var(--danger);
+}
+
 .week-metric > span {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.25;
-}
-
-.home-week-comparison {
-  margin-top: var(--space-3);
-  line-height: 1.45;
 }
 
 .home-chart-metrics {
@@ -712,6 +746,34 @@ button.month-calendar__day {
 .train-program__toggle svg {
   flex: none;
   color: var(--muted);
+}
+
+.train-program__chevron {
+  transform: rotate(-90deg);
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.train-program--open .train-program__chevron {
+  transform: rotate(0deg);
+}
+
+.train-program__content {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out;
+}
+
+.train-program__content-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.train-program--open .train-program__content {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 
 .train-group__title {
@@ -2113,8 +2175,25 @@ textarea:disabled {
   margin-bottom: 0;
 }
 
+.exercise-performance-context {
+  margin-top: 3px;
+}
+
 .exercise-performance-record {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
   color: var(--accent-text);
+}
+
+.exercise-performance-record > span {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .exercise-performance-list {

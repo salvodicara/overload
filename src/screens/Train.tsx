@@ -213,11 +213,7 @@ export function Train() {
                       {t('routines.days', { count: inFolder.length })}
                     </span>
                   </span>
-                  {expanded ? (
-                    <IconDown width={18} height={18} aria-hidden />
-                  ) : (
-                    <IconForward width={18} height={18} aria-hidden />
-                  )}
+                  <IconDown className="train-program__chevron" width={18} height={18} aria-hidden />
                 </button>
                 <button
                   className="iconbtn train-group__options"
@@ -230,28 +226,37 @@ export function Train() {
                   <IconMore width={18} height={18} aria-hidden />
                 </button>
               </div>
-              <ul id={contentId} className="train-routine-list" hidden={!expanded}>
-                {inFolder.map((routine) => (
-                  <RoutineCard
-                    key={routine.id}
-                    routine={routine}
-                    suggested={routine.id === suggestedId}
-                  />
-                ))}
-                {inFolder.length === 0 && (
-                  <li>
-                    <button
-                      className="train-empty-program"
-                      onClick={() => {
-                        setNameDraft('');
-                        setSheet({ kind: 'newRoutine', folderId: folder.id });
-                      }}
-                    >
-                      {t('train.emptyProgram')}
-                    </button>
-                  </li>
-                )}
-              </ul>
+              <div
+                id={contentId}
+                className="train-program__content"
+                aria-hidden={!expanded}
+                inert={expanded ? undefined : true}
+              >
+                <div className="train-program__content-inner">
+                  <ul className="train-routine-list">
+                    {inFolder.map((routine) => (
+                      <RoutineCard
+                        key={routine.id}
+                        routine={routine}
+                        suggested={routine.id === suggestedId}
+                      />
+                    ))}
+                    {inFolder.length === 0 && (
+                      <li>
+                        <button
+                          className="train-empty-program"
+                          onClick={() => {
+                            setNameDraft('');
+                            setSheet({ kind: 'newRoutine', folderId: folder.id });
+                          }}
+                        >
+                          {t('train.emptyProgram')}
+                        </button>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
             </section>
           );
         })}

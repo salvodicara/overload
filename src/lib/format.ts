@@ -14,7 +14,7 @@ export function fmtDate(
   return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', opts);
 }
 
-function latestWorkoutWith(
+export function previousWorkout(
   workouts: Workout[],
   exerciseId: string,
   routineId?: string,
@@ -47,7 +47,7 @@ export function previousSets(
   routineId?: string,
 ): SetLog[] {
   return (
-    latestWorkoutWith(workouts, exerciseId, routineId)?.sets.filter(
+    previousWorkout(workouts, exerciseId, routineId)?.sets.filter(
       (s) => s.exerciseId === exerciseId && s.done && kindOf(s.kind) === 'working',
     ) ?? []
   );

@@ -12,7 +12,7 @@ import {
   loadItalianInstructions,
   muscleGroup,
 } from '../lib/exercises';
-import { fmtDate, formatPreviousSet, previousSets } from '../lib/format';
+import { fmtDate, formatPreviousSet, previousSets, previousWorkout } from '../lib/format';
 import { exerciseJournal } from '../lib/notes';
 import { kindOf, trackingOf } from '../lib/types';
 import { useStore } from '../state/useStore';
@@ -51,12 +51,9 @@ export function ExerciseSheet({ id }: { id: string }) {
   const name = ex ? (isIt ? ex.nameIt : ex.nameEn) : exerciseName(id, i18n.language);
   const altName = ex ? (isIt ? ex.nameEn : ex.nameIt) : '';
   const note = notes.find((item) => item.id === id);
+  const latestWorkout = previousWorkout(workouts, id);
   const latestWorkingSets = previousSets(workouts, id);
   const latestTracking = trackingOf(latestWorkingSets[0]?.tracking);
-  const latestPerformanceContext =
-    latestTracking === 'weight_reps'
-      ? unit
-      : t(latestTracking === 'reps' ? 'editor.trackingReps' : 'editor.trackingDuration');
   const journal = exerciseJournal(workouts, note, id);
   const completedWorkingSets = workouts.flatMap((workout) =>
     workout.sets.filter(
@@ -136,12 +133,17 @@ export function ExerciseSheet({ id }: { id: string }) {
 
       <section className="exercise-detail__section exercise-detail__performance">
         <div className="exercise-performance-heading">
-          <h2>{t('notes.latestPerformance', { unit: latestPerformanceContext })}</h2>
-          {bestPerformance && (
-            <span className="exercise-performance-record mono small">
-              {t('notes.best')} · {bestPerformance}
-            </span>
-          )}
+          <div>
+            <h2>{t('notes.lastTime')}</h2>
+            {latestWorkout && (
+              <p className="exercise-performance-context mono small muted">
+                <time dateTime={latestWorkout.date}>
+                  {fmtDate(latestWorkout.date, i18n.language)}
+                </time>
+                {latestWorkout.dayLabel && <> · {latestWorkout.dayLabel}</>}
+              </p>
+            )}
+          </div>
         </div>
         {latestWorkingSets.length > 0 ? (
           <ul className="exercise-performance-list">
@@ -157,6 +159,12 @@ export function ExerciseSheet({ id }: { id: string }) {
           </ul>
         ) : (
           <div className="mono small muted">{t('workout.firstTime')}</div>
+        )}
+        {bestPerformance && (
+          <div className="exercise-performance-record mono small">
+            <span>{t('notes.best')}</span>
+            <strong>{bestPerformance}</strong>
+          </div>
         )}
       </section>
 

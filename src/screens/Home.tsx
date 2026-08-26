@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconBack, IconForward } from '../components/Icons';
 import { LineChart } from '../components/LineChart';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
@@ -79,6 +78,29 @@ export function Home() {
     new Intl.NumberFormat(locale, { signDisplay: 'always', maximumFractionDigits: 1 }).format(
       value,
     );
+  const metricDelta = (
+    current: number,
+    previous: number,
+    format: 'absolute' | 'percentage' = 'absolute',
+  ) => {
+    const difference = current - previous;
+    const direction = difference > 0 ? 'increase' : difference < 0 ? 'decrease' : 'neutral';
+    if (difference === 0) return { direction, text: '—' };
+    if (format === 'percentage' && previous === 0) {
+      return { direction, text: t('home.new') };
+    }
+    const value = format === 'percentage' ? (difference / previous) * 100 : difference;
+    return {
+      direction,
+      text: `${difference > 0 ? '↑' : '↓'} ${signed(value)}${format === 'percentage' ? '%' : ''}`,
+    };
+  };
+  const deltas = {
+    workouts: metricDelta(summary.workouts, summary.previous.workouts),
+    workingSets: metricDelta(summary.workingSets, summary.previous.workingSets),
+    volume: metricDelta(summary.volume, summary.previous.volume, 'percentage'),
+    durationMin: metricDelta(summary.durationMin, summary.previous.durationMin),
+  };
   const periodLabel =
     periodUnit === 'week'
       ? weekRangeLabel(days, i18n.language)
@@ -219,6 +241,13 @@ export function Home() {
           </div>
           <div
             className="home-period-overview"
+            role="group"
+            tabIndex={0}
+            aria-label={t('home.periodNavigation')}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowLeft') movePeriod(-1);
+              if (event.key === 'ArrowRight') movePeriod(1);
+            }}
             onPointerDown={(event) => {
               swipeStartX.current = event.clientX;
             }}
@@ -232,29 +261,19 @@ export function Home() {
                 <h2 id="period-summary" className="display section-title home-section-title">
                   {periodTitle}
                 </h2>
-                <span className="home-period-label mono small muted">{periodLabel}</span>
+                <span className="home-period-label mono small muted" aria-live="polite">
+                  {periodLabel}
+                </span>
               </div>
-              <div className="home-week-nav">
+              {!isCurrentPeriod && (
                 <button
                   type="button"
-                  className="iconbtn"
-                  aria-label={t(
-                    periodUnit === 'week' ? 'home.previousWeek' : 'home.previousPeriod',
-                  )}
-                  onClick={() => movePeriod(-1)}
+                  className="home-period-today"
+                  onClick={() => setPeriodAnchor(new Date())}
                 >
-                  <IconBack />
+                  {t('home.today')}
                 </button>
-                <button
-                  type="button"
-                  className="iconbtn"
-                  aria-label={t(periodUnit === 'week' ? 'home.nextWeek' : 'home.nextPeriod')}
-                  disabled={isCurrentPeriod}
-                  onClick={() => movePeriod(1)}
-                >
-                  <IconForward />
-                </button>
-              </div>
+              )}
             </div>
             <div className="week-band">
               {periodUnit === 'week' && (
@@ -337,38 +356,61 @@ export function Home() {
                 </div>
               )}
               <div className="week-metrics">
-                <span className="week-metric">
-                  <strong className="display">{summary.workouts}</strong>
+                <div className="week-metric">
+                  <div className="week-metric__value">
+                    <strong className="display">{summary.workouts}</strong>
+                    <span
+                      className="week-metric__delta mono"
+                      data-direction={deltas.workouts.direction}
+                    >
+                      {deltas.workouts.text}
+                    </span>
+                  </div>
                   <span>
                     {t('home.sessions', {
                       count: summary.workouts,
                     })}
                   </span>
-                </span>
-                <span className="week-metric">
-                  <strong className="display">{summary.workingSets}</strong>
+                </div>
+                <div className="week-metric">
+                  <div className="week-metric__value">
+                    <strong className="display">{summary.workingSets}</strong>
+                    <span
+                      className="week-metric__delta mono"
+                      data-direction={deltas.workingSets.direction}
+                    >
+                      {deltas.workingSets.text}
+                    </span>
+                  </div>
                   <span>{t('home.workingSets', { count: summary.workingSets })}</span>
-                </span>
-                <span className="week-metric">
-                  <strong className="display">
-                    {displayVolume(summary.volume, unit).toLocaleString(locale)} {unit}
-                  </strong>
+                </div>
+                <div className="week-metric">
+                  <div className="week-metric__value">
+                    <strong className="display">
+                      {displayVolume(summary.volume, unit).toLocaleString(locale)} {unit}
+                    </strong>
+                    <span
+                      className="week-metric__delta mono"
+                      data-direction={deltas.volume.direction}
+                    >
+                      {deltas.volume.text}
+                    </span>
+                  </div>
                   <span>{t('home.volume')}</span>
-                </span>
-                <span className="week-metric week-metric--duration">
-                  <strong className="display">{summary.durationMin}</strong>
+                </div>
+                <div className="week-metric week-metric--duration">
+                  <div className="week-metric__value">
+                    <strong className="display">{summary.durationMin}</strong>
+                    <span
+                      className="week-metric__delta mono"
+                      data-direction={deltas.durationMin.direction}
+                    >
+                      {deltas.durationMin.text}
+                    </span>
+                  </div>
                   <span>{t('home.duration')}</span>
-                </span>
+                </div>
               </div>
-              <p className="home-week-comparison mono small muted">
-                {t(periodUnit === 'week' ? 'home.weekComparison' : 'home.periodComparison', {
-                  workouts: signed(summary.workouts - summary.previous.workouts),
-                  sets: signed(summary.workingSets - summary.previous.workingSets),
-                  volume: signed(displayVolume(summary.volume - summary.previous.volume, unit)),
-                  duration: signed(summary.durationMin - summary.previous.durationMin),
-                  unit,
-                })}
-              </p>
               <div className="home-chart-metrics" aria-label={t('home.chartMetric')}>
                 {(['workouts', 'workingSets', 'volume', 'durationMin'] as const).map((metric) => (
                   <button
