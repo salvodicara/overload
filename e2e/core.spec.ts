@@ -3821,8 +3821,7 @@ test('recovered workout keeps a route-shaped fallback without flashing Home', as
   const context = await browser.newContext({ serviceWorkers: 'block' });
   const setup = await context.newPage();
   await setup.goto('/');
-  await setup.getByRole('button', { name: 'Train' }).click();
-  await setup.getByRole('button', { name: 'Use' }).first().click();
+  await installNeutralTemplate(setup);
   await setup.getByRole('button', { name: 'Start Full Body A' }).click();
   await expect(setup.getByText('Full Body A').first()).toBeVisible();
   await setup.close();
