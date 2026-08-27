@@ -2913,20 +2913,19 @@ dialog.sheet-scrim::backdrop {
   }
 
   html[data-route-motion='peer'] .screen {
-    animation: route-peer-in 150ms ease-out 70ms both;
+    animation: none;
   }
 
   html[data-route-motion='forward'] .screen {
-    animation: route-forward-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: route-forward-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   html[data-route-motion='back'] .screen {
-    animation: route-back-in 230ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: route-back-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
   @keyframes screen-in {
     from {
-      opacity: 0;
       transform: translateY(8px);
     }
     to {
@@ -2935,23 +2934,15 @@ dialog.sheet-scrim::backdrop {
     }
   }
 
-  @keyframes route-peer-in {
-    from {
-      opacity: 0;
-    }
-  }
-
   @keyframes route-forward-in {
     from {
-      opacity: 0.65;
-      transform: translate3d(12%, 0, 0);
+      transform: translate3d(12px, 0, 0);
     }
   }
 
   @keyframes route-back-in {
     from {
-      opacity: 0.72;
-      transform: translate3d(-4%, 0, 0);
+      transform: translate3d(-8px, 0, 0);
     }
   }
 
@@ -3005,48 +2996,20 @@ dialog.sheet-scrim::backdrop {
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    html[data-route-motion='peer']::view-transition-old(root) {
-      animation: route-peer-out 90ms ease-in both;
+    html[data-route-motion]::view-transition-old(root) {
+      animation: none;
     }
 
     html[data-route-motion='peer']::view-transition-new(root) {
-      animation: route-peer-in 150ms ease-out 70ms both;
-    }
-
-    html[data-route-motion='forward']::view-transition-old(root) {
-      animation: route-forward-out 180ms ease-in both;
+      animation: none;
     }
 
     html[data-route-motion='forward']::view-transition-new(root) {
-      animation: route-forward-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    html[data-route-motion='back']::view-transition-old(root) {
-      animation: route-back-out 160ms ease-in both;
+      animation: route-forward-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
     html[data-route-motion='back']::view-transition-new(root) {
-      animation: route-back-in 230ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    @keyframes route-peer-out {
-      to {
-        opacity: 0;
-      }
-    }
-
-    @keyframes route-forward-out {
-      to {
-        opacity: 0.72;
-        transform: translate3d(-4%, 0, 0);
-      }
-    }
-
-    @keyframes route-back-out {
-      to {
-        opacity: 0.65;
-        transform: translate3d(12%, 0, 0);
-      }
+      animation: route-back-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
   }
 }

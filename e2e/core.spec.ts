@@ -1267,6 +1267,31 @@ test('route motion keeps its hierarchy when native view transitions are unavaila
   await expect(page.locator('html')).not.toHaveAttribute('data-route-motion', { timeout: 600 });
 });
 
+test('exercise navigation never fades the whole screen', async ({ page }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await page.waitForTimeout(320);
+  await page.locator('.library-result').first().click();
+  await page.waitForTimeout(40);
+  const detailOpacity = await page
+    .locator('.exercise-detail')
+    .evaluate((screen) => Number(getComputedStyle(screen).opacity));
+
+  await page.goBack();
+  await page.waitForTimeout(40);
+  const libraryOpacity = await page
+    .locator('.library-screen')
+    .evaluate((screen) => Number(getComputedStyle(screen).opacity));
+
+  expect({ detailOpacity, libraryOpacity }).toEqual({ detailOpacity: 1, libraryOpacity: 1 });
+});
+
 test('rapid navigation interrupts motion without an unhandled rejection', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
