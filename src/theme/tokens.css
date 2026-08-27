@@ -2908,6 +2908,10 @@ dialog.sheet-scrim::backdrop {
 /* ---------- motion ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
+  html[data-route-motion] .app-main {
+    overflow-x: clip;
+  }
+
   html:not([data-route-motion]) .screen {
     animation: screen-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -2982,35 +2986,6 @@ dialog.sheet-scrim::backdrop {
 
   .banner {
     animation: screen-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  }
-}
-
-@supports (view-transition-name: none) {
-  .nav {
-    view-transition-name: bottom-nav;
-  }
-
-  ::view-transition-old(bottom-nav),
-  ::view-transition-new(bottom-nav) {
-    animation: none;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    html[data-route-motion]::view-transition-old(root) {
-      animation: none;
-    }
-
-    html[data-route-motion='peer']::view-transition-new(root) {
-      animation: none;
-    }
-
-    html[data-route-motion='forward']::view-transition-new(root) {
-      animation: route-forward-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
-
-    html[data-route-motion='back']::view-transition-new(root) {
-      animation: route-back-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
-    }
   }
 }
 

@@ -164,7 +164,7 @@ export function WorkoutDetail({ id }: { id: string }) {
             <section key={group.exerciseId} className="card card-pad">
               <h2 style={{ fontSize: 16 }}>
                 <button
-                  style={{ minWidth: 44, minHeight: 44, fontWeight: 700, textAlign: 'left' }}
+                  style={{ minWidth: 45, minHeight: 45, fontWeight: 700, textAlign: 'left' }}
                   onClick={() => nav({ view: 'exercise', id: group.exerciseId })}
                 >
                   {exerciseName(group.exerciseId, i18n.language)}

@@ -3,6 +3,16 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const screen = id.match(/\/src\/screens\/([^/]+)\.tsx$/)?.[1];
+          return screen ? `screen-${screen.toLowerCase()}` : undefined;
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     {

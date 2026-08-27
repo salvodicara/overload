@@ -1252,29 +1252,13 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   }
 });
 
-test('route motion keeps its hierarchy when native view transitions are unavailable', async ({
-  page,
-}) => {
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'startViewTransition', {
-      configurable: true,
-      value: undefined,
-    });
-  });
-
+test('route motion keeps its hierarchy and clears deterministic metadata', async ({ page }) => {
   await page.getByRole('button', { name: /progress|progressi/i }).click();
   await expect(page.locator('html')).toHaveAttribute('data-route-motion', 'peer');
   await expect(page.locator('html')).not.toHaveAttribute('data-route-motion', { timeout: 600 });
 });
 
 test('exercise navigation never fades the whole screen', async ({ page }) => {
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'startViewTransition', {
-      configurable: true,
-      value: undefined,
-    });
-  });
-
   await page.getByRole('button', { name: /exercises|esercizi/i }).click();
   await page.waitForTimeout(320);
   await page.locator('.library-result').first().click();
@@ -1290,6 +1274,66 @@ test('exercise navigation never fades the whole screen', async ({ page }) => {
     .evaluate((screen) => Number(getComputedStyle(screen).opacity));
 
   expect({ detailOpacity, libraryOpacity }).toEqual({ detailOpacity: 1, libraryOpacity: 1 });
+});
+
+test('every page navigation keeps one opaque final surface', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.evaluate(() => {
+    const visual = { fallbackSeen: false, minOpacity: 1, maxOverflow: 0, active: true };
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('.route-fallback')) visual.fallbackSeen = true;
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const sample = () => {
+      const screen = document.querySelector<HTMLElement>('.screen');
+      if (screen) {
+        visual.minOpacity = Math.min(
+          visual.minOpacity,
+          Number(getComputedStyle(screen).opacity),
+        );
+      }
+      visual.maxOverflow = Math.max(
+        visual.maxOverflow,
+        document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      if (visual.active) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    Object.assign(window, { __routeVisual: visual, __routeVisualObserver: observer });
+  });
+
+  for (const destination of [
+    /train|allenati/i,
+    /progress|progressi/i,
+    /profile|profilo/i,
+    /exercises|esercizi/i,
+  ]) {
+    await page.getByRole('button', { name: destination }).click();
+    await page.waitForTimeout(80);
+  }
+  await page.locator('.library-result').first().click();
+  await expect(page.locator('.exercise-detail')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('.library-screen')).toBeVisible();
+  await page.waitForTimeout(220);
+
+  const visual = await page.evaluate(() => {
+    const state = (
+      window as unknown as {
+        __routeVisual: {
+          fallbackSeen: boolean;
+          minOpacity: number;
+          maxOverflow: number;
+          active: boolean;
+        };
+        __routeVisualObserver: MutationObserver;
+      }
+    );
+    state.__routeVisual.active = false;
+    state.__routeVisualObserver.disconnect();
+    return state.__routeVisual;
+  });
+  expect(visual).toMatchObject({ fallbackSeen: false, minOpacity: 1, maxOverflow: 0 });
 });
 
 test('rapid navigation interrupts motion without an unhandled rejection', async ({ page }) => {
@@ -4545,7 +4589,7 @@ test('CSV export waits for exercise names while the full backup stays available'
   }
 });
 
-test('recovered workout keeps a route-shaped fallback without flashing Home', async ({
+test('recovered workout opens directly without a route fallback or Home flash', async ({
   browser,
 }) => {
   const context = await browser.newContext({ serviceWorkers: 'block' });
@@ -4556,31 +4600,15 @@ test('recovered workout keeps a route-shaped fallback without flashing Home', as
   await expect(setup.getByText('Full Body A').first()).toBeVisible();
   await setup.close();
 
-  let releaseWorkout!: () => void;
-  const workoutAllowed = new Promise<void>((resolve) => {
-    releaseWorkout = resolve;
-  });
-  await context.route('**/src/screens/Workout.tsx', async (route) => {
-    await workoutAllowed;
-    await route.continue();
-  });
   const recovered = await context.newPage();
   try {
-    const navigation = recovered.goto('/');
-    const fallback = recovered.locator('.route-fallback[aria-busy="true"]');
-    await expect(fallback).toBeVisible();
-    await expect(fallback).toHaveAttribute('role', 'status');
-    await expect(fallback).toHaveAttribute('aria-live', 'off');
-    await expect(fallback.getByRole('heading', { name: 'Train' })).toBeVisible();
+    await recovered.goto('/');
+    await expect(recovered.locator('.route-fallback')).toHaveCount(0);
     await expect(
       recovered.getByRole('heading', { name: /next workout|build your plan/i }),
     ).toHaveCount(0);
-
-    releaseWorkout();
-    await navigation;
     await expect(recovered.getByText('Full Body A').first()).toBeVisible();
   } finally {
-    releaseWorkout();
     await context.close();
   }
 });
