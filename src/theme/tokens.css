@@ -2912,10 +2912,6 @@ dialog.sheet-scrim::backdrop {
     overflow-x: clip;
   }
 
-  html:not([data-route-motion]) .screen {
-    animation: screen-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
   html[data-route-motion='peer'] .screen {
     animation: none;
   }

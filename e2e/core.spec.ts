@@ -13,6 +13,48 @@ function expectAtLeast44PxGeometry(actualPx: number): void {
   expect(actualPx).toBeGreaterThanOrEqual(44 - DOM_RECT_SUBPIXEL_EPSILON_PX);
 }
 
+type RouteFrame = {
+  animation: string;
+  translateY: number;
+  scrollY: number;
+  view: 'exercise' | 'library' | 'other';
+};
+
+async function startRouteFrameTrace(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const trace = { active: true, frames: [] as RouteFrame[] };
+    const sample = () => {
+      const screen = document.querySelector<HTMLElement>('.screen');
+      if (screen) {
+        const style = getComputedStyle(screen);
+        trace.frames.push({
+          animation: style.animationName,
+          translateY: new DOMMatrixReadOnly(style.transform).m42,
+          scrollY: window.scrollY,
+          view: document.querySelector('.exercise-detail')
+            ? 'exercise'
+            : document.querySelector('.library-screen')
+              ? 'library'
+              : 'other',
+        });
+      }
+      if (trace.active) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    Object.assign(window, { __routeFrameTrace: trace });
+  });
+}
+
+async function stopRouteFrameTrace(page: Page): Promise<RouteFrame[]> {
+  return page.evaluate(() => {
+    const state = window as unknown as {
+      __routeFrameTrace: { active: boolean; frames: RouteFrame[] };
+    };
+    state.__routeFrameTrace.active = false;
+    return state.__routeFrameTrace.frames;
+  });
+}
+
 export async function installNeutralTemplate(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
   await page.getByRole('button', { name: /^(explore|esplora)$/i }).click();
@@ -1274,6 +1316,55 @@ test('exercise navigation never fades the whole screen', async ({ page }) => {
     .evaluate((screen) => Number(getComputedStyle(screen).opacity));
 
   expect({ detailOpacity, libraryOpacity }).toEqual({ detailOpacity: 1, libraryOpacity: 1 });
+});
+
+test('route transition never restarts with a vertical entrance', async ({ page }) => {
+  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await page.waitForTimeout(320);
+  await startRouteFrameTrace(page);
+  await page.locator('.library-result').first().click();
+  await page.waitForTimeout(450);
+  const trace = await stopRouteFrameTrace(page);
+
+  expect(trace.some((frame) => frame.animation === 'route-forward-in')).toBe(true);
+  expect(Math.max(...trace.map((frame) => Math.abs(frame.translateY)))).toBe(0);
+
+  await startRouteFrameTrace(page);
+  await page.goBack();
+  await page.waitForTimeout(450);
+  const backTrace = await stopRouteFrameTrace(page);
+
+  expect(backTrace.some((frame) => frame.animation === 'route-back-in')).toBe(true);
+  expect(Math.max(...backTrace.map((frame) => Math.abs(frame.translateY)))).toBe(0);
+});
+
+test('route reaches its target scroll before the first painted frame in both directions', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await page.waitForTimeout(320);
+  await page.locator('.library-result').nth(20).scrollIntoViewIfNeeded();
+  await startRouteFrameTrace(page);
+  await page.locator('.library-result').nth(20).click();
+  await page.waitForTimeout(240);
+  const detailScroll = (await stopRouteFrameTrace(page))
+    .filter((frame) => frame.view === 'exercise')
+    .map((frame) => frame.scrollY);
+
+  expect(detailScroll.length).toBeGreaterThan(0);
+  expect(detailScroll).toEqual(detailScroll.map(() => 0));
+
+  await page.evaluate(() => window.scrollTo(0, Math.min(240, document.body.scrollHeight)));
+  await startRouteFrameTrace(page);
+  await page.goBack();
+  await page.waitForTimeout(240);
+  const restoredScroll = (await stopRouteFrameTrace(page))
+    .filter((frame) => frame.view === 'library')
+    .map((frame) => frame.scrollY);
+
+  expect(restoredScroll.length).toBeGreaterThan(0);
+  expect(restoredScroll[0]).toBeGreaterThan(0);
+  expect(new Set(restoredScroll).size).toBe(1);
 });
 
 test('every page navigation keeps one opaque final surface', async ({ page }) => {

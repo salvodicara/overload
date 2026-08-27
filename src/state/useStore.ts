@@ -267,7 +267,7 @@ const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress'
 
 function applyScroll(view: Route['view'], entryKey?: string): void {
   const y = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
-  requestAnimationFrame(() => window.scrollTo(0, y));
+  window.scrollTo(0, y);
 }
 
 function savedRoute(): Route {
@@ -1310,6 +1310,7 @@ export const useStore = create<Store>((set, get) => ({
 }));
 
 if (typeof window !== 'undefined') {
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   try {
     history.replaceState(
       ensureHistoryEnvelope(useStore.getState().route, history.state),
