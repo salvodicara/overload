@@ -109,6 +109,21 @@ test('Train keeps one program accordion open and separates ready-made programs',
   await expect(ppl).toHaveAttribute('aria-expanded', 'false');
 });
 
+test('Train keeps its empty-state divider clear of the explore-programs card', async ({ page }) => {
+  await page
+    .getByRole('button', { name: /full body a\/b.*(program options|opzioni programma)/i })
+    .click();
+  await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
+  await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
+
+  const gap = await page.locator('.train-empty, .train-explore').evaluateAll((elements) => {
+    const [empty, explore] = elements.map((element) => element.getBoundingClientRect());
+    return explore.top - empty.bottom;
+  });
+
+  expect(gap).toBeGreaterThanOrEqual(24);
+});
+
 test('the same exercise keeps a different technique note in each routine', async ({ page }) => {
   await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {

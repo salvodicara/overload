@@ -811,6 +811,7 @@ button.month-calendar__day {
 .train-empty {
   display: grid;
   gap: var(--space-1);
+  margin-bottom: var(--space-6);
   padding: var(--space-6) 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
