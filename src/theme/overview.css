@@ -1,0 +1,128 @@
+/* The dashboard shows the current week; historical analytics live in Progress. */
+.home-current-week {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.home-current-week .home-week-heading {
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.home-current-week .section-title {
+  margin: 0;
+}
+
+.home-week-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: var(--space-4) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.home-week-totals > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column-reverse;
+  gap: 4px;
+  padding-inline: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.home-week-totals > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.home-week-totals dt {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.home-week-totals dd {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.home-shortcuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.home-shortcuts button {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.training-overview {
+  position: relative;
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--line);
+}
+
+.training-overview .progress-section-title {
+  margin-bottom: 0;
+}
+
+.overview-period-controls {
+  margin-bottom: 0;
+}
+
+.overview-period-controls button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.overview-period-navigation {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: var(--space-2);
+  align-items: center;
+  text-align: center;
+}
+
+.overview-period-navigation button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  font-size: 26px;
+}
+
+.overview-period-navigation button:disabled {
+  opacity: 0.35;
+}
+
+.overview-current {
+  justify-self: center;
+  min-height: 44px;
+}
+
+.training-overview .week-metrics,
+.training-overview .home-chart-metrics {
+  margin-top: 0;
+}
+
+.training-overview .week-metric--duration {
+  text-align: left;
+}

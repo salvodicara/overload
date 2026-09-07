@@ -48,7 +48,12 @@ function metrics(workouts: Workout[]): TrainingMetrics {
     durationMin: Math.round(
       completed.reduce(
         (sum, workout) =>
-          sum + Math.max(0, (workout.endTs ?? workout.startTs) - workout.startTs) / 60_000,
+          sum +
+          Math.max(
+            0,
+            workout.durationSec ?? ((workout.endTs ?? workout.startTs) - workout.startTs) / 1000,
+          ) /
+            60,
         0,
       ),
     ),
@@ -98,10 +103,7 @@ export function periodSummary(
   const currentEnd = isCurrent && today < bounds.end ? today : bounds.end;
   const previousEnd = isCurrent
     ? toIso(
-        addDays(
-          new Date(`${previousBounds.start}T12:00:00`),
-          dayOffset(bounds.start, currentEnd),
-        ),
+        addDays(new Date(`${previousBounds.start}T12:00:00`), dayOffset(bounds.start, currentEnd)),
       )
     : previousBounds.end;
   return {
@@ -149,4 +151,33 @@ export function periodBuckets(
     const visibleEnd = now && endIso > toIso(atNoon(now)) ? toIso(atNoon(now)) : endIso;
     return { date: startIso, ...metrics(rowsWithin(workouts, startIso, visibleEnd)) };
   });
+}
+
+type WeekDay = { iso: string; label: string };
+
+export function weekDays(now = new Date(), language = 'en'): WeekDay[] {
+  const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
+  const monday = new Date(now);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + index);
+    return {
+      iso: day.toLocaleDateString('sv'),
+      label: day.toLocaleDateString(locale, { weekday: 'narrow' }).toLocaleUpperCase(locale),
+    };
+  });
+}
+
+export function weekRangeLabel(days: WeekDay[], language: string): string {
+  const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
+  const first = new Date(`${days[0].iso}T12:00:00`);
+  const last = new Date(`${days.at(-1)!.iso}T12:00:00`);
+  const sameMonth =
+    first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
+  if (sameMonth) {
+    return `${first.getDate()}–${last.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`;
+  }
+  return `${first.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${last.toLocaleDateString(locale, { day: 'numeric', month: 'short' })}`;
 }

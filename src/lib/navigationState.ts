@@ -19,7 +19,12 @@ export type SurfaceStateMap = {
     selectedDay?: string | null;
   };
   library: { query?: string; group?: string | null; visibleCount?: number };
-  progress: { section?: string; exerciseId?: string; metric?: string; range?: string };
+  progress: HomeSurfaceState & {
+    section?: string;
+    exerciseId?: string;
+    metric?: string;
+    range?: string;
+  };
   train: { openProgramId?: string | null };
 };
 

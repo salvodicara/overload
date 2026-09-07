@@ -16,6 +16,23 @@ function workout(id: string, date: string, sets: Workout['sets'], durationMin = 
 }
 
 describe('training periods', () => {
+  it('uses recorded active duration for paused sessions in totals and chart buckets', () => {
+    const anchor = new Date('2026-08-26T12:00:00');
+    const paused = {
+      ...workout(
+        'paused',
+        '2026-08-26',
+        [{ exerciseId: 'squat', weightKg: 100, reps: 5, done: true }],
+        60,
+      ),
+      durationSec: 1200,
+    };
+
+    expect(periodSummary(anchor, 'week', [paused]).durationMin).toBe(20);
+    expect(periodBuckets(anchor, 'week', [paused])[2].durationMin).toBe(20);
+    expect(periodSummary(anchor, 'week', [{ ...paused, durationSec: 0 }]).durationMin).toBe(0);
+  });
+
   it('uses Monday weeks and shifts calendar periods without date drift', () => {
     const anchor = new Date('2026-08-26T12:00:00');
 
@@ -120,7 +137,8 @@ describe('training periods', () => {
       40,
     );
 
-    expect(periodSummary(now, 'week', [current, previousTuesday, previousSunday], now).previous)
-      .toEqual({ workouts: 1, workingSets: 1, volume: 400, durationMin: 20 });
+    expect(
+      periodSummary(now, 'week', [current, previousTuesday, previousSunday], now).previous,
+    ).toEqual({ workouts: 1, workingSets: 1, volume: 400, durationMin: 20 });
   });
 });

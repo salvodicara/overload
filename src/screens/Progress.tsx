@@ -1,42 +1,16 @@
 import { useMemo, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
+import { TrainingOverview } from '../components/TrainingOverview';
 import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { useSurfaceState } from '../hooks/useSurfaceState';
 import { exerciseName, getCatalog } from '../lib/exercises';
-import { displayVolume, formatWeight, weightLabel } from '../lib/units';
+import { formatWeight } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
 import { useStore } from '../state/useStore';
 import { ProgressBody } from './ProgressBody';
 import { ProgressDiet } from './ProgressDiet';
-
-/** Monday of the ISO week containing `iso`, as YYYY-MM-DD. */
-function isoWeekStart(iso: string): string {
-  const date = new Date(`${iso}T12:00:00`);
-  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-  return date.toLocaleDateString('sv');
-}
-
-function weeklyVolume(workouts: Workout[]): { week: string; volumeKg: number }[] {
-  const totals = new Map<string, number>();
-  for (const workout of workouts) {
-    const week = isoWeekStart(workout.date);
-    totals.set(week, (totals.get(week) ?? 0) + workout.volumeKg);
-  }
-  const weeks = [...totals.keys()].sort();
-  if (weeks.length === 0) return [];
-
-  const filled: { week: string; volumeKg: number }[] = [];
-  const cursor = new Date(`${weeks[0]}T12:00:00`);
-  const last = weeks[weeks.length - 1];
-  for (let week = weeks[0]; week <= last;) {
-    filled.push({ week, volumeKg: totals.get(week) ?? 0 });
-    cursor.setDate(cursor.getDate() + 7);
-    week = cursor.toLocaleDateString('sv');
-  }
-  return filled.slice(-12);
-}
 
 type SessionTop = {
   date: string;
@@ -99,13 +73,7 @@ function topSets(
   return { tracking: current, sessions };
 }
 
-function TrainingSection({
-  picked,
-  onPick,
-}: {
-  picked: string | null;
-  onPick(id: string): void;
-}) {
+function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id: string): void }) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
   useCatalog(workouts.length > 0);
@@ -134,7 +102,6 @@ function TrainingSection({
     () => (selected ? topSets(workouts, selected) : null),
     [workouts, selected],
   );
-  const weeks = useMemo(() => weeklyVolume(workouts), [workouts]);
 
   if (!selected || !progress || progress.sessions.length === 0) {
     return <div className="progress-empty">{t('history.empty')}</div>;
@@ -177,15 +144,6 @@ function TrainingSection({
     last: formatSession(last),
     pr: pr ? t('progress.prValue', { value: formatSession(pr) }) : '',
   });
-  const fmtWeek = (iso: string): string =>
-    new Date(`${iso}T12:00:00`).toLocaleDateString(locale, {
-      day: 'numeric',
-      month: 'short',
-    });
-  const formatWeeklyVolume = (volumeKg: number): string =>
-    `${displayVolume(volumeKg, unit).toLocaleString(locale)} ${weightLabel(unit)}`;
-  const maxWeek = Math.max(...weeks.map((week) => week.volumeKg), 1);
-
   return (
     <div className="progress-training">
       <label className="field-label" htmlFor="progress-exercise">
@@ -241,31 +199,6 @@ function TrainingSection({
           </div>
         ))}
       </dl>
-
-      <section className="progress-volume" aria-labelledby="progress-volume-title">
-        <h2 id="progress-volume-title" className="progress-section-title">
-          {t('progress.volumeWeek')}
-        </h2>
-        <div
-          className="progress-volume__plot"
-          role="img"
-          aria-label={`${t('progress.volumeWeek')}: ${weeks
-            .map((week) => `${fmtWeek(week.week)} ${formatWeeklyVolume(week.volumeKg)}`)
-            .join(', ')}`}
-        >
-          {weeks.map((week) => (
-            <span
-              key={week.week}
-              title={`${fmtWeek(week.week)} · ${formatWeeklyVolume(week.volumeKg)}`}
-              style={{ height: `${Math.max(3, (week.volumeKg / maxWeek) * 100)}%` }}
-            />
-          ))}
-        </div>
-        <div className="spread mono small muted">
-          <span>{weeks.length ? fmtWeek(weeks[0].week) : ''}</span>
-          <span>{weeks.length ? formatWeeklyVolume(weeks[weeks.length - 1].volumeKg) : ''}</span>
-        </div>
-      </section>
     </div>
   );
 }
@@ -284,8 +217,7 @@ export function Progress() {
   const segment = SEGMENTS.includes(surface.section as Segment)
     ? (surface.section as Segment)
     : 'training';
-  const setSegment = (section: Segment): void =>
-    setSurface((current) => ({ ...current, section }));
+  const setSegment = (section: Segment): void => setSurface((current) => ({ ...current, section }));
 
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
     const current = SEGMENTS.indexOf(event.currentTarget.dataset.segment as Segment);
@@ -334,10 +266,16 @@ export function Progress() {
           className="progress-panel"
         >
           {segment === key && key === 'training' && (
-            <TrainingSection
-              picked={surface.exerciseId ?? initialExerciseId ?? null}
-              onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
-            />
+            <>
+              <TrainingOverview
+                surface={surface}
+                onChange={(patch) => setSurface((current) => ({ ...current, ...patch }))}
+              />
+              <TrainingSection
+                picked={surface.exerciseId ?? initialExerciseId ?? null}
+                onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
+              />
+            </>
           )}
           {segment === key && key === 'body' && <ProgressBody />}
           {segment === key && key === 'diet' && <ProgressDiet />}
