@@ -86,7 +86,7 @@ export function TrainingOverview({
     value: chartMetric === 'volume' ? displayVolume(bucket.volume, unit) : bucket[chartMetric],
   }));
   const chartValue = (value: number) =>
-    `${formatCompactNumber(value, locale)}${chartMetric === 'volume' ? ` ${unit}` : chartMetric === 'durationMin' ? ' min' : ''}`;
+    `${exact(value)}${chartMetric === 'volume' ? ` ${unit}` : chartMetric === 'durationMin' ? ' min' : ''}`;
   function movePeriod(amount: -1 | 1) {
     if ((amount < 0 && isEarliestPeriod) || (amount > 0 && isCurrentPeriod)) return;
     onChange({

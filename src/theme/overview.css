@@ -147,3 +147,9 @@
 .training-overview .week-metric--duration {
   text-align: left;
 }
+
+@media (max-width: 359px) {
+  .training-overview .home-chart-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
