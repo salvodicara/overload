@@ -632,6 +632,10 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   startWorkout(routineId) {
+    if (get().active) {
+      set({ route: { view: 'workout' } });
+      return;
+    }
     const storedRoutine = get().routines.find((r) => r.id === routineId);
     const routine = storedRoutine ? normalizeRoutineOccurrences(storedRoutine) : undefined;
     if (!routine || routine.exercises.length === 0) return;

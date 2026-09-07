@@ -7,7 +7,7 @@ const makeRoutine = (id: string, folderId?: string): Routine => ({
   id,
   name: id,
   folderId,
-  exercises: [],
+  exercises: [{ exerciseId: 'squat', sets: 3, repMin: 8, repMax: 12, restSec: 90 }],
   updatedAt: 1,
 });
 const a = makeRoutine('a', 'p');
@@ -55,4 +55,12 @@ describe('nextRoutine', () => {
   it('returns the latest completion for a routine', () => {
     expect(lastCompletedFor(a, [done('a', 100), done('a', 200)])?.startTs).toBe(200);
   });
+});
+
+// An unfinished draft must not replace a usable next-workout action.
+it('skips empty draft routines when recommending a workout', () => {
+  const draft = { ...a, id: 'draft', exercises: [] };
+  expect(nextRoutine([draft, a, b], [program], [])?.id).toBe('a');
+  expect(nextRoutine([a, draft, b], [program], [done('a', 100)])?.id).toBe('b');
+  expect(nextRoutine([draft], [program], [])).toBeNull();
 });

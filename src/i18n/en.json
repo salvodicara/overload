@@ -67,7 +67,8 @@
     "recent": "Recent workouts",
     "allHistory": "All history",
     "moreExercises_one": "+ {{count}} more exercise",
-    "moreExercises_other": "+ {{count}} more exercises"
+    "moreExercises_other": "+ {{count}} more exercises",
+    "viewProgress": "View progress"
   },
   "workout": {
     "warmup": "Warm-up",
@@ -182,7 +183,12 @@
     "pr": "PR",
     "delete": "Delete workout",
     "deleteBody": "This cannot be undone.",
-    "deleteConfirm": "Delete"
+    "deleteConfirm": "Delete",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "emptyMonth": "No workouts this month",
+    "emptyDay": "No workouts on this day",
+    "calendarHint": "Select a day to see its workouts"
   },
   "progress": {
     "title": "Progress",
@@ -205,7 +211,11 @@
     "volumeWeek": "Weekly volume",
     "seg.training": "Training",
     "seg.body": "Body",
-    "seg.diet": "Nutrition"
+    "seg.diet": "Nutrition",
+    "overview": "Training overview",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "overviewSummary": "{{metric}} · {{period}}. {{values}}"
   },
   "library": {
     "title": "Exercises",
@@ -430,7 +440,8 @@
   "profile": {
     "trainingSummary": "Training summary",
     "workouts_one": "{{count}} workout",
-    "workouts_other": "{{count}} workouts"
+    "workouts_other": "{{count}} workouts",
+    "historyHint": "Your workouts, in a list or calendar"
   },
   "notes": {
     "coach": "Routine technique note",

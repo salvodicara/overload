@@ -114,9 +114,7 @@ describe('active session helpers', () => {
           id: 'routine',
           name: 'Routine',
           updatedAt: 1,
-          exercises: [
-            { exerciseId: 'bench', sets: 1, repMin: 8, repMax: 12, restSec: 90 },
-          ],
+          exercises: [{ exerciseId: 'bench', sets: 1, repMin: 8, repMax: 12, restSec: 90 }],
         },
       ],
       active: {
@@ -127,9 +125,7 @@ describe('active session helpers', () => {
             exerciseId: 'bench',
             tracking: 'weight_reps',
             hintKey: 'suggest.choose',
-            sets: [
-              { weightKg: null, reps: null, durationSec: null, kind: 'working', done: false },
-            ],
+            sets: [{ weightKg: null, reps: null, durationSec: null, kind: 'working', done: false }],
           },
         ],
       },
@@ -378,4 +374,26 @@ describe('active session helpers', () => {
       ],
     });
   });
+});
+
+it('opening another routine never overwrites a workout already in progress', () => {
+  const prescription = { exerciseId: 'squat', sets: 3, repMin: 5, repMax: 5, restSec: 120 };
+  const existing = {
+    routineId: 'original',
+    startTs: 12345,
+    pausedAt: 67890,
+    ex: [buildActiveExercise(prescription, [], 'original')],
+  };
+  existing.ex[0].sets[0].done = true;
+  useStore.setState({
+    active: existing,
+    route: { view: 'train' },
+    routines: [{ id: 'other', name: 'Other', exercises: [prescription], updatedAt: 1 }],
+  });
+  const storedBefore = JSON.stringify(existing);
+  storage.set('overload_active', storedBefore);
+  useStore.getState().startWorkout('other');
+  expect(useStore.getState().active).toEqual(existing);
+  expect(storage.get('overload_active')).toBe(storedBefore);
+  expect(useStore.getState().route).toEqual({ view: 'workout' });
 });

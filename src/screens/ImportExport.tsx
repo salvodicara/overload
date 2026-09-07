@@ -114,8 +114,7 @@ export function ImportExport() {
     } catch {
       if (request !== fileRequestRef.current) return;
       setPreview(null);
-      if (readComplete) toast(t('import.invalid'));
-      else setFileError(t('import.readFailed'));
+      setFileError(t(readComplete ? 'import.invalid' : 'import.readFailed'));
     }
   }
 

@@ -33,7 +33,8 @@ The app is installed as a PWA and used during live training, between sets, durin
 - Weighted working-set guidance uses the most recent completed working sets. It repeats the prior load until all prescribed sets reach the top of the rep range, then applies the configured increment.
 - Exercises support weight and reps, reps only, or duration tracking. The interface accepts and displays kg or lb; canonical stored weights remain kilograms.
 - Notes have exactly two current scopes. Technique belongs to the exact exercise occurrence inside a routine; the same exercise can therefore carry different cues in different routines or positions. This session is saved with the completed workout and appears in the exercise journal. Imported historical entries remain readable in that journal.
-- Home prioritizes one useful next action, current-week training, recent activity, and meaningful progress without becoming a social feed.
+- Home prioritizes the next or resumable workout and a compact summary of the current week. It links to the single history destination and to Progress; it does not duplicate historical calendars, workout feeds or detailed analytics.
+- Profile owns workout history: one searchable list and monthly calendar. Progress owns aggregate period charts, exercise performance, measurements and nutrition.
 - Training progress, body measurements, and kcal/protein records remain compact operational tools rather than coaching surfaces.
 - The version-2 JSON backup contains workouts, routines, programs, exercise notes, measurements, nutrition days, custom exercises, and settings. CSV export is a flat report of completed sets with date, routine, exercise, weight in kilograms, and reps.
 - IndexedDB is authoritative locally. Firestore mirrors records within the authenticated user's account with last-write-wins timestamps.
@@ -59,6 +60,8 @@ The repository contains neutral starter packs, a local exercise catalog with pub
 6. Accessibility, interruption recovery, and truthful export boundaries are product behavior, not polish.
 
 ## Interaction Grammar Constitution
+
+The owner uses Overload as a personal replacement for paid Hevy. Faithfully reproduce the established navigation, layouts and interaction patterns of Hevy first; borrow proven useful features from other leading workout trackers when they improve the personal workflow. Adapt them to Overload's existing visual identity. Do not invent alternative interaction models or ask the owner to resolve routine UX/UI decisions; the agent has discretion to choose and verify the established solution.
 
 - Established strength-training patterns are the default. Before changing a workout, routine, program, history, calendar, progress, or exercise surface, compare the same flow in Hevy first and then in Strong, StrengthLog, or Fitbod when a second reference is useful.
 - Reuse the shared interaction grammar, not competitor assets or trade dress: dense set tables, persistent previous-performance context, a slim add-set row, contextual exercise actions behind `…`, familiar swipe/context actions with an accessible non-gesture fallback, and clearly separated routine-scoped technique from session-scoped notes.

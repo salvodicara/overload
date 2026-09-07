@@ -67,7 +67,8 @@
     "recent": "Allenamenti recenti",
     "allHistory": "Tutto lo storico",
     "moreExercises_one": "+ {{count}} altro esercizio",
-    "moreExercises_other": "+ altri {{count}} esercizi"
+    "moreExercises_other": "+ altri {{count}} esercizi",
+    "viewProgress": "Vedi progressi"
   },
   "workout": {
     "warmup": "Riscaldamento",
@@ -182,7 +183,12 @@
     "pr": "record",
     "delete": "Elimina allenamento",
     "deleteBody": "Non si può annullare.",
-    "deleteConfirm": "Elimina"
+    "deleteConfirm": "Elimina",
+    "previousMonth": "Mese precedente",
+    "nextMonth": "Mese successivo",
+    "emptyMonth": "Nessun allenamento in questo mese",
+    "emptyDay": "Nessun allenamento in questo giorno",
+    "calendarHint": "Seleziona un giorno per vedere gli allenamenti"
   },
   "progress": {
     "title": "Progressi",
@@ -205,7 +211,11 @@
     "volumeWeek": "Volume settimanale",
     "seg.training": "Allenamento",
     "seg.body": "Corpo",
-    "seg.diet": "Nutrizione"
+    "seg.diet": "Nutrizione",
+    "overview": "Panoramica allenamenti",
+    "previousPeriod": "Periodo precedente",
+    "nextPeriod": "Periodo successivo",
+    "overviewSummary": "{{metric}} · {{period}}. {{values}}"
   },
   "library": {
     "title": "Esercizi",
@@ -430,7 +440,8 @@
   "profile": {
     "trainingSummary": "Riepilogo allenamento",
     "workouts_one": "{{count}} allenamento",
-    "workouts_other": "{{count}} allenamenti"
+    "workouts_other": "{{count}} allenamenti",
+    "historyHint": "I tuoi allenamenti, in elenco o sul calendario"
   },
   "notes": {
     "coach": "Nota tecnica della scheda",

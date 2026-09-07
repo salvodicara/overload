@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconBarbell } from './Icons';
+import { elapsedWorkoutMs } from '../lib/workoutTiming';
 import { useStore } from '../state/useStore';
 
 /** Hevy-style persistent banner: an in-progress workout is always one tap away. */
@@ -26,7 +27,7 @@ export function ActiveWorkoutBar() {
   const resting = restUntil && restUntil > Date.now();
   const shown = resting
     ? fmt(Math.ceil((restUntil - Date.now()) / 1000))
-    : fmt(Math.floor((Date.now() - active.startTs) / 1000));
+    : fmt(Math.floor(elapsedWorkoutMs(active) / 1000));
 
   return (
     <button className="active-bar" onClick={() => nav({ view: 'workout' })}>

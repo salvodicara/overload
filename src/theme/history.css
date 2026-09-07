@@ -66,3 +66,47 @@
     }
   }
 }
+
+/* Calendar dates follow the familiar filled-circle activity marker. */
+.history-screen .history-calendar__grid > button {
+  display: grid;
+  place-items: center;
+  background: transparent;
+}
+.history-calendar__grid > button > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+.history-screen .history-calendar__grid > button.is-trained {
+  background: transparent;
+  color: var(--accent-ink);
+}
+.history-calendar__grid > button.is-trained > span {
+  background: var(--accent);
+}
+.history-screen .history-calendar__grid > button.is-today {
+  box-shadow: none;
+}
+.history-calendar__grid > button.is-today > span {
+  outline: 1px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.history-screen .history-calendar__grid > button.is-selected {
+  background: var(--surface2);
+  color: var(--ink);
+}
+.history-calendar__grid > button.is-selected > span {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.history-calendar__grid > button.is-selected.is-trained > span {
+  color: var(--accent-ink);
+}
+.history-screen .history-calendar__month,
+.history-toolbar input,
+.history-toolbar select {
+  font-family: var(--font-body);
+}

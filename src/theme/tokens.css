@@ -319,6 +319,7 @@ body {
 }
 
 .home-primary-action__routine strong {
+  overflow-wrap: anywhere;
   font-size: 22px;
   line-height: 1.2;
 }
@@ -880,6 +881,7 @@ button.month-calendar__day {
 }
 
 .train-group__title {
+  overflow-wrap: anywhere;
   font-size: 17px;
   font-weight: 750;
   line-height: 1.25;
@@ -1596,9 +1598,8 @@ textarea:disabled {
 }
 
 .import-preview__filename {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .import-preview__title {

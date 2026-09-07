@@ -763,6 +763,7 @@ async function installCompletedWorkoutFixture(page: Page): Promise<void> {
 }
 
 async function installCoreSurfaceFixture(page: Page): Promise<void> {
+  await page.clock.setFixedTime(new Date('2026-08-26T12:00:00Z'));
   await expect
     .poll(() =>
       page.evaluate(async () => {
@@ -1041,6 +1042,7 @@ async function uploadImportFixture(page: Page, name: string, contents: string): 
 }
 
 async function installProgressSurfaceFixture(page: Page): Promise<void> {
+  await page.clock.setFixedTime(new Date('2026-08-26T12:00:00Z'));
   await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open('overload');
@@ -1302,7 +1304,7 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
   await expect(page.getByRole('button', { name: /start|inizia/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /all history|tutto lo storico/i })).toBeVisible();
   await expect(page.getByRole('main')).toBeVisible();
-  await expect(page.locator('section[aria-labelledby]')).toHaveCount(3);
+  await expect(page.locator('.home-current-week')).toBeVisible();
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 700 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
@@ -1393,10 +1395,7 @@ test('every page navigation keeps one opaque final surface', async ({ page }) =>
     const sample = () => {
       const screen = document.querySelector<HTMLElement>('.screen');
       if (screen) {
-        visual.minOpacity = Math.min(
-          visual.minOpacity,
-          Number(getComputedStyle(screen).opacity),
-        );
+        visual.minOpacity = Math.min(visual.minOpacity, Number(getComputedStyle(screen).opacity));
       }
       visual.maxOverflow = Math.max(
         visual.maxOverflow,
@@ -1424,17 +1423,15 @@ test('every page navigation keeps one opaque final surface', async ({ page }) =>
   await page.waitForTimeout(220);
 
   const visual = await page.evaluate(() => {
-    const state = (
-      window as unknown as {
-        __routeVisual: {
-          fallbackSeen: boolean;
-          minOpacity: number;
-          maxOverflow: number;
-          active: boolean;
-        };
-        __routeVisualObserver: MutationObserver;
-      }
-    );
+    const state = window as unknown as {
+      __routeVisual: {
+        fallbackSeen: boolean;
+        minOpacity: number;
+        maxOverflow: number;
+        active: boolean;
+      };
+      __routeVisualObserver: MutationObserver;
+    };
     state.__routeVisual.active = false;
     state.__routeVisualObserver.disconnect();
     return state.__routeVisual;
@@ -1453,129 +1450,103 @@ test('rapid navigation interrupts motion without an unhandled rejection', async 
   expect(errors).toEqual([]);
 });
 
-test('Home week navigator browses earlier progress and opens a completed day', async ({ page }) => {
-  await installCoreSurfaceFixture(page);
-  await page.getByRole('button', { name: /^home$/i }).click();
-
-  await page.getByRole('button', { name: /2026-08-24.*trained|2026-08-24.*allenato/i }).click();
-  await expect(page.getByRole('heading', { name: /truthful august/i })).toBeVisible();
-  await page.goBack();
-  await page.waitForTimeout(400);
-
-  const overview = page.locator('.home-period-overview');
-  const pager = page.locator('.home-period-pager');
-  const metrics = page.locator('.week-metrics');
-  const chart = page.locator('.line-chart');
-  const metricsBefore = await metrics.boundingBox();
-  const chartBefore = await chart.boundingBox();
-  await pager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
-  await pager.dispatchEvent('pointermove', { clientX: 150, pointerId: 1 });
-  await expect
-    .poll(() =>
-      pager
-        .locator('.home-period-pager__page')
-        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
-    )
-    .toBeGreaterThan(50);
-  const metricsDuring = await metrics.boundingBox();
-  const chartDuring = await chart.boundingBox();
-  expect(Math.abs((metricsDuring?.x ?? 0) - (metricsBefore?.x ?? 0))).toBeLessThan(0.5);
-  expect(Math.abs((metricsDuring?.y ?? 0) - (metricsBefore?.y ?? 0))).toBeLessThan(0.5);
-  expect(Math.abs((chartDuring?.x ?? 0) - (chartBefore?.x ?? 0))).toBeLessThan(0.5);
-  expect(Math.abs((chartDuring?.y ?? 0) - (chartBefore?.y ?? 0))).toBeLessThan(0.5);
-  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
-  await expect(page.getByText(/17.*23.*aug|17.*23.*ago/i)).toBeVisible();
-  await expect(page.getByRole('button', { name: /today|oggi/i })).toBeVisible();
-  await expect(page.locator('.home-week-comparison')).toHaveCount(0);
-  await expect(page.locator('.week-metric__delta')).toHaveCount(4);
-  await page.getByRole('button', { name: /today|oggi/i }).click();
-  await expect(page.getByRole('button', { name: /today|oggi/i })).toHaveCount(0);
-  await expect(overview.locator('.home-period-content')).toHaveAttribute('data-motion', 'today');
-});
-
-test('Home switches training periods and swipes the overview to an earlier period', async ({
+test('Home links to one Profile-owned history and keeps analytics in Progress', async ({
   page,
 }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
-
-  const periods = page.getByRole('tablist', { name: /training period|periodo di allenamento/i });
-  await periods.getByRole('tab', { name: /month|mese/i }).click();
-  const overview = page.locator('.home-period-overview');
+  await expect(page.locator('.home-current-week')).toBeVisible();
+  await page.getByRole('button', { name: /all history/i }).click();
   await expect(
-    overview.getByRole('button', { name: /previous|next|precedente|successiv/i }),
-  ).toHaveCount(0);
-  const label = page.locator('.home-period-label');
-  const currentLabel = await label.textContent();
-
-  const monthPager = page.locator('.home-period-pager');
-  await monthPager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
-  await monthPager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
-
-  await expect(label).not.toHaveText(currentLabel ?? '');
-  await overview.focus();
-  const swipedLabel = await label.textContent();
-  await page.keyboard.press('ArrowRight');
-  await expect(label).not.toHaveText(swipedLabel ?? '');
-  await expect(overview.getByRole('button', { name: /duration|durata/i })).toBeVisible();
-  await periods.getByRole('tab', { name: /year|anno/i }).click();
-  await expect(page.locator('.home-year-pager')).toContainText('2026');
-  await expect(page.locator('.line-chart')).toBeVisible();
-});
-
-test('back restores the exact Home month after opening an old workout', async ({ page }) => {
-  await installCoreSurfaceFixture(page);
-  await page.getByRole('button', { name: /^home$/i }).click();
-
-  const periods = page.getByRole('tablist', { name: /training period|periodo di allenamento/i });
-  const monthTab = periods.getByRole('tab', { name: /month|mese/i });
-  await monthTab.click();
-  const pager = page.locator('.home-period-pager');
-  await pager.dispatchEvent('pointerdown', { clientX: 80, pointerId: 1 });
-  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 1 });
-  const oldMonth = await page.locator('.home-period-label').textContent();
-  await expect(page.getByRole('button', { name: /five exercises/i })).toBeVisible();
-
-  await page.getByRole('button', { name: /five exercises/i }).click();
-  await expect(page.getByRole('heading', { name: /five exercises/i })).toBeVisible();
+    page.getByRole('navigation').getByRole('button', { name: /^profile$/i }),
+  ).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('button', { name: /truthful august/i }).click();
+  await expect(page.getByRole('heading', { name: /truthful august/i })).toBeVisible();
   await page.goBack();
-
-  await expect(monthTab).toHaveAttribute('aria-selected', 'true');
-  await expect(page.locator('.home-period-label')).toHaveText(oldMonth ?? '');
-  await expect(page.getByRole('button', { name: /five exercises/i })).toBeVisible();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^profile$/i })
+    .click();
+  await page.getByRole('button', { name: /history/i }).click();
+  await expect(page.getByRole('button', { name: /truthful august/i })).toBeVisible();
 });
 
-test('Home stops at the first meaningful workout period', async ({ page }) => {
+test('Progress navigates aggregate periods with visible buttons and preserves selection', async ({
+  page,
+}) => {
+  await installCoreSurfaceFixture(page);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^progress$/i })
+    .click();
+  const overview = page.locator('.training-overview');
+  await overview.getByRole('button', { name: /^month$/i }).click();
+  await expect(overview.locator('.home-period-label')).toHaveText('August 2026');
+  await overview.getByRole('button', { name: /previous period/i }).click();
+  await expect(overview.locator('.home-period-label')).toHaveText('July 2026');
+  await overview.getByRole('button', { name: /^duration$/i }).click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^profile$/i })
+    .click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^progress$/i })
+    .click();
+  await expect(overview.locator('.home-period-label')).toHaveText('July 2026');
+  await expect(overview.getByRole('button', { name: /^duration$/i })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await overview.getByRole('button', { name: /today/i }).click();
+  await expect(overview.getByRole('button', { name: /next period/i })).toBeDisabled();
+});
+
+test('calendar filters the visible month and restores the selected day after opening a workout', async ({
+  page,
+}) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
-  await page
-    .getByRole('tablist', { name: /training period|periodo di allenamento/i })
-    .getByRole('tab', { name: /month|mese/i })
-    .click();
-
-  const overview = page.locator('.home-period-overview');
-  await overview.focus();
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('ArrowLeft');
-  const earliestLabel = await page.locator('.home-period-label').textContent();
-  await page.keyboard.press('ArrowLeft');
-  await expect(page.locator('.home-period-label')).toHaveText(earliestLabel ?? '');
-
-  const pager = page.locator('.home-period-pager');
-  await pager.dispatchEvent('pointerdown', { clientX: 40, pointerId: 2 });
-  await pager.dispatchEvent('pointermove', { clientX: 240, pointerId: 2 });
-  await expect
-    .poll(() =>
-      pager
-        .locator('.home-period-pager__page')
-        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
-    )
-    .toBeLessThan(80);
-  await pager.dispatchEvent('pointerup', { clientX: 240, pointerId: 2 });
-  await expect(page.locator('.home-period-label')).toHaveText(earliestLabel ?? '');
+  await page.getByRole('button', { name: /all history/i }).click();
+  await page.getByRole('tab', { name: /calendar/i }).click();
+  const calendar = page.getByRole('region', { name: /^calendar$/i });
+  await expect(calendar.locator('.history-calendar__grid > *')).toHaveCount(42);
+  await expect(page.locator('.workout-row')).toHaveCount(1);
+  await calendar.getByRole('button', { name: /previous month/i }).click();
+  await expect(page.locator('.workout-row')).toHaveCount(1);
+  await expect(page.locator('.workout-row')).toContainText('Five exercises');
+  // Select the workout's actual date from the rendered calendar marker.
+  const trainedDay = calendar.locator('.is-trained').first();
+  await trainedDay.click();
+  await expect(trainedDay).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /five exercises/i }).click();
+  await page.goBack();
+  await expect(calendar.locator('.history-calendar__month')).toHaveText('July 2026');
+  await expect(calendar.locator('.is-trained').first()).toHaveAttribute('aria-pressed', 'true');
+  await calendar.getByRole('button', { name: /whole month/i }).click();
+  await expect(calendar.locator('[aria-pressed="true"]')).toHaveCount(0);
 });
 
-test('Home compacts extreme metrics and keeps the chart inside a narrow viewport', async ({
+test('calendar swipe changes month but vertical scrolling does not', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page.getByRole('button', { name: /all history/i }).click();
+  await page.getByRole('tab', { name: /calendar/i }).click();
+  const calendar = page.getByRole('region', { name: /^calendar$/i });
+  const pointer = { pointerId: 1, isPrimary: true, button: 0, pointerType: 'touch' };
+  await calendar.dispatchEvent('pointerdown', { ...pointer, clientX: 80, clientY: 200 });
+  await calendar.dispatchEvent('pointermove', { ...pointer, clientX: 140, clientY: 320 });
+  await calendar.dispatchEvent('pointerup', { ...pointer, clientX: 200, clientY: 340 });
+  await expect(calendar.locator('.history-calendar__month')).toHaveText('August 2026');
+  await calendar.dispatchEvent('pointerdown', { ...pointer, clientX: 80, clientY: 200 });
+  await calendar.dispatchEvent('pointerup', { ...pointer, clientX: 240, clientY: 205 });
+  await expect(calendar.locator('.history-calendar__month')).toHaveText('July 2026');
+  await calendar.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(calendar.locator('.history-calendar__month')).toHaveText('August 2026');
+});
+
+test('Progress compacts extreme metrics and keeps the chart inside a narrow viewport', async ({
   page,
 }) => {
   await installCoreSurfaceFixture(page);
@@ -1601,16 +1572,18 @@ test('Home compacts extreme metrics and keeps the chart inside a narrow viewport
   });
   await page.setViewportSize({ width: 320, height: 700 });
   await page.reload();
-  await page.getByRole('button', { name: /^home$/i }).click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^progress$/i })
+    .click();
 
   const volume = page.locator('.week-metric--volume strong');
   await expect(volume).toContainText(/100M kg/i);
   await expect(volume).toHaveAttribute('aria-label', /100[.,\s]000[.,\s]\d{3} kg/i);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
-  const chart = await page.locator('.line-chart').boundingBox();
+  const chart = await page.locator('.training-overview .line-chart').boundingBox();
   expect(chart?.x).toBeGreaterThanOrEqual(0);
   expect((chart?.x ?? 0) + (chart?.width ?? 0)).toBeLessThanOrEqual(320);
-  await expect(page.getByRole('button', { name: /extreme volume/i })).toContainText(/100M kg/i);
 });
 
 test('history groups truthful completed working activity by month', async ({ page }) => {
@@ -2521,7 +2494,9 @@ test('log a workout end to end', async ({ page }) => {
   await expect(page.locator('.summary-pop')).toContainText(/\d+\s*kg.*Volume/is);
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
   await expect(page.getByText(/this week|questa settimana/i)).toBeVisible();
-  await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
+  await expect(page.getByText('Full Body B', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /all history|tutto lo storico/i }).click();
+  await expect(page.locator('.workout-row')).toContainText('Full Body A');
 });
 
 test('empty session is discarded, not recorded', async ({ page }) => {
@@ -3392,6 +3367,7 @@ for (const locale of ['it', 'en'] as const) {
     await installCompletedWorkoutFixture(page);
     await setStoredLocale(page, locale);
     await page.getByRole('button', { name: /^(home)$/i }).click();
+    await page.getByRole('button', { name: /all history|tutto lo storico/i }).click();
     const workout = page
       .locator('.workout-row')
       .filter({ hasText: locale === 'it' ? /25 ago/i : /25 Aug/i })
@@ -3812,10 +3788,7 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
   ).toBeGreaterThanOrEqual(12);
   const latestPr = page.getByText(/^Latest PR ·/);
   await expect(latestPr).toHaveText('Latest PR · 121.3 lb × 8');
-  await expect(page.getByRole('img', { name: /Weekly volume/i })).toHaveAttribute(
-    'aria-label',
-    /281\.1 lb.*661\.4 lb/,
-  );
+  await expect(page.locator('.training-overview .line-chart')).toBeVisible();
 
   await exercise.selectOption({ label: 'Hanging Leg Raise' });
   await expect(summary('Hanging Leg Raise')).toContainText(/14 reps.*Sessions\s*2/);
@@ -4368,7 +4341,7 @@ test('active Home clears fixed navigation at 320px without a persistent Resume b
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
-    const lastSection = document.querySelector<HTMLElement>('.page > section:last-of-type');
+    const lastSection = document.querySelector<HTMLElement>('.home-current-week');
     const navigation = document.querySelector<HTMLElement>('nav[aria-label="Overload"]');
     if (!lastSection || !navigation) throw new Error('home clearance surfaces missing');
     return {
@@ -4717,4 +4690,81 @@ test('recovered workout opens directly without a route fallback or Home flash', 
   } finally {
     await context.close();
   }
+});
+
+test('Train preserves the paused session when another routine is available', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.locator('.setcheck').first().click();
+  await page
+    .getByRole('button', { name: /pause timer|pausa timer|pause workout|metti in pausa/i })
+    .click();
+  await page.getByRole('button', { name: /skip|salta/i }).click();
+  const clock = await page.locator('.workout-header__elapsed').textContent();
+  const stored = await page.evaluate(() => localStorage.getItem('overload_active'));
+  await page.getByRole('button', { name: /minimize|riduci/i }).click();
+  await expect(
+    page.getByRole('button', { name: /start full body b|inizia full body b/i }),
+  ).toBeDisabled();
+  const banner = page.locator('.active-bar');
+  await expect(banner).toContainText(clock ?? '');
+  await banner.click();
+  await expect(page.locator('.setrow.done')).toHaveCount(1);
+  await expect(
+    page.getByRole('button', {
+      name: /resume timer|riprendi timer|resume workout|riprendi cronometro/i,
+    }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('overload_active'))).toBe(stored);
+});
+
+test('invalid import feedback remains readable until the next file is selected', async ({
+  page,
+}) => {
+  await openImportSurface(page, 'it');
+  await page.setViewportSize({ width: 320, height: 740 });
+  await uploadImportFixture(page, 'file.csv', 'not,a,valid,workout');
+  await expect(page.getByRole('alert')).toContainText('File non valido');
+  await uploadImportFixture(
+    page,
+    'backup-completo-con-nome-molto-lungo-per-identificare-il-file-corretto.json',
+    JSON.stringify(COMPLETE_BACKUP),
+  );
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  const filename = page.locator('.import-preview__filename');
+  await expect(filename).toContainText('backup-completo-con-nome');
+  expect(await filename.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+});
+
+test('long program and routine names remain fully readable on narrow Home and Train', async ({
+  page,
+}) => {
+  const longName = 'AllenamentoPersonalizzato'.repeat(4);
+  await putStoredRow(page, 'folders', {
+    id: 'full-body-folder',
+    name: longName,
+    updatedAt: Date.now(),
+  });
+  await putStoredRow(page, 'routines', {
+    id: 'full-body-a',
+    name: longName,
+    folderId: 'full-body-folder',
+    updatedAt: Date.now(),
+    exercises: [{ exerciseId: 'Barbell_Squat', sets: 3, repMin: 8, repMax: 12, restSec: 90 }],
+  });
+  await page.reload();
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /train|allenati/i })
+    .click();
+  const program = page.locator('.train-group__title').filter({ hasText: longName });
+  expect(await program.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^home$/i })
+    .click();
+  const routine = page.locator('.home-primary-action__routine strong');
+  await expect(routine).toHaveText(longName);
+  expect(await routine.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });

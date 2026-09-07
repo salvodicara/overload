@@ -52,6 +52,18 @@ export function Profile() {
         </div>
       </div>
 
+      <Section id="profile-training" title={t('profile.trainingSummary')}>
+        <button className="settings-row settings-action" onClick={() => nav({ view: 'history' })}>
+          <span className="settings-row__copy">
+            <strong>{t('history.title')}</strong>
+            <span className="small muted" style={{ display: 'block' }}>
+              {t('profile.historyHint')}
+            </span>
+          </span>
+          <IconForward aria-hidden="true" />
+        </button>
+      </Section>
+
       <Section id="profile-preferences" title={t('settings.title')}>
         <div className="settings-row settings-row--control">
           <strong id="profile-language-label">{t('settings.language')}</strong>

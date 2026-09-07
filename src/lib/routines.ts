@@ -25,6 +25,7 @@ export function nextRoutine(
   workouts: Workout[],
   programStartDate?: string,
 ): Routine | null {
+  routines = routines.filter((routine) => routine.exercises.length > 0);
   if (routines.length === 0) return null;
 
   const currentWorkouts = programStartDate

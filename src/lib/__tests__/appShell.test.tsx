@@ -64,3 +64,48 @@ describe.each([
     if (authState === 'ready') expect(markup).toContain('<nav class="nav"');
   });
 });
+
+import { Nav } from '../../components/Nav';
+import { ActiveWorkoutBar } from '../../components/ActiveWorkoutBar';
+import { Profile } from '../../screens/Profile';
+
+it.each(['history', 'workoutDetail', 'workoutEditor'] as const)(
+  'keeps %s inside the Profile navigation destination',
+  async (view) => {
+    await i18n.changeLanguage('en');
+    shellHarness.state = { ...originalState, route: { view, id: 'saved' } } as Store;
+    const markup = renderToStaticMarkup(<Nav />);
+    const currentButton = markup.match(
+      /<button[^>]*aria-current="page"[^>]*>[\s\S]*?<\/button>/,
+    )?.[0];
+    expect(currentButton).toContain('Profile');
+  },
+);
+
+it('makes saved workouts discoverable from Profile', async () => {
+  await i18n.changeLanguage('en');
+  shellHarness.state = {
+    ...originalState,
+    workouts: [],
+    settings: { id: 'settings', updatedAt: 0 },
+  };
+  expect(renderToStaticMarkup(<Profile />)).toContain(i18n.t('history.title'));
+});
+
+it('keeps the minimized clock consistent with a paused workout', async () => {
+  await i18n.changeLanguage('en');
+  shellHarness.state = {
+    ...originalState,
+    route: { view: 'train' },
+    restUntil: null,
+    active: {
+      routineId: 'routine',
+      startTs: 1000,
+      pausedAt: 121000,
+      pausedTotalMs: 60000,
+      sets: [],
+    },
+  } as unknown as Store;
+  const markup = renderToStaticMarkup(<ActiveWorkoutBar />);
+  expect(markup).toContain('1:00');
+});

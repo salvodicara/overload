@@ -34,6 +34,7 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
   const nav = useStore((s) => s.nav);
   const startWorkout = useStore((s) => s.startWorkout);
   const workouts = useStore((s) => s.workouts);
+  const active = useStore((s) => s.active);
   const last = lastCompletedFor(routine, workouts);
   return (
     <li className={`train-routine${suggested ? ' train-routine--suggested' : ''}`}>
@@ -52,7 +53,7 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
       <button
         className={`btn train-routine__start ${suggested ? 'btn-accent' : 'btn-ghost'}`}
         aria-label={t('routines.start', { routine: routine.name })}
-        disabled={routine.exercises.length === 0}
+        disabled={Boolean(active) || routine.exercises.length === 0}
         onClick={() => startWorkout(routine.id)}
       >
         {t('home.start')}
