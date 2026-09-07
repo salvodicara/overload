@@ -145,17 +145,14 @@ export function TrainingOverview({
         >
           <IconForward />
         </button>
-      </div>
-      <div className="overview-current-slot">
-        {!isCurrentPeriod && (
-          <button
-            type="button"
-            className="overview-current home-period-today"
-            onClick={() => onChange({ periodAnchor: todayAnchor })}
-          >
-            {t('home.today')}
-          </button>
-        )}
+        <button
+          type="button"
+          className="overview-current home-period-today"
+          disabled={isCurrentPeriod}
+          onClick={() => onChange({ periodAnchor: todayAnchor })}
+        >
+          {t('home.today')}
+        </button>
       </div>
       <div className="week-metrics">
         <div className="week-metric">
@@ -226,9 +223,18 @@ export function TrainingOverview({
         points={chartPoints}
         height={150}
         formatValue={chartValue}
-        label={t('home.chartLabel', {
+        label={t('progress.overviewSummary', {
           metric: t(`home.metric.${chartMetric}`),
           period: periodLabel,
+          values: chartPoints
+            .map((point) => {
+              const date = new Date(`${point.date}T12:00:00`).toLocaleDateString(locale, {
+                day: 'numeric',
+                month: 'short',
+              });
+              return `${date}: ${chartValue(point.value)}`;
+            })
+            .join('; '),
         })}
       />
     </section>

@@ -96,7 +96,7 @@
 
 .overview-period-navigation {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px auto;
   gap: var(--space-2);
   align-items: center;
   text-align: center;
@@ -114,14 +114,13 @@
   opacity: 0.35;
 }
 
-.overview-current-slot {
-  display: flex;
-  min-height: 44px;
-  justify-content: center;
+.overview-period-navigation .overview-current {
+  padding-inline: 8px;
+  font-size: var(--text-sm);
 }
 
-.overview-current {
-  min-height: 44px;
+.overview-period-navigation .home-period-label {
+  overflow-wrap: anywhere;
 }
 
 .home-shortcuts svg,
