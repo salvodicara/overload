@@ -1,0 +1,68 @@
+.history-screen .history-calendar__header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 4px;
+}
+.history-screen .history-calendar__month {
+  text-align: center;
+  margin: 0;
+  font-size: clamp(14px, 4.3vw, 18px);
+}
+.history-calendar__next svg {
+  transform: rotate(180deg);
+}
+.history-calendar__tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+.history-calendar__today {
+  min-height: 44px;
+  padding-inline: 8px;
+  color: var(--accent-text);
+  font-weight: 650;
+}
+.history-calendar__clear:disabled {
+  color: var(--muted);
+  opacity: 0.65;
+}
+.history-screen .history-calendar__grid {
+  grid-template-rows: repeat(6, 46px);
+}
+.history-screen .history-calendar__grid > button {
+  color: var(--muted);
+}
+.history-screen .history-calendar__grid > button.is-trained {
+  color: var(--ink);
+  font-weight: 700;
+  background: var(--surface2);
+}
+.history-screen .history-calendar__grid > button.is-today {
+  box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+.history-screen .history-calendar__grid > button.is-selected,
+.history-screen .history-calendar__grid > button:hover {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.history-calendar__grid > button:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .history-calendar__grid {
+    animation: history-month-in 160ms ease-out;
+  }
+  @keyframes history-month-in {
+    from {
+      opacity: 0.45;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

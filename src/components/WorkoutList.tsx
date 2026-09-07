@@ -5,6 +5,7 @@ import { fmtDate, formatCompactNumber } from '../lib/format';
 import { kindOf, type Workout } from '../lib/types';
 import { displayVolume } from '../lib/units';
 import { useStore } from '../state/useStore';
+import { newestWorkoutFirst } from '../lib/workoutHistory';
 
 type WorkoutListProps = {
   workouts: Workout[];
@@ -26,11 +27,6 @@ function exerciseLines(workout: Workout, locale: string): { label: string; extra
   };
 }
 
-const newestFirst = (left: Workout, right: Workout): number =>
-  right.startTs - left.startTs ||
-  right.updatedAt - left.updatedAt ||
-  right.id.localeCompare(left.id);
-
 type WorkoutMonth = {
   key: string;
   label: string;
@@ -40,7 +36,7 @@ type WorkoutMonth = {
 export function WorkoutList({ workouts, limit, onOpen }: WorkoutListProps) {
   const { t, i18n } = useTranslation();
   const unit = useStore((state) => state.settings.unit ?? 'kg');
-  const visible = [...workouts].sort(newestFirst).slice(0, limit);
+  const visible = [...workouts].sort(newestWorkoutFirst).slice(0, limit);
   useCatalog(visible.length > 0);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const months = visible.reduce<WorkoutMonth[]>((groups, workout) => {
