@@ -1,3 +1,4 @@
+import '../theme/workout-surfaces.css';
 import {
   createRef,
   useRef,
@@ -342,7 +343,7 @@ export function RoutineEditor({ id }: { id: string }) {
 
   if (!storedRoutine || !routine)
     return (
-      <div className="screen page">
+      <div className="screen page routine-editor-screen">
         <PageHeader
           className="routine-editor-header"
           title={t('editor.title')}
@@ -353,7 +354,7 @@ export function RoutineEditor({ id }: { id: string }) {
     );
 
   return (
-    <div className="screen page">
+    <div className="screen page routine-editor-screen">
       <PageHeader
         className="routine-editor-header"
         title={

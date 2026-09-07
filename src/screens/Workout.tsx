@@ -1,3 +1,4 @@
+import '../theme/workout-surfaces.css';
 import { createRef, useEffect, useRef, useState, type FocusEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -335,7 +336,9 @@ export function Workout() {
                                 {editingTechnique && (
                                   <NoteEditor
                                     key={`technique:${instanceId}`}
-                                    initial={techniqueDrafts[instanceId] ?? prescription?.note ?? ''}
+                                    initial={
+                                      techniqueDrafts[instanceId] ?? prescription?.note ?? ''
+                                    }
                                     placeholder={t('workout.techniquePlaceholder')}
                                     labelledBy={techniqueLabelId}
                                     doneLabel={t('notes.done')}
@@ -617,7 +620,7 @@ export function Workout() {
                 setExerciseOptions(null);
               }}
             >
-              {t('routines.moveUp')}
+              {t('editor.moveUp')}
             </button>
             <button
               className="btn btn-ghost"
@@ -627,7 +630,7 @@ export function Workout() {
                 setExerciseOptions(null);
               }}
             >
-              {t('routines.moveDown')}
+              {t('editor.moveDown')}
             </button>
             <button
               className="btn btn-ghost"

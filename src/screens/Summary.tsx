@@ -4,6 +4,7 @@ import { exerciseName } from '../lib/exercises';
 import { kindOf } from '../lib/types';
 import { displayVolume, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
+import '../theme/workout-surfaces.css';
 
 export function Summary({ workoutId }: { workoutId: string }) {
   const { t, i18n } = useTranslation();
@@ -36,7 +37,8 @@ export function Summary({ workoutId }: { workoutId: string }) {
   const diff = prev ? displayVolume(w.volumeKg - prev.volumeKg, unit) : null;
   const prs = [...new Set(w.sets.filter((s) => s.isPr).map((s) => s.exerciseId))];
   const workingSetCount = w.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
-  const mins = w.endTs ? Math.max(1, Math.round((w.endTs - w.startTs) / 60000)) : 0;
+  const durationSec = w.durationSec ?? (w.endTs ? (w.endTs - w.startTs) / 1000 : 0);
+  const mins = durationSec > 0 ? Math.max(1, Math.round(durationSec / 60)) : 0;
 
   return (
     <div className="screen">
@@ -45,8 +47,8 @@ export function Summary({ workoutId }: { workoutId: string }) {
           {t('summary.title')}
         </h1>
         <div
-          className="display"
-          style={{ fontSize: 64, color: 'var(--accent-text)', marginTop: 12 }}
+          className="display summary-volume"
+          style={{ color: 'var(--accent-text)', marginTop: 12 }}
         >
           {volume.toLocaleString(i18n.language)}{' '}
           <span style={{ fontSize: '0.42em' }}>{weightLabel(unit)}</span>

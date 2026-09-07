@@ -1,3 +1,4 @@
+import '../theme/workout-surfaces.css';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -71,8 +72,7 @@ export function WorkoutDetail({ id }: { id: string }) {
   const durationMin = Math.max(
     1,
     Math.round(
-      (workout.durationSec ??
-        (workout.endTs ? (workout.endTs - workout.startTs) / 1000 : 0)) / 60,
+      (workout.durationSec ?? (workout.endTs ? (workout.endTs - workout.startTs) / 1000 : 0)) / 60,
     ),
   );
 
@@ -142,11 +142,15 @@ export function WorkoutDetail({ id }: { id: string }) {
         }
       />
 
-      <div className="card card-pad spread">
+      <div className="card card-pad spread workout-detail-stats">
         <div>
           <div className="mono small muted">{t('summary.volume')}</div>
-          <div className="mono" style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
-            {displayVolume(workout.volumeKg, unit).toLocaleString(i18n.language)} {weightLabel(unit)}
+          <div
+            className="mono workout-detail-volume"
+            style={{ fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}
+          >
+            {displayVolume(workout.volumeKg, unit).toLocaleString(i18n.language)}{' '}
+            {weightLabel(unit)}
           </div>
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -227,9 +231,8 @@ export function WorkoutDetail({ id }: { id: string }) {
               className="btn btn-ghost"
               disabled={!routineName.trim()}
               onClick={() =>
-                void continueAccountAction(
-                  saveWorkoutAsRoutine(workout.id, routineName),
-                  () => setOptionsOpen(false),
+                void continueAccountAction(saveWorkoutAsRoutine(workout.id, routineName), () =>
+                  setOptionsOpen(false),
                 )
               }
             >

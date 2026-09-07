@@ -1,3 +1,4 @@
+import '../theme/workout-surfaces.css';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
