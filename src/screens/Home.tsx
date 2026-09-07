@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconForward } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { formatCompactNumber } from '../lib/format';
 import { nextRoutine } from '../lib/routines';
@@ -130,6 +131,9 @@ export function Home() {
               </span>
             ))}
           </div>
+          {workouts.length === 0 && (
+            <p className="home-empty-guidance small muted">{t('history.empty')}</p>
+          )}
           <dl className="home-week-totals">
             {[
               [t('home.sessions', { count: summary.workouts }), summary.workouts],
@@ -148,14 +152,14 @@ export function Home() {
               className="home-history-link"
               onClick={() => nav({ view: 'history' })}
             >
-              {t('home.allHistory')} <span aria-hidden>→</span>
+              {t('home.allHistory')} <IconForward />
             </button>
             <button
               type="button"
               className="home-progress-link"
               onClick={() => nav({ view: 'progress' })}
             >
-              {t('home.viewProgress')} <span aria-hidden>→</span>
+              {t('home.viewProgress')} <IconForward />
             </button>
           </div>
         </section>

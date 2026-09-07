@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { IconBack, IconForward } from './Icons';
 import { LineChart } from './LineChart';
 import { formatCompactNumber } from '../lib/format';
 import type { HomeSurfaceState } from '../lib/navigationState';
@@ -130,7 +131,7 @@ export function TrainingOverview({
           aria-label={t('progress.previousPeriod')}
           onClick={() => movePeriod(-1)}
         >
-          ‹
+          <IconBack />
         </button>
         <span className="home-period-label mono" aria-live="polite">
           {periodLabel}
@@ -142,18 +143,20 @@ export function TrainingOverview({
           aria-label={t('progress.nextPeriod')}
           onClick={() => movePeriod(1)}
         >
-          ›
+          <IconForward />
         </button>
       </div>
-      {!isCurrentPeriod && (
-        <button
-          type="button"
-          className="overview-current home-period-today"
-          onClick={() => onChange({ periodAnchor: todayAnchor })}
-        >
-          {t('home.today')}
-        </button>
-      )}
+      <div className="overview-current-slot">
+        {!isCurrentPeriod && (
+          <button
+            type="button"
+            className="overview-current home-period-today"
+            onClick={() => onChange({ periodAnchor: todayAnchor })}
+          >
+            {t('home.today')}
+          </button>
+        )}
+      </div>
       <div className="week-metrics">
         <div className="week-metric">
           <div className="week-metric__value">
