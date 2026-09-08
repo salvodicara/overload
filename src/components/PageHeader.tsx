@@ -23,7 +23,12 @@ export function PageHeader({
   sticky = false,
   className,
 }: PageHeaderProps) {
-  const classes = ['page-header', sticky && 'page-header--sticky', className]
+  const classes = [
+    'page-header',
+    back && 'detail-page-header',
+    sticky && 'page-header--sticky',
+    className,
+  ]
     .filter(Boolean)
     .join(' ');
 

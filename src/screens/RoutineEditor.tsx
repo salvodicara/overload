@@ -45,9 +45,7 @@ function NumField({
 }) {
   return (
     <label className="stack routine-num-field" style={{ gap: 3 }}>
-      <span className="mono muted" style={{ fontSize: 'var(--text-xs)', letterSpacing: '0.06em' }}>
-        {displayLabel ?? label}
-      </span>
+      <span className="field-label">{displayLabel ?? label}</span>
       <input
         key={fieldKey}
         className="mono"
@@ -413,8 +411,8 @@ export function RoutineEditor({ id }: { id: string }) {
         className="routine-editor-header"
         title={
           <>
-            <span className="visually-hidden">{t('editor.title')}: </span>
-            <span>{routine.name}</span>
+            {t('editor.title')}
+            <span className="visually-hidden">: {routine.name}</span>
           </>
         }
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
@@ -458,12 +456,7 @@ export function RoutineEditor({ id }: { id: string }) {
         )}
       </div>
       <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
-        <span
-          className="mono meta muted"
-          style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-        >
-          {t('editor.name')}
-        </span>
+        <span className="field-label">{t('editor.name')}</span>
         <input
           key={`name-${rev}`}
           defaultValue={routine.name}
@@ -473,12 +466,7 @@ export function RoutineEditor({ id }: { id: string }) {
       </label>
       {folders.length > 0 && (
         <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
-          <span
-            className="mono meta muted"
-            style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-          >
-            {t('editor.folder')}
-          </span>
+          <span className="field-label">{t('editor.folder')}</span>
           <select
             key={`folder-${rev}`}
             defaultValue={routine.folderId ?? ''}
@@ -494,12 +482,7 @@ export function RoutineEditor({ id }: { id: string }) {
         </label>
       )}
       <label className="field" style={{ marginBottom: 'var(--space-4)' }}>
-        <span
-          className="mono meta muted"
-          style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}
-        >
-          {t('editor.preparation')}
-        </span>
+        <span className="field-label">{t('editor.preparation')}</span>
         <textarea
           key={`warmup-${rev}`}
           defaultValue={routine.warmup ?? ''}

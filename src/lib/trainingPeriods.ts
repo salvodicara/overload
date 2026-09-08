@@ -174,6 +174,16 @@ export function weekRangeLabel(days: WeekDay[], language: string): string {
   const locale = language.startsWith('it') ? 'it-IT' : 'en-GB';
   const first = new Date(`${days[0].iso}T12:00:00`);
   const last = new Date(`${days.at(-1)!.iso}T12:00:00`);
+  if (
+    first.getFullYear() !== new Date().getFullYear() ||
+    last.getFullYear() !== first.getFullYear()
+  ) {
+    return new Intl.DateTimeFormat(locale, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).formatRange(first, last);
+  }
   const sameMonth =
     first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
   if (sameMonth) {

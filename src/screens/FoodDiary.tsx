@@ -93,18 +93,9 @@ export function FoodDiary() {
           <section key={meal} className="food-meal" aria-labelledby={'meal-' + meal}>
             <div className="spread">
               <h2 id={'meal-' + meal}>{t('food.meals.' + meal)}</h2>
-              {foods.some((entry) => entry.food.source !== 'manual') && (
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    setError(false);
-                    setMealName(t('food.meals.' + meal));
-                    setSavingMeal(meal);
-                  }}
-                >
-                  {t('food.saveMeal')}
-                </button>
-              )}
+              <button className="food-add" onClick={() => nav({ view: 'foodAdd', date, meal })}>
+                {t('food.addFood')}
+              </button>
             </div>
             {foods.length > 0 && (
               <ul className="food-entries">
@@ -143,9 +134,18 @@ export function FoodDiary() {
                 ))}
               </ul>
             )}
-            <button className="food-add" onClick={() => nav({ view: 'foodAdd', date, meal })}>
-              {t('food.addFood')}
-            </button>
+            {foods.some((entry) => entry.food.source !== 'manual') && (
+              <button
+                className="food-save-meal"
+                onClick={() => {
+                  setError(false);
+                  setMealName(t('food.meals.' + meal));
+                  setSavingMeal(meal);
+                }}
+              >
+                {t('food.saveMeal')}
+              </button>
+            )}
           </section>
         );
       })}

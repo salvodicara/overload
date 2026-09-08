@@ -1519,7 +1519,7 @@ test('Progress navigates aggregate periods with visible buttons and preserves se
   await expect(overview.getByRole('button', { name: /next period/i })).toBeDisabled();
 });
 
-test('calendar filters the visible month and restores the selected day after opening a workout', async ({
+test('calendar opens a workout directly and preserves the browsed month on Back', async ({
   page,
 }) => {
   await installCoreSurfaceFixture(page);
@@ -1530,28 +1530,38 @@ test('calendar filters the visible month and restores the selected day after ope
     .click();
   await page.getByRole('tab', { name: /calendar/i }).click();
   const calendar = page.getByRole('region', { name: /^calendar$/i });
-  await expect(calendar.locator('.history-calendar__grid > *')).toHaveCount(42);
+  await expect(
+    calendar.locator('.period-pager__page:not([inert]) .history-calendar__grid > *'),
+  ).toHaveCount(42);
   await expect(calendar.getByRole('button', { name: /whole month/i })).toHaveCount(0);
-  await expect(page.locator('.workout-row')).toHaveCount(1);
   await calendar.getByRole('button', { name: /previous month/i }).click();
-  await expect(page.locator('.workout-row')).toHaveCount(1);
   await expect(page.locator('.workout-row')).toContainText('Five exercises');
-  // Select the workout's actual date from the rendered calendar marker.
-  const trainedDay = calendar.locator('.is-trained').first();
-  await trainedDay.click();
-  await expect(trainedDay).toHaveAttribute('aria-pressed', 'true');
-  await expect(calendar.getByRole('button', { name: /whole month/i })).toBeEnabled();
-  await page.getByRole('button', { name: /five exercises/i }).click();
+  await calendar.locator('.period-pager__page:not([inert]) .is-trained').first().click();
+  await expect(page.locator('.workout-detail-header')).toBeVisible();
   await page.goBack();
   await expect(calendar.locator('.history-calendar__month')).toHaveText('July 2026');
-  await expect(calendar.locator('.is-trained').first()).toHaveAttribute('aria-pressed', 'true');
-  await calendar.getByRole('button', { name: /whole month/i }).click();
-  await expect(calendar.locator('[aria-pressed="true"]')).toHaveCount(0);
   await expect(calendar.getByRole('button', { name: /whole month/i })).toHaveCount(0);
-  await expect(calendar.locator('.is-trained').first()).toBeFocused();
+  await calendar.locator('.period-pager__page:not([inert]) .is-trained').first().click();
+  await expect(page.locator('.workout-detail-header')).toBeVisible();
 });
 
-test('calendar swipe changes month but vertical scrolling does not', async ({ page }) => {
+async function nativeSwipe(page: Page, x: number, y: number, dx: number, dy: number) {
+  const client = await page.context().newCDPSession(page);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 12; i++) {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: x + (dx * i) / 12, y: y + (dy * i) / 12 }],
+    });
+    await page.waitForTimeout(16);
+  }
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await client.detach();
+}
+
+test('calendar native thumb swipe pages months while vertical pan scrolls the document', async ({
+  page,
+}) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
   await page
@@ -1560,16 +1570,19 @@ test('calendar swipe changes month but vertical scrolling does not', async ({ pa
     .click();
   await page.getByRole('tab', { name: /calendar/i }).click();
   const calendar = page.getByRole('region', { name: /^calendar$/i });
-  const pointer = { pointerId: 1, isPrimary: true, button: 0, pointerType: 'touch' };
-  await calendar.dispatchEvent('pointerdown', { ...pointer, clientX: 80, clientY: 200 });
-  await calendar.dispatchEvent('pointermove', { ...pointer, clientX: 140, clientY: 320 });
-  await calendar.dispatchEvent('pointerup', { ...pointer, clientX: 200, clientY: 340 });
-  await expect(calendar.locator('.history-calendar__month')).toHaveText('August 2026');
-  await calendar.dispatchEvent('pointerdown', { ...pointer, clientX: 80, clientY: 200 });
-  await calendar.dispatchEvent('pointerup', { ...pointer, clientX: 240, clientY: 205 });
+  const pager = calendar.locator('.period-pager');
+  await pager.scrollIntoViewIfNeeded();
+  const box = (await pager.boundingBox())!;
+  await nativeSwipe(page, box.x + 30, box.y + 80, box.width - 60, 0);
   await expect(calendar.locator('.history-calendar__month')).toHaveText('July 2026');
-  await calendar.focus();
-  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.workout-detail-header')).toHaveCount(0);
+  await nativeSwipe(page, box.x + box.width - 30, box.y + 80, -box.width + 60, 0);
+  await expect(calendar.locator('.history-calendar__month')).toHaveText('August 2026');
+  await page.evaluate(() => scrollTo(0, 0));
+  const before = await page.evaluate(() => scrollY);
+  const fresh = (await pager.boundingBox())!;
+  await nativeSwipe(page, fresh.x + fresh.width / 2, fresh.y + 180, 0, -140);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(before);
   await expect(calendar.locator('.history-calendar__month')).toHaveText('August 2026');
 });
 
@@ -2520,7 +2533,9 @@ test('log a workout end to end', async ({ page }) => {
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await expect(page.locator('.summary-pop')).toContainText(/\d+\s*kg.*Volume/is);
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
-  await expect(page.getByText(/this week|questa settimana/i)).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: /^(this week|questa settimana)$/i }),
+  ).toBeVisible();
   await expect(page.getByText('Full Body B', { exact: true })).toBeVisible();
   await page
     .getByRole('button', { name: /all history|tutto lo storico/i })
@@ -2531,9 +2546,15 @@ test('log a workout end to end', async ({ page }) => {
 
 test('empty session is discarded, not recorded', async ({ page }) => {
   await startNeutralWorkout(page);
-  await page.locator('.iconbtn').first().click();
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /finish with completed sets|termina con le serie/i })
+    .click();
   await expect(page.getByRole('button', { name: /^(train|allenati)$/i })).toBeVisible();
   await page.getByRole('button', { name: /^home$/i }).click();
+  await page.getByRole('button', { name: /all history|tutto lo storico/i }).click();
+  await expect(page.locator('.workout-row')).toHaveCount(0);
   await expect(page.getByText(/no workouts yet|ancora nessun allenamento/i)).toBeVisible();
 });
 
@@ -5418,4 +5439,42 @@ test('history resumes the existing workout without creating another routine', as
     return { start: state.active?.startTs, routines: state.routines.length };
   });
   expect(after).toEqual(before);
+});
+
+test('Home browses weeks with native touch and returns to the current week', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+  const week = page.locator('.home-current-week');
+  const initial = await week.locator('.period-navigation__label').innerText();
+  const pager = week.locator('.period-pager');
+  await pager.scrollIntoViewIfNeeded();
+  const box = (await pager.boundingBox())!;
+  await nativeSwipe(page, box.x + 30, box.y + 30, box.width - 60, 0);
+  await expect(week.locator('.period-navigation__label')).not.toHaveText(initial);
+  await expect(week.getByRole('button', { name: /next week/i })).toBeEnabled();
+  await week.getByRole('button', { name: /^today$/i }).click();
+  await expect(week.locator('.period-navigation__label')).toHaveText(initial);
+  await expect(week.getByRole('button', { name: /next week/i })).toBeDisabled();
+});
+
+test('An empty calendar day has a visible touch dismissal and can be reopened', async ({
+  page,
+}) => {
+  await installCoreSurfaceFixture(page);
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
+  await page.getByRole('tab', { name: /calendar/i }).click();
+  const day = page
+    .locator('.period-pager__page:not([inert]) button:not(.is-trained):not(:disabled)')
+    .first();
+  for (let i = 0; i < 2; i++) {
+    await day.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: /^OK$/ }).click();
+    await expect(dialog).toHaveCount(0);
+  }
 });

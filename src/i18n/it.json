@@ -52,7 +52,7 @@
     "sessions_one": "allenamento",
     "sessions_other": "allenamenti",
     "nextWorkout": "Prossimo allenamento",
-    "weekDays": "I giorni di questa settimana",
+    "weekDays": "Giorni della settimana",
     "trained": "allenato",
     "workingSets_one": "serie di lavoro",
     "workingSets_other": "serie di lavoro",
@@ -71,7 +71,10 @@
     "allHistory": "Tutto lo storico",
     "moreExercises_one": "+ {{count}} altro esercizio",
     "moreExercises_other": "+ altri {{count}} esercizi",
-    "viewProgress": "Statistiche"
+    "viewProgress": "Statistiche",
+    "previousWeek": "Settimana precedente",
+    "nextWeek": "Settimana successiva",
+    "emptyWeek": "Nessun allenamento questa settimana."
   },
   "workout": {
     "warmup": "Riscaldamento",

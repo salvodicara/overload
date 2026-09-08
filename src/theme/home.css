@@ -33,3 +33,24 @@
 .home-recent .home-history-link svg {
   flex: none;
 }
+.home-week .week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 54px;
+}
+.home-weekday-label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.home-week .week-day strong {
+  font-size: var(--text-sm);
+}
+.home-week .home-week-heading {
+  flex-wrap: wrap;
+}
+.home-week .period-pager__page {
+  padding: 0 2px;
+}

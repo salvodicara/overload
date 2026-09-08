@@ -45,14 +45,14 @@ describe('history explorer regressions', () => {
   it('does not offer a reset when the entire month is already shown', () => {
     const html = renderToStaticMarkup(<History />);
     expect(html).not.toContain('history.showWholeMonth');
-    expect(html).toContain('history.monthScope');
+    expect(html).toContain('history.workoutsCount:0');
   });
-  it('shows an enabled reset only when a day filter is active', () => {
+  it('ignores a legacy day selection and retains the whole month', () => {
     data.surface.selectedDay = '2026-08-03';
     const html = renderToStaticMarkup(<History />);
-    expect(html).toContain('history.showWholeMonth');
-    expect(html).toContain('history.dayScope');
-    expect(html).not.toContain('disabled=""');
+    expect(html).not.toContain('history.showWholeMonth');
+    expect(html).not.toContain('history.dayScope');
+    expect(html).toContain('history.emptyMonth');
   });
   it('orders dates before pagination even when timestamps disagree', () => {
     data.surface = { mode: 'list', visibleCount: 1 };

@@ -1,32 +1,27 @@
 /* Keep titles readable while the familiar back/action controls remain reachable. */
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header) {
+:is(.workout-header, .workout-detail-header) {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
 }
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header)
-  .page-header__copy {
+:is(.workout-header, .workout-detail-header) .page-header__copy {
   display: contents;
 }
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header)
-  .page-header__back {
+:is(.workout-header, .workout-detail-header) .page-header__back {
   grid-row: 1;
   grid-column: 1;
 }
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header)
-  .page-header__action {
+:is(.workout-header, .workout-detail-header) .page-header__action {
   grid-row: 1;
   grid-column: 3;
   justify-self: end;
 }
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header)
-  .page-header__eyebrow {
+:is(.workout-header, .workout-detail-header) .page-header__eyebrow {
   grid-row: 1;
   grid-column: 2;
   margin: 0;
 }
-:is(.workout-header, .routine-editor-header, .workout-detail-header, .workout-editor-header)
-  .page-header__title {
+:is(.workout-header, .workout-detail-header) .page-header__title {
   grid-row: 2;
   grid-column: 1 / -1;
   overflow: visible;

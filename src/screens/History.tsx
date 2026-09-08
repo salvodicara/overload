@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
+import { BottomSheet } from '../components/BottomSheet';
+import { PeriodPager } from '../components/PeriodPager';
 import { IconBack } from '../components/Icons';
 import { WorkoutList } from '../components/WorkoutList';
 import { useCatalog } from '../hooks/useCatalog';
@@ -37,9 +39,7 @@ export function History() {
     selectedDay: null,
   });
   const sentinel = useRef<HTMLDivElement>(null);
-  const calendarRef = useRef<HTMLElement>(null);
-  const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null);
-  const suppressClick = useRef(false);
+  const [openDay, setOpenDay] = useState<string | null>(null);
   const mode = surface.mode ?? 'list';
   const today = new Date().toLocaleDateString('sv');
   const anchor = surface.anchor ?? today.slice(0, 7);
@@ -67,11 +67,7 @@ export function History() {
   );
   const filtered =
     mode === 'calendar'
-      ? matching.filter(
-          (workout) =>
-            workout.date.startsWith(`${anchor}-`) &&
-            (!surface.selectedDay || workout.date === surface.selectedDay),
-        )
+      ? matching.filter((workout) => workout.date.startsWith(`${anchor}-`))
       : matching;
   const dayCounts = new Map<string, number>();
   for (const workout of matching)
@@ -96,18 +92,33 @@ export function History() {
         visibleCount: PAGE_SIZE,
       }));
   }, [routines, workouts, surface.routineId, surface.exerciseId, setSurface]);
-  const days = monthDays(anchor);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
-  const firstWeekday = (new Date(`${days[0]}T12:00:00`).getDay() + 6) % 7;
-  const moveMonth = (amount: number): void => {
+  const monthAt = (offset: number): string => {
     const [year, month] = anchor.split('-').map(Number);
-    const next = new Date(year, month - 1 + amount, 1).toLocaleDateString('sv').slice(0, 7);
+    return new Date(year, month - 1 + offset, 1, 12).toLocaleDateString('sv').slice(0, 7);
+  };
+  const moveMonth = (amount: number): void => {
+    const next = monthAt(amount);
+    if (next > today.slice(0, 7)) return;
     setSurface((current) => ({
       ...current,
       anchor: next,
       selectedDay: null,
       visibleCount: PAGE_SIZE,
     }));
+  };
+  const dayWorkouts = openDay ? matching.filter((workout) => workout.date === openDay) : [];
+  const dayLabel = (day: string) =>
+    new Date(`${day}T12:00:00`).toLocaleDateString(locale, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  const openDate = (day: string) => {
+    const records = matching.filter((workout) => workout.date === day);
+    if (records.length === 1) nav({ view: 'workoutDetail', id: records[0].id });
+    else setOpenDay(day);
   };
 
   useEffect(() => {
@@ -214,53 +225,17 @@ export function History() {
       {mode === 'calendar' && (
         <section
           className="history-calendar"
-          ref={calendarRef}
           aria-label={t('history.calendar')}
           tabIndex={0}
-          onPointerDown={(event) => {
-            suppressClick.current = false;
-            if (!event.isPrimary || event.button !== 0) return;
-            swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
-          }}
-          onPointerMove={(event) => {
-            const start = swipeStart.current;
-            if (!start || start.id !== event.pointerId) return;
-            const dx = Math.abs(event.clientX - start.x);
-            const dy = Math.abs(event.clientY - start.y);
-            if (dy > 12 && dy > dx) swipeStart.current = null;
-          }}
-          onPointerCancel={() => {
-            swipeStart.current = null;
-          }}
-          onClickCapture={(event) => {
-            if (suppressClick.current) {
-              event.preventDefault();
-              event.stopPropagation();
-              suppressClick.current = false;
-            }
-          }}
-          onPointerUp={(event) => {
-            const start = swipeStart.current;
-            swipeStart.current = null;
-            if (!start || start.id !== event.pointerId) return;
-            const distance = event.clientX - start.x;
-            if (
-              Math.abs(distance) >= 44 &&
-              Math.abs(distance) > Math.abs(event.clientY - start.y) * 1.5
-            ) {
-              suppressClick.current = true;
-              moveMonth(distance < 0 ? 1 : -1);
-            }
-          }}
           onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
             if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
               event.preventDefault();
-              event.currentTarget.focus();
               moveMonth(event.key === 'ArrowLeft' ? -1 : 1);
             }
           }}
         >
-          <div className="history-calendar__header">
+          <div className="period-navigation">
             <button
               className="iconbtn"
               aria-label={t('history.previousMonth')}
@@ -268,7 +243,11 @@ export function History() {
             >
               <IconBack />
             </button>
-            <h2 className="history-calendar__month" aria-live="polite" aria-atomic="true">
+            <h2
+              className="history-calendar__month period-navigation__label"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {new Date(`${anchor}-01T12:00:00`).toLocaleDateString(locale, {
                 month: 'long',
                 year: 'numeric',
@@ -277,26 +256,31 @@ export function History() {
             <button
               className="iconbtn history-calendar__next"
               aria-label={t('history.nextMonth')}
+              disabled={anchor >= today.slice(0, 7)}
               onClick={() => moveMonth(1)}
             >
               <IconBack />
             </button>
           </div>
           <div className="history-calendar__tools">
-            <span className="small muted">{t('history.calendarHint')}</span>
-            <button
-              className="history-calendar__today"
-              onClick={() =>
-                setSurface((current) => ({
-                  ...current,
-                  anchor: today.slice(0, 7),
-                  selectedDay: null,
-                  visibleCount: PAGE_SIZE,
-                }))
-              }
-            >
-              {t('home.today')}
-            </button>
+            <span className="small muted">
+              {t('history.workoutsCount', { count: filtered.length })}
+            </span>
+            {anchor !== today.slice(0, 7) && (
+              <button
+                className="period-return"
+                onClick={() =>
+                  setSurface((current) => ({
+                    ...current,
+                    anchor: today.slice(0, 7),
+                    selectedDay: null,
+                    visibleCount: PAGE_SIZE,
+                  }))
+                }
+              >
+                {t('home.today')}
+              </button>
+            )}
           </div>
           <div className="history-calendar__weekdays" aria-hidden="true">
             {Array.from({ length: 7 }, (_, index) => (
@@ -307,77 +291,65 @@ export function History() {
               </span>
             ))}
           </div>
-          <div key={anchor} className="history-calendar__grid">
-            {Array.from({ length: firstWeekday }, (_, index) => (
-              <span key={`blank-${index}`} aria-hidden="true" />
-            ))}
-            {days.map((day) => {
-              const count = dayCounts.get(day) ?? 0;
-              const selected = surface.selectedDay === day;
+          <PeriodPager
+            value={anchor}
+            label={t('history.calendar')}
+            onMove={moveMonth}
+            canNext={anchor < today.slice(0, 7)}
+          >
+            {(offset) => {
+              const dates = monthDays(monthAt(offset));
+              const weekday = (new Date(`${dates[0]}T12:00:00`).getDay() + 6) % 7;
               return (
-                <button
-                  key={day}
-                  className={[
-                    selected && 'is-selected',
-                    count > 0 && 'is-trained',
-                    day === today && 'is-today',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  aria-label={`${new Date(`${day}T12:00:00`).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${t('history.workoutsCount', { count })}`}
-                  aria-pressed={selected}
-                  aria-current={day === today ? 'date' : undefined}
-                  onClick={() =>
-                    setSurface((current) => ({
-                      ...current,
-                      selectedDay: current.selectedDay === day ? null : day,
-                      visibleCount: PAGE_SIZE,
-                    }))
-                  }
-                >
-                  <span>{Number(day.slice(-2))}</span>
-                  {count > 0 && <i aria-hidden="true">{count}</i>}
-                </button>
+                <div className="history-calendar__grid">
+                  {Array.from({ length: weekday }, (_, index) => (
+                    <span key={`blank-${index}`} aria-hidden="true" />
+                  ))}
+                  {dates.map((day) => {
+                    const count = dayCounts.get(day) ?? 0;
+                    return (
+                      <button
+                        key={day}
+                        disabled={day > today}
+                        className={[count > 0 && 'is-trained', day === today && 'is-today']
+                          .filter(Boolean)
+                          .join(' ')}
+                        aria-label={`${dayLabel(day)}, ${t('history.workoutsCount', { count })}`}
+                        aria-current={day === today ? 'date' : undefined}
+                        onClick={() => openDate(day)}
+                      >
+                        <span>{Number(day.slice(-2))}</span>
+                        {count > 1 && <i aria-hidden="true">{count}</i>}
+                      </button>
+                    );
+                  })}
+                  {Array.from({ length: 42 - weekday - dates.length }, (_, index) => (
+                    <span key={`end-${index}`} aria-hidden="true" />
+                  ))}
+                </div>
               );
-            })}
-            {Array.from({ length: 42 - firstWeekday - days.length }, (_, index) => (
-              <span key={`end-${index}`} aria-hidden="true" />
-            ))}
-          </div>
-          <p className="history-calendar__scope" role="status">
-            {surface.selectedDay
-              ? t('history.dayScope', {
-                  date: new Date(`${surface.selectedDay}T12:00:00`).toLocaleDateString(locale, {
-                    day: 'numeric',
-                    month: 'long',
-                  }),
-                })
-              : t('history.monthScope', {
-                  month: new Date(`${anchor}-01T12:00:00`).toLocaleDateString(locale, {
-                    month: 'long',
-                    year: 'numeric',
-                  }),
-                })}
-          </p>
-          {surface.selectedDay && (
-            <button
-              className="history-calendar__clear"
-              onClick={() => {
-                calendarRef.current
-                  ?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
-                  ?.focus();
-                setSurface((current) => ({
-                  ...current,
-                  selectedDay: null,
-                  visibleCount: PAGE_SIZE,
-                }));
-              }}
-            >
-              {t('history.showWholeMonth')}
-            </button>
-          )}
+            }}
+          </PeriodPager>
         </section>
       )}
+      <BottomSheet
+        open={openDay !== null}
+        title={openDay ? dayLabel(openDay) : ''}
+        onClose={() => setOpenDay(null)}
+        closeOnScrim
+      >
+        {dayWorkouts.length ? (
+          <WorkoutList
+            workouts={dayWorkouts}
+            onOpen={(workout) => nav({ view: 'workoutDetail', id: workout.id })}
+          />
+        ) : (
+          <p className="empty">{t('history.emptyDay')}</p>
+        )}
+        <button className="btn btn-ghost btn-block" onClick={() => setOpenDay(null)}>
+          {t('common.done')}
+        </button>
+      </BottomSheet>
 
       <section aria-labelledby="history-list">
         <h2 id="history-list" className="visually-hidden">
@@ -394,10 +366,10 @@ export function History() {
               query || surface.routineId || surface.exerciseId
                 ? 'history.noResults'
                 : mode === 'calendar'
-                  ? surface.selectedDay
-                    ? 'history.emptyDay'
-                    : 'history.emptyMonth'
-                  : 'history.noResults',
+                  ? 'history.emptyMonth'
+                  : workouts.length === 0
+                    ? 'history.empty'
+                    : 'history.noResults',
             )}
           </div>
         )}

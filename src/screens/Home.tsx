@@ -1,11 +1,20 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconForward } from '../components/Icons';
+import { useSurfaceState } from '../hooks/useSurfaceState';
+import { PeriodPager } from '../components/PeriodPager';
+import { replaceSurfaceState } from '../lib/navigationState';
+import { IconBack, IconForward } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { WorkoutList } from '../components/WorkoutList';
 import { formatCompactNumber } from '../lib/format';
 import { nextRoutine } from '../lib/routines';
-import { periodSummary, weekDays, weekRangeLabel } from '../lib/trainingPeriods';
+import {
+  periodSummary,
+  periodBounds,
+  shiftPeriod,
+  weekDays,
+  weekRangeLabel,
+} from '../lib/trainingPeriods';
 import { kindOf } from '../lib/types';
 import { useStore } from '../state/useStore';
 import '../theme/overview.css';
@@ -19,8 +28,19 @@ export function Home() {
     useStore();
   const now = new Date();
   const today = now.toLocaleDateString('sv');
-  const days = weekDays(now, i18n.language);
-  const summary = periodSummary(now, 'week', workouts, now);
+  const [surface, setSurface] = useSurfaceState('home', {});
+  const anchor =
+    surface.periodAnchor && surface.periodAnchor <= today ? surface.periodAnchor : today;
+  const selectedWeek = new Date(`${anchor}T12:00:00`);
+  const isCurrentWeek =
+    periodBounds(selectedWeek, 'week').start === periodBounds(now, 'week').start;
+  const moveWeek = (direction: -1 | 1) => {
+    if (direction > 0 && isCurrentWeek) return;
+    setSurface((current) => ({
+      ...current,
+      periodAnchor: shiftPeriod(selectedWeek, 'week', direction).toLocaleDateString('sv'),
+    }));
+  };
   const trainedDays = new Set(
     workouts
       .filter((workout) => workout.sets.some((set) => set.done && kindOf(set.kind) === 'working'))
@@ -121,37 +141,81 @@ export function Home() {
         <section className="home-week home-current-week" aria-labelledby="current-week-title">
           <div className="home-week-heading">
             <h2 id="current-week-title" className="display section-title">
-              {t('home.thisWeek')}
+              {t(isCurrentWeek ? 'home.thisWeek' : 'home.selectedWeek')}
             </h2>
-            <span className="mono small muted">{weekRangeLabel(days, i18n.language)}</span>
-          </div>
-          <div className="week-days" role="group" aria-label={t('home.weekDays')}>
-            {days.map((day) => (
-              <span
-                key={day.iso}
-                className={`week-day${trainedDays.has(day.iso) ? ' week-day--trained' : ''}`}
-                aria-label={`${day.iso}${trainedDays.has(day.iso) ? ` ${t('home.trained')}` : ''}`}
-                aria-current={day.iso === today ? 'date' : undefined}
+            {!isCurrentWeek && (
+              <button
+                className="period-return"
+                onClick={() => setSurface((current) => ({ ...current, periodAnchor: today }))}
               >
-                {day.label}
-              </span>
-            ))}
+                {t('home.today')}
+              </button>
+            )}
           </div>
-          {workouts.length === 0 && (
-            <p className="home-empty-guidance small muted">{t('history.empty')}</p>
-          )}
-          <dl className="home-week-totals">
-            {[
-              [t('home.sessions', { count: summary.workouts }), summary.workouts],
-              [t('home.workingSets', { count: summary.workingSets }), summary.workingSets],
-              [t('home.duration'), summary.durationMin],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd className="display">{formatCompactNumber(Number(value), locale)}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="period-navigation">
+            <button
+              className="iconbtn"
+              aria-label={t('home.previousWeek')}
+              onClick={() => moveWeek(-1)}
+            >
+              <IconBack />
+            </button>
+            <p className="period-navigation__label" aria-live="polite">
+              {weekRangeLabel(weekDays(selectedWeek, i18n.language), i18n.language)}
+            </p>
+            <button
+              className="iconbtn"
+              aria-label={t('home.nextWeek')}
+              disabled={isCurrentWeek}
+              onClick={() => moveWeek(1)}
+            >
+              <IconForward />
+            </button>
+          </div>
+          <PeriodPager
+            value={anchor}
+            label={t('home.weekDays')}
+            onMove={moveWeek}
+            canNext={!isCurrentWeek}
+          >
+            {(offset) => {
+              const date = shiftPeriod(selectedWeek, 'week', offset);
+              const days = weekDays(date, i18n.language);
+              const summary = periodSummary(date, 'week', workouts, now);
+              return (
+                <div>
+                  <div className="week-days" role="group" aria-label={t('home.weekDays')}>
+                    {days.map((day) => (
+                      <span
+                        key={day.iso}
+                        className={`week-day${trainedDays.has(day.iso) ? ' week-day--trained' : ''}`}
+                        aria-label={`${day.iso}${trainedDays.has(day.iso) ? ` ${t('home.trained')}` : ''}`}
+                        aria-current={day.iso === today ? 'date' : undefined}
+                      >
+                        <span className="home-weekday-label">{day.label}</span>
+                        <strong>{Number(day.iso.slice(-2))}</strong>
+                      </span>
+                    ))}
+                  </div>
+                  {summary.workouts === 0 && (
+                    <p className="home-empty-guidance small muted">{t('home.emptyWeek')}</p>
+                  )}
+                  <dl className="home-week-totals">
+                    {[
+                      [t('home.sessions', { count: summary.workouts }), summary.workouts],
+                      [t('home.workingSets', { count: summary.workingSets }), summary.workingSets],
+                      [t('home.duration'), summary.durationMin],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd className="display">{formatCompactNumber(Number(value), locale)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              );
+            }}
+          </PeriodPager>
           <div className="home-shortcuts">
             {workouts.length === 0 && (
               <button
@@ -165,7 +229,10 @@ export function Home() {
             <button
               type="button"
               className="home-progress-link"
-              onClick={() => nav({ view: 'progress' })}
+              onClick={() => {
+                nav({ view: 'progress' });
+                replaceSurfaceState('progress', { periodUnit: 'week', periodAnchor: anchor });
+              }}
             >
               {t('home.viewProgress')} <IconForward />
             </button>

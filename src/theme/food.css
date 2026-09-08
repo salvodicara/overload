@@ -150,22 +150,26 @@
 }
 .food-search-tabs {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  gap: 0;
+  padding: 3px;
+  border-radius: var(--r-control);
+  background: var(--surface2);
 }
 .food-search-tabs > button {
   flex: 1;
   min-width: 72px;
   min-height: 44px;
   padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  background: var(--surface);
+  border: 0;
+  border-radius: calc(var(--r-control) - 3px);
+  color: var(--muted);
+  background: transparent;
+  font-weight: 600;
 }
 .food-search-tabs > button[aria-pressed='true'] {
-  border-color: var(--accent-text);
-  color: var(--accent-text);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .food-search-form {
   display: grid;
@@ -243,4 +247,64 @@
   min-width: 0;
   display: grid;
   gap: 16px;
+}
+
+/* Daily diary: meal actions lead, utilities and saved-meal actions stay secondary. */
+.food-diary {
+  gap: var(--space-4);
+}
+.food-diary .food-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.food-diary .food-tools > .btn {
+  min-height: 44px;
+  padding: var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.food-diary .food-meal {
+  padding-block: var(--space-3);
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.food-diary .food-meal > .spread {
+  gap: var(--space-3);
+}
+.food-diary .food-meal h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.food-diary .food-add {
+  flex: 0 1 auto;
+  width: auto;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  text-align: center;
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+.food-diary .food-save-meal {
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.food-diary .food-entries li:last-child {
+  border-bottom: 0;
 }
