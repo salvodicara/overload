@@ -47,7 +47,7 @@ function byExercise(workout: Workout): ExerciseGroup[] {
 export function WorkoutDetail({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
   useCatalog();
-  const { workouts, catalogReady } = useStore();
+  const { workouts, catalogReady, active } = useStore();
   const unit = useStore((state) => state.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const deleteWorkout = useStore((s) => s.deleteWorkout);
@@ -214,10 +214,14 @@ export function WorkoutDetail({ id }: { id: string }) {
           </button>
           <button
             className="btn btn-ghost btn-block"
-            onClick={() => void repeatWorkout(workout.id)}
+            onClick={() => {
+              if (useStore.getState().active) nav({ view: 'workout' });
+              else void repeatWorkout(workout.id);
+            }}
           >
-            {t('history.repeatWorkout')}
+            {t(active ? 'history.resumeCurrentWorkout' : 'history.repeatWorkout')}
           </button>
+          {active && <p className="small muted">{t('history.activeWorkoutHint')}</p>}
           <label className="field-label" htmlFor="save-workout-routine">
             {t('history.saveAsRoutine')}
           </label>

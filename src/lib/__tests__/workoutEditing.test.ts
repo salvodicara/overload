@@ -21,6 +21,42 @@ const workout: Workout = {
 };
 
 describe('completed workout editing', () => {
+  it.each(['2026-02-30', '2025-02-29', '', 'not-a-date'])(
+    'rejects invalid calendar date %s',
+    (date) => {
+      expect(validateWorkoutDraft({ ...draftFromWorkout(workout), date })).toContain('date');
+    },
+  );
+  it.each(['24:00', '12:60', '99:99', ''])('rejects invalid time %s', (startTime) => {
+    expect(validateWorkoutDraft({ ...draftFromWorkout(workout), startTime })).toContain(
+      'startTime',
+    );
+  });
+  it.each([
+    { weightKg: -10 },
+    { weightKg: Infinity },
+    { reps: -1 },
+    { reps: 2.5 },
+    { tracking: 'duration' as const, durationSec: 0 },
+    { tracking: 'duration' as const, durationSec: NaN },
+  ])('rejects invalid set values at the persistence boundary %j', (patch) => {
+    const draft = { ...draftFromWorkout(workout), sets: [{ ...workout.sets[0], ...patch }] };
+    expect(validateWorkoutDraft(draft)).toContain('setValues');
+    expect(() => workoutFromDraft(workout, draft)).toThrow();
+  });
+  it('allows leap day, fractional loads and valid timed/reps sets', () => {
+    const draft = {
+      ...draftFromWorkout(workout),
+      date: '2024-02-29',
+      startTime: '23:59',
+      sets: [
+        { ...workout.sets[0], weightKg: 2.5 },
+        { ...workout.sets[0], tracking: 'duration' as const, durationSec: 30 },
+        { ...workout.sets[0], tracking: 'reps' as const, reps: 0 },
+      ],
+    };
+    expect(validateWorkoutDraft(draft)).toEqual([]);
+  });
   it('preserves identity and provenance while correcting duration', () => {
     const draft = { ...draftFromWorkout(workout), durationMin: 75 };
     expect(validateWorkoutDraft(draft)).toEqual([]);

@@ -24,6 +24,7 @@ export function ProgressBody() {
   const addMeasurement = useStore((state) => state.addMeasurement);
   const deleteMeasurement = useStore((state) => state.deleteMeasurement);
   const [metric, setMetric] = useState<MeasureMetric>('weight');
+  const [visibleMeasurements, setVisibleMeasurements] = useState(10);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -116,6 +117,7 @@ export function ProgressBody() {
             onClick={() => {
               closeForm();
               setMetric(candidate);
+              setVisibleMeasurements(10);
             }}
           >
             {t(`body.${candidate}`)}
@@ -236,7 +238,7 @@ export function ProgressBody() {
             {rows
               .slice()
               .reverse()
-              .slice(0, 10)
+              .slice(0, visibleMeasurements)
               .map((measurement) => {
                 const date = fmtDate(measurement.date, i18n.language, {
                   day: 'numeric',
@@ -265,6 +267,21 @@ export function ProgressBody() {
                 );
               })}
           </ul>
+          <p className="small muted" role="status">
+            {t('library.resultCount', {
+              shown: Math.min(visibleMeasurements, rows.length),
+              total: rows.length,
+            })}
+          </p>
+          {visibleMeasurements < rows.length && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              onClick={() => setVisibleMeasurements((count) => count + 10)}
+            >
+              {t('library.showMore')}
+            </button>
+          )}
         </section>
       )}
 

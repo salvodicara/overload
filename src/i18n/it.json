@@ -187,6 +187,13 @@
     "showWholeMonth": "Mostra tutto il mese",
     "workoutOptions": "Opzioni allenamento",
     "editWorkout": "Modifica allenamento",
+    "invalidDate": "Scegli una data valida per l'allenamento.",
+    "invalidStartTime": "Inserisci un orario di inizio valido, da 00:00 a 23:59.",
+    "invalidDuration": "Inserisci una durata valida di almeno 1 minuto.",
+    "invalidSetValues": "Controlla le serie evidenziate: i carichi devono essere almeno 0, le ripetizioni numeri interi da 0 in su e i secondi maggiori di 0.",
+    "invalidWorkout": "Controlla data, orario, durata e valori delle serie prima di salvare.",
+    "savingWorkout": "Salvataggio…",
+    "saveWorkoutError": "Impossibile salvare l'allenamento. Le modifiche sono ancora qui. Premi di nuovo Salva.",
     "repeatWorkout": "Ripeti allenamento",
     "saveAsRoutine": "Salva come scheda",
     "routineName": "Nome allenamento",
@@ -216,7 +223,11 @@
     "nextMonth": "Mese successivo",
     "emptyMonth": "Nessun allenamento in questo mese",
     "emptyDay": "Nessun allenamento in questo giorno",
-    "calendarHint": "Seleziona un giorno per vedere gli allenamenti"
+    "calendarHint": "Seleziona un giorno per vedere gli allenamenti",
+    "monthScope": "Allenamenti di {{month}}",
+    "dayScope": "Allenamenti del {{date}}",
+    "resumeCurrentWorkout": "Riprendi allenamento in corso",
+    "activeWorkoutHint": "Hai già un allenamento in corso. Riprendilo prima di ripetere questo allenamento."
   },
   "progress": {
     "title": "Progressi",
@@ -243,7 +254,8 @@
     "overview": "Panoramica allenamenti",
     "previousPeriod": "Periodo precedente",
     "nextPeriod": "Periodo successivo",
-    "overviewSummary": "{{metric}} · {{period}}. {{values}}"
+    "overviewSummary": "{{metric}} · {{period}}. {{values}}",
+    "noExerciseHistory": "Nessuna serie completata per questo esercizio."
   },
   "library": {
     "title": "Esercizi",
@@ -299,7 +311,9 @@
     "allEquipment": "Tutte",
     "sort": "Ordine",
     "sortName": "Nome",
-    "sortRecent": "Usati di recente"
+    "sortRecent": "Usati di recente",
+    "loadError": "Impossibile caricare gli esercizi. Controlla la connessione e riprova.",
+    "retry": "Riprova"
   },
   "settings": {
     "title": "Impostazioni",
@@ -480,7 +494,9 @@
     "routineNamePh": "es. Upper A, Push…",
     "programNamePh": "es. Forza A/B…",
     "createConfirm": "Crea",
-    "save": "Salva"
+    "save": "Salva",
+    "working": "Salvataggio…",
+    "actionError": "Impossibile salvare la modifica. I dati inseriti sono ancora qui. Riprova."
   },
   "profile": {
     "trainingSummary": "Riepilogo allenamento",

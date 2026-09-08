@@ -1,5 +1,5 @@
 import '../theme/workout-surfaces.css';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconBack, IconMinus, IconMore } from '../components/Icons';
@@ -14,9 +14,10 @@ import {
   removeExerciseFromDraft,
   removeSetFromDraft,
   validateWorkoutDraft,
+  validWorkoutSet,
   type WorkoutDraft,
 } from '../lib/workoutEditing';
-import { continueAccountAction, useStore } from '../state/useStore';
+import { isAccountActionCurrent, useStore } from '../state/useStore';
 
 type DraftGroup = { key: string; exerciseId: string; sets: { set: SetLog; index: number }[] };
 
@@ -47,6 +48,16 @@ export function WorkoutEditor({ id }: { id: string }) {
   const [adding, setAdding] = useState(false);
   const [exerciseOptions, setExerciseOptions] = useState<DraftGroup | null>(null);
   const [query, setQuery] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const pending = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const choices = useMemo(
     () => (adding ? searchExercises(query, null, i18n.language).slice(0, 40) : []),
     [adding, query, i18n.language],
@@ -61,6 +72,41 @@ export function WorkoutEditor({ id }: { id: string }) {
         (candidate.date === workout.date && candidate.startTs < workout.startTs)),
   );
   const errors = validateWorkoutDraft(draft);
+  const errorLabels: Record<string, string> = {
+    date: 'history.invalidDate',
+    startTime: 'history.invalidStartTime',
+    duration: 'history.invalidDuration',
+    sets: 'history.needOneSet',
+    setValues: 'history.invalidSetValues',
+  };
+  async function save(): Promise<void> {
+    if (!draft || pending.current || validateWorkoutDraft(draft).length) return;
+    const state = useStore.getState();
+    const actionRoute = state.route;
+    const uid = state.user?.uid;
+    pending.current = true;
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const result = await updateWorkout(id, structuredClone(draft));
+      if (
+        mounted.current &&
+        useStore.getState().route === actionRoute &&
+        isAccountActionCurrent(result)
+      )
+        history.back();
+    } catch {
+      if (
+        mounted.current &&
+        useStore.getState().route === actionRoute &&
+        useStore.getState().user?.uid === uid
+      )
+        setSaveError(true);
+    } finally {
+      pending.current = false;
+      if (mounted.current) setSaving(false);
+    }
+  }
   const updateSet = (index: number, patch: Partial<SetLog>): void =>
     setDraft((current) => {
       if (!current) return current;
@@ -82,264 +128,304 @@ export function WorkoutEditor({ id }: { id: string }) {
         action={
           <button
             className="btn btn-accent"
-            disabled={errors.length > 0}
-            onClick={() =>
-              void continueAccountAction(updateWorkout(id, draft), () => history.back())
-            }
+            disabled={saving || errors.length > 0}
+            onClick={() => void save()}
           >
-            {t('common.save')}
+            {t(saving ? 'history.savingWorkout' : 'common.save')}
           </button>
         }
       />
 
-      <section className="workout-editor-meta">
-        <label>
-          <span>{t('history.routineName')}</span>
-          <input
-            value={draft.dayLabel}
-            onChange={(event) => setDraft({ ...draft, dayLabel: event.target.value })}
-          />
-        </label>
-        <div className="workout-editor-meta__row">
-          <label>
-            <span>{t('history.date')}</span>
-            <input
-              type="date"
-              value={draft.date}
-              onChange={(event) => setDraft({ ...draft, date: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>{t('history.startTime')}</span>
-            <input
-              type="time"
-              value={draft.startTime}
-              onChange={(event) => setDraft({ ...draft, startTime: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>{t('history.durationMinutes')}</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={1}
-              value={draft.durationMin}
-              onChange={(event) => setDraft({ ...draft, durationMin: Number(event.target.value) })}
-            />
-          </label>
+      {saving && <p role="status">{t('history.savingWorkout')}</p>}
+      {saveError && (
+        <p className="form-error" role="alert">
+          {t('history.saveWorkoutError')}
+        </p>
+      )}
+      {errors.length > 0 && (
+        <div className="form-error" role="alert" id="workout-validation">
+          {errors.map((error) => (
+            <p key={error}>{t(errorLabels[error])}</p>
+          ))}
         </div>
-        <label>
-          <span>{t('history.overallNote')}</span>
-          <textarea
-            rows={2}
-            value={draft.note}
-            onInput={(event) => {
-              event.currentTarget.style.height = 'auto';
-              event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
-            }}
-            onChange={(event) => setDraft({ ...draft, note: event.target.value })}
-          />
-        </label>
-      </section>
-
-      <div className="stack workout-editor-exercises">
-        {groups.map((group) => {
-          const name = exerciseName(group.exerciseId, i18n.language);
-          const tracking = trackingOf(group.sets[0]?.set.tracking);
-          const priorWorkingSets = previousSets(
-            earlierWorkouts,
-            group.exerciseId,
-            workout.routineId,
-          );
-          let workingIndex = 0;
-          return (
-            <section key={group.key} className="card workout-editor-exercise">
-              <div className="workout-editor-exercise__heading">
-                <strong>{name}</strong>
-                <button
-                  type="button"
-                  className="iconbtn workout-editor-exercise__options"
-                  aria-label={t('workout.exerciseOptions')}
-                  onClick={() => setExerciseOptions(group)}
-                >
-                  <IconMore />
-                </button>
-              </div>
-              <div
-                className={`set-table set-table--${tracking.replace('_', '-')}`}
-                aria-label={t('workout.setsFor', { exercise: name })}
-              >
-                <div
-                  className="set-grid set-table__header workout-editor-set-header mono muted"
-                  aria-hidden="true"
-                >
-                  <span>{t('workout.set')}</span>
-                  <span>{t('workout.previous')}</span>
-                  {tracking === 'weight_reps' && <span>{weightLabel(unit)}</span>}
-                  {tracking !== 'duration' && <span>{t('workout.reps')}</span>}
-                  {tracking === 'duration' && <span>{t('workout.seconds')}</span>}
-                  <span />
-                </div>
-                {group.sets.map(({ set, index }, row) => {
-                  const warmup = kindOf(set.kind) === 'warmup';
-                  const previous = warmup ? undefined : priorWorkingSets[workingIndex++];
-                  const previousLabel = previous
-                    ? formatPreviousSet(previous, tracking, unit, false)
-                    : '—';
-                  return (
-                    <div
-                      key={index}
-                      className="set-grid set-row workout-editor-set"
-                      role="group"
-                      aria-label={t('workout.setRow', { set: row + 1, exercise: name })}
-                    >
-                      <span className="mono workout-editor-set__number">
-                        {warmup ? 'W' : workingIndex}
-                      </span>
-                      <span
-                        className="set-previous mono"
-                        aria-label={`${t('workout.previous')}: ${previousLabel}`}
-                      >
-                        {previousLabel}
-                      </span>
-                      {tracking === 'weight_reps' && (
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          aria-label={t('workout.loadInput', {
-                            set: row + 1,
-                            unit: weightLabel(unit),
-                          })}
-                          value={displayWeight(set.weightKg, unit)}
-                          onFocus={(event) => event.currentTarget.select()}
-                          onChange={(event) =>
-                            updateSet(index, {
-                              weightKg: canonicalWeight(Number(event.target.value), unit),
-                            })
-                          }
-                        />
-                      )}
-                      {tracking !== 'duration' ? (
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          aria-label={t('workout.repsInput', { set: row + 1 })}
-                          value={set.reps ?? ''}
-                          onFocus={(event) => event.currentTarget.select()}
-                          onChange={(event) =>
-                            updateSet(index, {
-                              reps: Number(event.target.value),
-                            })
-                          }
-                        />
-                      ) : (
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          aria-label={t('workout.secondsInput', { set: row + 1 })}
-                          value={set.durationSec ?? ''}
-                          onFocus={(event) => event.currentTarget.select()}
-                          onChange={(event) =>
-                            updateSet(index, {
-                              durationSec:
-                                event.target.value === '' ? undefined : Number(event.target.value),
-                            })
-                          }
-                        />
-                      )}
-                      <button
-                        type="button"
-                        className="iconbtn workout-editor-set__remove"
-                        aria-label={t('history.removeSet', { n: row + 1 })}
-                        onClick={() => removeSet(index)}
-                      >
-                        <IconMinus />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <button
-                className="addset"
-                onClick={() => {
-                  const last = group.sets.at(-1)?.set;
-                  if (!last) return;
-                  setDraft({ ...draft, sets: [...draft.sets, { ...last, isPr: undefined }] });
-                }}
-              >
-                {t('workout.addSet')}
-              </button>
-            </section>
-          );
-        })}
-      </div>
-
-      <button className="btn btn-ghost btn-block" onClick={() => setAdding(true)}>
-        {t('workout.addExercise')}
-      </button>
-      {errors.includes('sets') && <p className="form-error">{t('history.needOneSet')}</p>}
-
-      {exerciseOptions && (
-        <BottomSheet
-          open
-          title={t('workout.exerciseOptions')}
-          onClose={() => setExerciseOptions(null)}
-        >
-          <p className="muted small">{exerciseName(exerciseOptions.exerciseId, i18n.language)}</p>
-          <button
-            type="button"
-            className="btn btn-danger btn-block"
-            onClick={() => {
-              removeExercise(exerciseOptions.key);
-              setExerciseOptions(null);
-            }}
-          >
-            {t('history.removeExercise')}
-          </button>
-        </BottomSheet>
       )}
-
-      {adding && (
-        <BottomSheet open title={t('library.pickTitle')} onClose={() => setAdding(false)}>
-          <input
-            type="search"
-            autoFocus
-            placeholder={t('library.search')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <div className="workout-editor-picker">
-            {choices.map((exercise) => (
-              <button
-                key={exercise.id}
-                onClick={() => {
-                  const instance = `wx:${crypto.randomUUID()}`;
-                  setDraft({
-                    ...draft,
-                    exerciseOrder: [...draft.exerciseOrder, instance],
-                    sets: [
-                      ...draft.sets,
-                      {
-                        exerciseId: exercise.id,
-                        exerciseInstanceId: instance,
-                        weightKg: 0,
-                        reps: 8,
-                        done: true,
-                        tracking: 'weight_reps',
-                        kind: 'working',
-                      },
-                    ],
-                  });
-                  setAdding(false);
-                  setQuery('');
-                }}
-              >
-                {exerciseName(exercise.id, i18n.language)}
-              </button>
-            ))}
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <section className="workout-editor-meta">
+          <label>
+            <span>{t('history.routineName')}</span>
+            <input
+              value={draft.dayLabel}
+              onChange={(event) => setDraft({ ...draft, dayLabel: event.target.value })}
+            />
+          </label>
+          <div className="workout-editor-meta__row">
+            <label>
+              <span>{t('history.date')}</span>
+              <input
+                type="date"
+                aria-invalid={errors.includes('date')}
+                aria-describedby={errors.includes('date') ? 'workout-validation' : undefined}
+                value={draft.date}
+                onChange={(event) => setDraft({ ...draft, date: event.target.value })}
+              />
+            </label>
+            <label>
+              <span>{t('history.startTime')}</span>
+              <input
+                type="time"
+                aria-invalid={errors.includes('startTime')}
+                aria-describedby={errors.includes('startTime') ? 'workout-validation' : undefined}
+                value={draft.startTime}
+                onChange={(event) => setDraft({ ...draft, startTime: event.target.value })}
+              />
+            </label>
+            <label>
+              <span>{t('history.durationMinutes')}</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                aria-invalid={errors.includes('duration')}
+                aria-describedby={errors.includes('duration') ? 'workout-validation' : undefined}
+                value={draft.durationMin}
+                onChange={(event) =>
+                  setDraft({ ...draft, durationMin: Number(event.target.value) })
+                }
+              />
+            </label>
           </div>
-        </BottomSheet>
-      )}
+          <label>
+            <span>{t('history.overallNote')}</span>
+            <textarea
+              rows={2}
+              value={draft.note}
+              onInput={(event) => {
+                event.currentTarget.style.height = 'auto';
+                event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+              }}
+              onChange={(event) => setDraft({ ...draft, note: event.target.value })}
+            />
+          </label>
+        </section>
+
+        <div className="stack workout-editor-exercises">
+          {groups.map((group) => {
+            const name = exerciseName(group.exerciseId, i18n.language);
+            const tracking = trackingOf(group.sets[0]?.set.tracking);
+            const priorWorkingSets = previousSets(
+              earlierWorkouts,
+              group.exerciseId,
+              workout.routineId,
+            );
+            let workingIndex = 0;
+            return (
+              <section key={group.key} className="card workout-editor-exercise">
+                <div className="workout-editor-exercise__heading">
+                  <strong>{name}</strong>
+                  <button
+                    type="button"
+                    className="iconbtn workout-editor-exercise__options"
+                    aria-label={t('workout.exerciseOptions')}
+                    onClick={() => setExerciseOptions(group)}
+                  >
+                    <IconMore />
+                  </button>
+                </div>
+                <div
+                  className={`set-table set-table--${tracking.replace('_', '-')}`}
+                  aria-label={t('workout.setsFor', { exercise: name })}
+                >
+                  <div
+                    className="set-grid set-table__header workout-editor-set-header mono muted"
+                    aria-hidden="true"
+                  >
+                    <span>{t('workout.set')}</span>
+                    <span>{t('workout.previous')}</span>
+                    {tracking === 'weight_reps' && <span>{weightLabel(unit)}</span>}
+                    {tracking !== 'duration' && <span>{t('workout.reps')}</span>}
+                    {tracking === 'duration' && <span>{t('workout.seconds')}</span>}
+                    <span />
+                  </div>
+                  {group.sets.map(({ set, index }, row) => {
+                    const warmup = kindOf(set.kind) === 'warmup';
+                    const previous = warmup ? undefined : priorWorkingSets[workingIndex++];
+                    const previousLabel = previous
+                      ? formatPreviousSet(previous, tracking, unit, false)
+                      : '—';
+                    return (
+                      <div
+                        key={index}
+                        className="set-grid set-row workout-editor-set"
+                        role="group"
+                        aria-label={t('workout.setRow', { set: row + 1, exercise: name })}
+                      >
+                        <span className="mono workout-editor-set__number">
+                          {warmup ? 'W' : workingIndex}
+                        </span>
+                        <span
+                          className="set-previous mono"
+                          aria-label={`${t('workout.previous')}: ${previousLabel}`}
+                        >
+                          {previousLabel}
+                        </span>
+                        {tracking === 'weight_reps' && (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="any"
+                            aria-invalid={!validWorkoutSet(set)}
+                            aria-describedby={
+                              !validWorkoutSet(set) ? 'workout-validation' : undefined
+                            }
+                            aria-label={t('workout.loadInput', {
+                              set: row + 1,
+                              unit: weightLabel(unit),
+                            })}
+                            value={displayWeight(set.weightKg, unit)}
+                            onFocus={(event) => event.currentTarget.select()}
+                            onChange={(event) =>
+                              updateSet(index, {
+                                weightKg: canonicalWeight(Number(event.target.value), unit),
+                              })
+                            }
+                          />
+                        )}
+                        {tracking !== 'duration' ? (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            aria-invalid={!validWorkoutSet(set)}
+                            aria-describedby={
+                              !validWorkoutSet(set) ? 'workout-validation' : undefined
+                            }
+                            aria-label={t('workout.repsInput', { set: row + 1 })}
+                            value={set.reps ?? ''}
+                            onFocus={(event) => event.currentTarget.select()}
+                            onChange={(event) =>
+                              updateSet(index, {
+                                reps: Number(event.target.value),
+                              })
+                            }
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={0.001}
+                            step="any"
+                            aria-invalid={!validWorkoutSet(set)}
+                            aria-describedby={
+                              !validWorkoutSet(set) ? 'workout-validation' : undefined
+                            }
+                            aria-label={t('workout.secondsInput', { set: row + 1 })}
+                            value={set.durationSec ?? ''}
+                            onFocus={(event) => event.currentTarget.select()}
+                            onChange={(event) =>
+                              updateSet(index, {
+                                durationSec:
+                                  event.target.value === ''
+                                    ? undefined
+                                    : Number(event.target.value),
+                              })
+                            }
+                          />
+                        )}
+                        <button
+                          type="button"
+                          className="iconbtn workout-editor-set__remove"
+                          aria-label={t('history.removeSet', { n: row + 1 })}
+                          onClick={() => removeSet(index)}
+                        >
+                          <IconMinus />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  className="addset"
+                  onClick={() => {
+                    const last = group.sets.at(-1)?.set;
+                    if (!last) return;
+                    setDraft({ ...draft, sets: [...draft.sets, { ...last, isPr: undefined }] });
+                  }}
+                >
+                  {t('workout.addSet')}
+                </button>
+              </section>
+            );
+          })}
+        </div>
+
+        <button className="btn btn-ghost btn-block" onClick={() => setAdding(true)}>
+          {t('workout.addExercise')}
+        </button>
+
+        {exerciseOptions && (
+          <BottomSheet
+            open
+            title={t('workout.exerciseOptions')}
+            onClose={() => setExerciseOptions(null)}
+          >
+            <p className="muted small">{exerciseName(exerciseOptions.exerciseId, i18n.language)}</p>
+            <button
+              type="button"
+              className="btn btn-danger btn-block"
+              onClick={() => {
+                removeExercise(exerciseOptions.key);
+                setExerciseOptions(null);
+              }}
+            >
+              {t('history.removeExercise')}
+            </button>
+          </BottomSheet>
+        )}
+
+        {adding && (
+          <BottomSheet open title={t('library.pickTitle')} onClose={() => setAdding(false)}>
+            <input
+              type="search"
+              autoFocus
+              placeholder={t('library.search')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <div className="workout-editor-picker">
+              {choices.map((exercise) => (
+                <button
+                  key={exercise.id}
+                  onClick={() => {
+                    const instance = `wx:${crypto.randomUUID()}`;
+                    setDraft({
+                      ...draft,
+                      exerciseOrder: [...draft.exerciseOrder, instance],
+                      sets: [
+                        ...draft.sets,
+                        {
+                          exerciseId: exercise.id,
+                          exerciseInstanceId: instance,
+                          weightKg: 0,
+                          reps: 8,
+                          done: true,
+                          tracking: 'weight_reps',
+                          kind: 'working',
+                        },
+                      ],
+                    });
+                    setAdding(false);
+                    setQuery('');
+                  }}
+                >
+                  {exerciseName(exercise.id, i18n.language)}
+                </button>
+              ))}
+            </div>
+          </BottomSheet>
+        )}
+      </fieldset>
     </div>
   );
 }

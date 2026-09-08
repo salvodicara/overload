@@ -4,7 +4,6 @@ import { BottomSheet } from '../components/BottomSheet';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
-import { useCatalog } from '../hooks/useCatalog';
 import { useSurfaceState } from '../hooks/useSurfaceState';
 import {
   equipmentLabelKey,
@@ -77,9 +76,32 @@ export function Library({
   pickFor?: { routineId: string } | { activeWorkout: true; replaceInstanceId?: string };
 }) {
   const { t, i18n } = useTranslation();
-  useCatalog();
+  const ensureCatalog = useStore((state) => state.ensureCatalog);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const workouts = useStore((s) => s.workouts);
   const catalogReady = useStore((s) => s.catalogReady);
+  useEffect(() => {
+    if (catalogReady) return;
+    let active = true;
+    let retry: number | undefined;
+    setCatalogFailed(false);
+    const ensure = (canRetry: boolean) => {
+      void ensureCatalog().catch(() => {
+        if (!active) return;
+        if (canRetry) retry = window.setTimeout(() => ensure(false), 500);
+        else setCatalogFailed(true);
+      });
+    };
+    ensure(true);
+    const retryWhenOnline = () => setCatalogAttempt((attempt) => attempt + 1);
+    window.addEventListener('online', retryWhenOnline);
+    return () => {
+      active = false;
+      if (retry !== undefined) window.clearTimeout(retry);
+      window.removeEventListener('online', retryWhenOnline);
+    };
+  }, [catalogReady, ensureCatalog, catalogAttempt]);
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
   const addWorkoutExercise = useStore((s) => s.addWorkoutExercise);
@@ -357,7 +379,20 @@ export function Library({
         </div>
       )}
 
-      {!catalogReady && shown.length === 0 ? (
+      {!catalogReady && catalogFailed && (
+        <div className="form-feedback form-feedback--error" role="alert">
+          <p>{t('library.loadError')}</p>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setCatalogAttempt((attempt) => attempt + 1)}
+          >
+            {t('library.retry')}
+          </button>
+        </div>
+      )}
+      {!catalogReady && catalogFailed && shown.length === 0 ? null : !catalogReady &&
+        shown.length === 0 ? (
         <div className="library-loading" role="status" aria-label={t('library.loading')}>
           {Array.from({ length: 6 }, (_, index) => (
             <div key={index} className="library-result library-result--skeleton" aria-hidden="true">

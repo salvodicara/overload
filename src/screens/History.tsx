@@ -37,6 +37,7 @@ export function History() {
     selectedDay: null,
   });
   const sentinel = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLElement>(null);
   const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null);
   const suppressClick = useRef(false);
   const mode = surface.mode ?? 'list';
@@ -198,6 +199,7 @@ export function History() {
       {mode === 'calendar' && (
         <section
           className="history-calendar"
+          ref={calendarRef}
           aria-label={t('history.calendar')}
           tabIndex={0}
           onPointerDown={(event) => {
@@ -327,15 +329,38 @@ export function History() {
               <span key={`end-${index}`} aria-hidden="true" />
             ))}
           </div>
-          <button
-            className="history-calendar__clear"
-            disabled={!surface.selectedDay}
-            onClick={() =>
-              setSurface((current) => ({ ...current, selectedDay: null, visibleCount: PAGE_SIZE }))
-            }
-          >
-            {t('history.showWholeMonth')}
-          </button>
+          <p className="history-calendar__scope" role="status">
+            {surface.selectedDay
+              ? t('history.dayScope', {
+                  date: new Date(`${surface.selectedDay}T12:00:00`).toLocaleDateString(locale, {
+                    day: 'numeric',
+                    month: 'long',
+                  }),
+                })
+              : t('history.monthScope', {
+                  month: new Date(`${anchor}-01T12:00:00`).toLocaleDateString(locale, {
+                    month: 'long',
+                    year: 'numeric',
+                  }),
+                })}
+          </p>
+          {surface.selectedDay && (
+            <button
+              className="history-calendar__clear"
+              onClick={() => {
+                calendarRef.current
+                  ?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
+                  ?.focus();
+                setSurface((current) => ({
+                  ...current,
+                  selectedDay: null,
+                  visibleCount: PAGE_SIZE,
+                }));
+              }}
+            >
+              {t('history.showWholeMonth')}
+            </button>
+          )}
         </section>
       )}
 

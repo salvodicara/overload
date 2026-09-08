@@ -31,12 +31,47 @@ export function draftFromWorkout(workout: Workout): WorkoutDraft {
   };
 }
 
+export function validWorkoutSet(set: SetLog): boolean {
+  const tracking = trackingOf(set.tracking);
+  if (!['weight_reps', 'reps', 'duration'].includes(tracking)) return false;
+  if (tracking === 'duration')
+    return (
+      typeof set.durationSec === 'number' && Number.isFinite(set.durationSec) && set.durationSec > 0
+    );
+  return (
+    Number.isSafeInteger(set.reps) &&
+    set.reps >= 0 &&
+    (tracking === 'reps' || (Number.isFinite(set.weightKg) && set.weightKg >= 0))
+  );
+}
+
 export function validateWorkoutDraft(draft: WorkoutDraft): string[] {
   const errors: string[] = [];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) errors.push('date');
-  if (!/^\d{2}:\d{2}$/.test(draft.startTime)) errors.push('startTime');
-  if (!Number.isFinite(draft.durationMin) || draft.durationMin <= 0) errors.push('duration');
+  const date = new Date(draft.date);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(draft.date) ||
+    !Number.isFinite(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== draft.date
+  )
+    errors.push('date');
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(draft.startTime)) errors.push('startTime');
+  if (
+    !Number.isFinite(draft.durationMin) ||
+    draft.durationMin < 1 ||
+    (errors.length === 0 &&
+      !Number.isFinite(
+        new Date(
+          new Date(`${draft.date}T${draft.startTime}:00`).getTime() + draft.durationMin * 60000,
+        ).getTime(),
+      ))
+  )
+    errors.push('duration');
   if (!draft.sets.some((set) => set.done)) errors.push('sets');
+  if (
+    draft.sets.some((set) => !validWorkoutSet(set)) ||
+    !Number.isFinite(computeVolume(draft.sets))
+  )
+    errors.push('setValues');
   return errors;
 }
 
@@ -66,6 +101,7 @@ export function workoutFromDraft(
   draft: WorkoutDraft,
   now = Date.now(),
 ): Workout {
+  if (validateWorkoutDraft(draft).length) throw new Error('history.invalidWorkout');
   const startTs = new Date(`${draft.date}T${draft.startTime}:00`).getTime();
   const durationSec = Math.max(60, Math.round(draft.durationMin * 60));
   const sets = structuredClone(draft.sets);

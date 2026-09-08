@@ -37,6 +37,13 @@ export function RoutineImport() {
     }
   }, [preview]);
   const pending = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const fileRequest = useRef(0);
   const results = unknown ? searchExercises(query, null, i18n.language).slice(0, 8) : [];
 
@@ -134,9 +141,15 @@ export function RoutineImport() {
     pending.current = true;
     setBusy(true);
     setError(null);
+    const actionRoute = useStore.getState().route;
     try {
       const result = await importRoutinePlan(preview);
-      if (!isAccountActionCurrent(result)) return;
+      if (
+        !mounted.current ||
+        useStore.getState().route !== actionRoute ||
+        !isAccountActionCurrent(result)
+      )
+        return;
       toast(t(result.value.alreadyImported ? 'plan.alreadyImported' : 'plan.imported'));
       nav({ view: 'train' });
     } catch {

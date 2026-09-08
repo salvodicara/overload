@@ -1531,6 +1531,7 @@ test('calendar filters the visible month and restores the selected day after ope
   await page.getByRole('tab', { name: /calendar/i }).click();
   const calendar = page.getByRole('region', { name: /^calendar$/i });
   await expect(calendar.locator('.history-calendar__grid > *')).toHaveCount(42);
+  await expect(calendar.getByRole('button', { name: /whole month/i })).toHaveCount(0);
   await expect(page.locator('.workout-row')).toHaveCount(1);
   await calendar.getByRole('button', { name: /previous month/i }).click();
   await expect(page.locator('.workout-row')).toHaveCount(1);
@@ -1539,12 +1540,15 @@ test('calendar filters the visible month and restores the selected day after ope
   const trainedDay = calendar.locator('.is-trained').first();
   await trainedDay.click();
   await expect(trainedDay).toHaveAttribute('aria-pressed', 'true');
+  await expect(calendar.getByRole('button', { name: /whole month/i })).toBeEnabled();
   await page.getByRole('button', { name: /five exercises/i }).click();
   await page.goBack();
   await expect(calendar.locator('.history-calendar__month')).toHaveText('July 2026');
   await expect(calendar.locator('.is-trained').first()).toHaveAttribute('aria-pressed', 'true');
   await calendar.getByRole('button', { name: /whole month/i }).click();
   await expect(calendar.locator('[aria-pressed="true"]')).toHaveCount(0);
+  await expect(calendar.getByRole('button', { name: /whole month/i })).toHaveCount(0);
+  await expect(calendar.locator('.is-trained').first()).toBeFocused();
 });
 
 test('calendar swipe changes month but vertical scrolling does not', async ({ page }) => {
@@ -4098,7 +4102,13 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   await expect(recent.getByRole('listitem')).toHaveCount(1);
 
   const prior = '2026-08-24';
-  await putStoredRow(page, 'nutrition', { id: prior, date: prior, kcal: 2000, proteinG: 120, updatedAt: Date.now() });
+  await putStoredRow(page, 'nutrition', {
+    id: prior,
+    date: prior,
+    kcal: 2000,
+    proteinG: 120,
+    updatedAt: Date.now(),
+  });
   await page.reload();
   await openPersonalPage(page, 'diet');
   await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
@@ -5153,122 +5163,259 @@ test('daily nutrients accept decimals and zero on past dates and survive reopeni
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
-
-test('food diary guides custom food, quantity editing, saved meals and reopening', async ({ page }) => {
+test('food diary guides custom food, quantity editing, saved meals and reopening', async ({
+  page,
+}) => {
   await installProgressSurfaceFixture(page);
   await openPersonalPage(page, 'diet');
-  await page.getByRole('region', {name:'Lunch',exact:true}).getByRole('button',{name:'Add food'}).click();
-  await page.getByRole('button',{name:'Create food',exact:true}).click();
-  await page.getByLabel('Food name',{exact:true}).fill('Yogurt personale');
-  await page.getByLabel('Calories (kcal)',{exact:true}).fill('200');
-  await page.getByLabel('Protein (g)',{exact:true}).fill('15');
-  await page.getByRole('button',{name:'Continue',exact:true}).click();
-  await page.getByLabel('Quantity (g)',{exact:true}).fill('80');
-  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
-  const lunch=page.getByRole('region',{name:'Lunch',exact:true});
+  await page
+    .getByRole('region', { name: 'Lunch', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByRole('button', { name: 'Create food', exact: true }).click();
+  await page.getByLabel('Food name', { exact: true }).fill('Yogurt personale');
+  await page.getByLabel('Calories (kcal)', { exact: true }).fill('200');
+  await page.getByLabel('Protein (g)', { exact: true }).fill('15');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Quantity (g)', { exact: true }).fill('80');
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  const lunch = page.getByRole('region', { name: 'Lunch', exact: true });
   await expect(lunch).toContainText('160');
-  await lunch.getByRole('button',{name:/Yogurt personale/}).click();
-  await page.getByLabel('Quantity (g)',{exact:true}).fill('100');
-  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await lunch.getByRole('button', { name: /Yogurt personale/ }).click();
+  await page.getByLabel('Quantity (g)', { exact: true }).fill('100');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(lunch).toContainText('200');
-  await lunch.getByRole('button',{name:'Save meal',exact:true}).click();
-  await page.getByLabel('Meal name',{exact:true}).fill('Pranzo abituale');
-  await page.getByRole('dialog').getByRole('button',{name:'Save',exact:true}).click();
-  await page.getByRole('region',{name:'Dinner',exact:true}).getByRole('button',{name:'Add food'}).click();
-  await page.getByRole('button',{name:'Saved meals',exact:true}).click();
-  await page.getByRole('button',{name:/^Pranzo abituale/}).click();
-  await page.getByLabel('Meal portions',{exact:true}).fill('0.5');
-  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
-  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('100');
+  await lunch.getByRole('button', { name: 'Save meal', exact: true }).click();
+  await page.getByLabel('Meal name', { exact: true }).fill('Pranzo abituale');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
+  await page
+    .getByRole('region', { name: 'Dinner', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByRole('button', { name: 'Saved meals', exact: true }).click();
+  await page.getByRole('button', { name: /^Pranzo abituale/ }).click();
+  await page.getByLabel('Meal portions', { exact: true }).fill('0.5');
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Dinner', exact: true })).toContainText('100');
   await page.reload();
   await openPersonalPage(page, 'diet');
-  await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('300');
-  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('50 g');
-  await page.getByRole('region',{name:'Snacks',exact:true}).getByRole('button',{name:'Add food'}).click();
-  await page.getByRole('button',{name:'Saved meals',exact:true}).click();
-  await page.getByRole('button',{name:'Remove saved meal Pranzo abituale',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'Delete',exact:true}).click();
-  await expect(page.getByText('Save a meal from your diary to find it here.',{exact:true})).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Daily nutrition' })).toContainText('300');
+  await expect(page.getByRole('region', { name: 'Dinner', exact: true })).toContainText('50 g');
+  await page
+    .getByRole('region', { name: 'Snacks', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByRole('button', { name: 'Saved meals', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Remove saved meal Pranzo abituale', exact: true })
+    .click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(
+    page.getByText('Save a meal from your diary to find it here.', { exact: true }),
+  ).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('50 g');
-  await page.getByRole('region',{name:'Dinner',exact:true}).getByRole('button',{name:/Yogurt personale/}).click();
-  await page.getByRole('button',{name:'Delete entry',exact:true}).click();
-  await page.getByRole('dialog').getByRole('button',{name:'Delete',exact:true}).click();
-  await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('200');
+  await expect(page.getByRole('region', { name: 'Dinner', exact: true })).toContainText('50 g');
+  await page
+    .getByRole('region', { name: 'Dinner', exact: true })
+    .getByRole('button', { name: /Yogurt personale/ })
+    .click();
+  await page.getByRole('button', { name: 'Delete entry', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Daily nutrition' })).toContainText('200');
 });
 
-test('food import previews days, preserves existing totals and does not duplicate a retry', async ({page})=>{
+test('food import previews days, preserves existing totals and does not duplicate a retry', async ({
+  page,
+}) => {
   await installProgressSurfaceFixture(page);
-  const source=JSON.stringify({format:'overload-food-log',version:1,entries:[{date:'2026-08-26',meal:'lunch',quantity:80,food:{name:'Pasta test',basis:'g',nutrients:{kcal:350,proteinG:12,ironMg:2}}}]});
-  await openPersonalPage(page,'diet');
-  await page.getByRole('button',{name:'Quick totals & targets',exact:true}).click();
-  await page.getByLabel('Calories (kcal)',{exact:true}).fill('100');
-  await page.getByLabel('Calories (kcal)',{exact:true}).press('Tab');
+  const source = JSON.stringify({
+    format: 'overload-food-log',
+    version: 1,
+    entries: [
+      {
+        date: '2026-08-26',
+        meal: 'lunch',
+        quantity: 80,
+        food: { name: 'Pasta test', basis: 'g', nutrients: { kcal: 350, proteinG: 12, ironMg: 2 } },
+      },
+    ],
+  });
+  await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
+  await page.getByLabel('Calories (kcal)', { exact: true }).fill('100');
+  await page.getByLabel('Calories (kcal)', { exact: true }).press('Tab');
   await page.goBack();
-  for(let attempt=0;attempt<2;attempt++){
-    await page.getByRole('button',{name:'Import food diary',exact:true}).click();
-    await page.getByLabel('Paste JSON or CSV',{exact:true}).fill(source);
-    await page.getByRole('button',{name:'Review diary',exact:true}).click();
-    await expect(page.getByRole('heading',{name:'Review 1 food',exact:true})).toBeVisible();
-    await expect(page.getByText('Pasta test',{exact:true})).toBeVisible();
-    await page.getByRole('button',{name:'Add to diary',exact:true}).click();
-    await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('380');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.getByRole('button', { name: 'Import food diary', exact: true }).click();
+    await page.getByLabel('Paste JSON or CSV', { exact: true }).fill(source);
+    await page.getByRole('button', { name: 'Review diary', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Review 1 food', exact: true })).toBeVisible();
+    await expect(page.getByText('Pasta test', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Daily nutrition' })).toContainText('380');
   }
-  await expect(page.getByRole('region',{name:'Lunch',exact:true}).getByRole('button',{name:/Pasta test/})).toHaveCount(1);
-  await page.getByText('All nutrients',{exact:true}).click();
-  await expect(page.getByText('Partial',{exact:true}).first()).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Lunch', exact: true })
+      .getByRole('button', { name: /Pasta test/ }),
+  ).toHaveCount(1);
+  await page.getByText('All nutrients', { exact: true }).click();
+  await expect(page.getByText('Partial', { exact: true }).first()).toBeVisible();
 });
 
-test('food library searches Italian foods and amount validation does not create entries', async ({page})=>{
+test('food library searches Italian foods and amount validation does not create entries', async ({
+  page,
+}) => {
   await installProgressSurfaceFixture(page);
-  await openPersonalPage(page,'diet');
-  await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
-  await page.getByLabel('Search foods',{exact:true}).fill('riso');
+  await openPersonalPage(page, 'diet');
+  await page
+    .getByRole('region', { name: 'Breakfast', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByLabel('Search foods', { exact: true }).fill('riso');
   await expect(page.locator('.food-results button').first()).toBeVisible();
   await page.locator('.food-results button').first().click();
-  await page.getByLabel('Quantity (g)',{exact:true}).fill('100001');
-  await expect(page.getByRole('heading',{name:'Add food',exact:true})).toBeVisible();
-  await page.getByLabel('Quantity (g)',{exact:true}).fill('0');
-  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Add food',exact:true})).toBeVisible();
-  await page.getByLabel('Quantity (g)',{exact:true}).fill('125.5');
-  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
-  await expect(page.getByRole('region',{name:'Breakfast',exact:true})).toContainText('125.5 g');
+  await page.getByLabel('Quantity (g)', { exact: true }).fill('100001');
+  await expect(page.getByRole('heading', { name: 'Add food', exact: true })).toBeVisible();
+  await page.getByLabel('Quantity (g)', { exact: true }).fill('0');
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Add food', exact: true })).toBeVisible();
+  await page.getByLabel('Quantity (g)', { exact: true }).fill('125.5');
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Breakfast', exact: true })).toContainText(
+    '125.5 g',
+  );
 });
 
-test('barcode lookup locks competing choices and preserves millilitres', async ({page})=>{
- await installProgressSurfaceFixture(page);
- let release!:()=>void;
- const held=new Promise<void>(resolve=>{release=resolve;});
- await page.route('**/api/v3.6/product/**',async route=>{await held;await route.fulfill({json:{product:{code:'3017620422003',product_name:'Milk test',nutrition:{aggregated_set:{per:'100ml',preparation:'as_sold',nutrients:{'energy-kcal':{value:40,unit:'kcal',source:'packaging'},calcium:{value:120,unit:'mg',source:'packaging'}}}}}}});});
- await openPersonalPage(page,'diet');
- await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
- await page.getByText('Find a packaged product',{exact:true}).click();
- await page.getByLabel('Barcode number',{exact:true}).fill('3017620422003');
- await page.getByRole('button',{name:'Find',exact:true}).click();
- await expect(page.getByRole('button',{name:'Create food',exact:true})).toBeDisabled();
- release();
- await expect(page.getByRole('heading',{name:'Milk test',exact:true})).toBeVisible();
- await page.getByLabel('Quantity (ml)',{exact:true}).fill('250');
- await page.getByRole('button',{name:'Add to diary',exact:true}).click();
- await expect(page.getByRole('region',{name:'Breakfast',exact:true})).toContainText('250 ml');
- await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('100');
+test('barcode lookup locks competing choices and preserves millilitres', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v3.6/product/**', async (route) => {
+    await held;
+    await route.fulfill({
+      json: {
+        product: {
+          code: '3017620422003',
+          product_name: 'Milk test',
+          nutrition: {
+            aggregated_set: {
+              per: '100ml',
+              preparation: 'as_sold',
+              nutrients: {
+                'energy-kcal': { value: 40, unit: 'kcal', source: 'packaging' },
+                calcium: { value: 120, unit: 'mg', source: 'packaging' },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+  await openPersonalPage(page, 'diet');
+  await page
+    .getByRole('region', { name: 'Breakfast', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByText('Find a packaged product', { exact: true }).click();
+  await page.getByLabel('Barcode number', { exact: true }).fill('3017620422003');
+  await page.getByRole('button', { name: 'Find', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Create food', exact: true })).toBeDisabled();
+  release();
+  await expect(page.getByRole('heading', { name: 'Milk test', exact: true })).toBeVisible();
+  await page.getByLabel('Quantity (ml)', { exact: true }).fill('250');
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Breakfast', exact: true })).toContainText(
+    '250 ml',
+  );
+  await expect(page.getByRole('region', { name: 'Daily nutrition' })).toContainText('100');
 });
 
-test('a delayed food save does not navigate back after the user opens Home',async({page})=>{
- await installProgressSurfaceFixture(page);
- await openPersonalPage(page,'diet');
- await page.evaluate(async()=>{
-  const path='/src/state/useStore.ts';const {useStore}=await import(path) as typeof import('../src/state/useStore');
-  const original=useStore.getState().addDiaryEntries;
-  useStore.setState({addDiaryEntries:async(...args)=>{await new Promise<void>(resolve=>{(window as unknown as {releaseFoodSave:()=>void}).releaseFoodSave=resolve;});const result=await original(...args);document.documentElement.dataset.foodSaved='true';return result;}});
- });
- await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
- await page.getByLabel('Search foods',{exact:true}).fill('banana');
- await page.locator('.food-results button').first().click();
- await page.getByRole('button',{name:'Add to diary',exact:true}).click();
- await page.getByRole('navigation').getByRole('button',{name:'Home',exact:true}).click();
- await page.evaluate(()=>(window as unknown as {releaseFoodSave:()=>void}).releaseFoodSave());
- await expect(page.locator('html')).toHaveAttribute('data-food-saved','true');
- await expect(page.locator('.home-screen')).toBeVisible();
+test('a delayed food save does not navigate back after the user opens Home', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  await openPersonalPage(page, 'diet');
+  await page.evaluate(async () => {
+    const path = '/src/state/useStore.ts';
+    const { useStore } = (await import(path)) as typeof import('../src/state/useStore');
+    const original = useStore.getState().addDiaryEntries;
+    useStore.setState({
+      addDiaryEntries: async (...args) => {
+        await new Promise<void>((resolve) => {
+          (window as unknown as { releaseFoodSave: () => void }).releaseFoodSave = resolve;
+        });
+        const result = await original(...args);
+        document.documentElement.dataset.foodSaved = 'true';
+        return result;
+      },
+    });
+  });
+  await page
+    .getByRole('region', { name: 'Breakfast', exact: true })
+    .getByRole('button', { name: 'Add food' })
+    .click();
+  await page.getByLabel('Search foods', { exact: true }).fill('banana');
+  await page.locator('.food-results button').first().click();
+  await page.getByRole('button', { name: 'Add to diary', exact: true }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
+  await page.evaluate(() =>
+    (window as unknown as { releaseFoodSave: () => void }).releaseFoodSave(),
+  );
+  await expect(page.locator('html')).toHaveAttribute('data-food-saved', 'true');
+  await expect(page.locator('.home-screen')).toBeVisible();
+});
+
+test('unrecorded exercise statistics retain the requested exercise and allow switching', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await openExerciseDetail(page, 'pushups', /^pushups chest$/i);
+  await page.getByRole('button', { name: /exercise statistics|statistiche esercizio/i }).click();
+  await expect(page.locator('#progress-exercise')).toHaveValue('Pushups');
+  await expect(page.getByRole('heading', { name: 'Pushups', exact: true })).toBeVisible();
+  await expect(page.getByText('No completed sets for this exercise yet.')).toBeVisible();
+  await page.locator('#progress-exercise').selectOption('Barbell_Squat');
+  await expect(page.getByRole('group', { name: 'Barbell Squat progress summary' })).toBeVisible();
+});
+
+test('exercise catalog failure explains the problem and recovers with Retry', async ({ page }) => {
+  await page.route('**/exercises.json', (route) => route.abort());
+  await page.reload();
+  await openPersonalPage(page, 'library');
+  await expect(
+    page.getByText('Could not load exercises. Check your connection and try again.'),
+  ).toBeVisible();
+  await expect(page.locator('.library-result--skeleton')).toHaveCount(0);
+  await page.unroute('**/exercises.json');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(
+    page.getByRole('list', { name: /exercise results/i }).getByRole('button'),
+  ).toHaveCount(60);
+  await expect(
+    page.getByText('Could not load exercises. Check your connection and try again.'),
+  ).toHaveCount(0);
+});
+
+test('history resumes the existing workout without creating another routine', async ({ page }) => {
+  await installCompletedWorkoutFixture(page);
+  await startNeutralWorkout(page);
+  const before = await page.evaluate(async () => {
+    const path = '/src/state/useStore.ts';
+    const { useStore } = (await import(path)) as typeof import('../src/state/useStore');
+    const state = useStore.getState();
+    const facts = { start: state.active?.startTs, routines: state.routines.length };
+    state.nav({ view: 'workoutDetail', id: state.workouts[0].id });
+    return facts;
+  });
+  await page.getByRole('button', { name: 'Workout options', exact: true }).click();
+  await page.getByRole('button', { name: 'Resume current workout', exact: true }).click();
+  await expect(page.locator('.exercise-block').first()).toBeVisible();
+  const after = await page.evaluate(async () => {
+    const path = '/src/state/useStore.ts';
+    const { useStore } = (await import(path)) as typeof import('../src/state/useStore');
+    const state = useStore.getState();
+    return { start: state.active?.startTs, routines: state.routines.length };
+  });
+  expect(after).toEqual(before);
 });

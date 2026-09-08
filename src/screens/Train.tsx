@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconDown, IconForward, IconMore } from '../components/Icons';
@@ -81,6 +81,21 @@ export function Train() {
   const deleteFolder = useStore((s) => s.deleteFolder);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [nameDraft, setNameDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(false);
+  const pending = useRef(false);
+  const draftId = useRef<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    setActionError(false);
+    draftId.current = null;
+  }, [sheet]);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
@@ -115,37 +130,75 @@ export function Train() {
                 ? sheet.folder.name
                 : t('train.deleteFolder');
 
+  async function runSheetAction(
+    work: () => Promise<AccountActionResult>,
+    onSuccess?: () => void,
+  ): Promise<void> {
+    if (pending.current) return;
+    const state = useStore.getState();
+    const actionRoute = state.route;
+    const uid = state.user?.uid;
+    pending.current = true;
+    setBusy(true);
+    setActionError(false);
+    try {
+      const result = await work();
+      if (
+        !mounted.current ||
+        useStore.getState().route !== actionRoute ||
+        !isAccountActionCurrent(result)
+      )
+        return;
+      setSheet(null);
+      onSuccess?.();
+    } catch {
+      if (
+        mounted.current &&
+        useStore.getState().route === actionRoute &&
+        useStore.getState().user?.uid === uid
+      )
+        setActionError(true);
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+
   async function createRoutine(name: string, folderId?: string): Promise<void> {
+    if (pending.current) return;
+    draftId.current ??= crypto.randomUUID();
     const routine: Routine = {
-      id: crypto.randomUUID(),
+      id: draftId.current,
       name: name.trim() || t('routines.newName'),
       folderId,
       exercises: [],
       updatedAt: 0,
     };
-    const result = await saveRoutine(routine);
-    if (!isAccountActionCurrent(result)) return;
-    setSheet(null);
-    nav({ view: 'routineEditor', id: routine.id });
+    await runSheetAction(
+      () => saveRoutine(routine),
+      () => nav({ view: 'routineEditor', id: routine.id }),
+    );
   }
 
   async function createProgram(name: string): Promise<void> {
+    if (pending.current) return;
+    draftId.current ??= crypto.randomUUID();
     const folder: Folder = {
-      id: crypto.randomUUID(),
+      id: draftId.current,
       name: name.trim() || t('train.newProgram'),
       updatedAt: 0,
     };
-    const result = await saveFolder(folder);
-    if (!isAccountActionCurrent(result)) return;
-    setOpenProgramId(folder.id);
-    setSheet(null);
+    await runSheetAction(
+      () => saveFolder(folder),
+      () => setOpenProgramId(folder.id),
+    );
   }
 
   async function addTemplate(pack: (typeof TEMPLATES)[number]): Promise<void> {
-    const result = await installTemplatePack(pack, { saveFolder, saveRoutine });
-    if (!isAccountActionCurrent(result)) return;
-    setOpenProgramId(pack.folder.id);
-    setSheet(null);
+    await runSheetAction(
+      () => installTemplatePack(pack, { saveFolder, saveRoutine }),
+      () => setOpenProgramId(pack.folder.id),
+    );
   }
 
   return (
@@ -294,8 +347,16 @@ export function Train() {
           title={sheetTitle}
           initialFocusRef={sheet.kind === 'deleteProgram' ? cancelDeleteRef : nameInputRef}
           closeOnScrim={sheet.kind !== 'deleteProgram'}
-          onClose={() => setSheet(null)}
+          onClose={() => {
+            if (!pending.current) setSheet(null);
+          }}
         >
+          {actionError && (
+            <p className="form-feedback form-feedback--error" role="alert">
+              {t('train.actionError')}
+            </p>
+          )}
+          {busy && <p role="status">{t('train.working')}</p>}
           {sheet.kind === 'create' && (
             <div className="train-create-options">
               <button
@@ -329,6 +390,7 @@ export function Train() {
                   </span>
                   <button
                     className="btn btn-ghost train-template__action"
+                    disabled={busy}
                     onClick={() => void addTemplate(pack)}
                   >
                     {t('routines.useTemplate')}
@@ -343,6 +405,7 @@ export function Train() {
             <>
               <input
                 ref={nameInputRef}
+                disabled={busy}
                 autoFocus
                 value={nameDraft}
                 placeholder={
@@ -354,23 +417,27 @@ export function Train() {
               />
               <button
                 className="btn btn-accent btn-block"
+                disabled={busy}
                 onClick={() => {
                   if (sheet.kind === 'newRoutine') void createRoutine(nameDraft, sheet.folderId);
                   else if (sheet.kind === 'newProgram') void createProgram(nameDraft);
                   else {
-                    void (async () => {
-                      const result = await saveFolder({
+                    void runSheetAction(() =>
+                      saveFolder({
                         ...sheet.folder,
                         name: nameDraft.trim() || sheet.folder.name,
-                      });
-                      if (isAccountActionCurrent(result)) setSheet(null);
-                    })();
+                      }),
+                    );
                   }
                 }}
               >
                 {sheet.kind === 'renameProgram' ? t('train.save') : t('train.createConfirm')}
               </button>
-              <button className="btn btn-ghost btn-block" onClick={() => setSheet(null)}>
+              <button
+                className="btn btn-ghost btn-block"
+                disabled={busy}
+                onClick={() => setSheet(null)}
+              >
                 {t('workout.cancel')}
               </button>
             </>
@@ -416,11 +483,9 @@ export function Train() {
               </span>
               <button
                 className="btn btn-danger btn-block"
+                disabled={busy}
                 onClick={() => {
-                  void (async () => {
-                    const result = await deleteFolder(sheet.folder.id);
-                    if (isAccountActionCurrent(result)) setSheet(null);
-                  })();
+                  void runSheetAction(() => deleteFolder(sheet.folder.id));
                 }}
               >
                 {t('history.deleteConfirm')}
@@ -428,6 +493,7 @@ export function Train() {
               <button
                 ref={cancelDeleteRef}
                 className="btn btn-ghost btn-block"
+                disabled={busy}
                 onClick={() => setSheet(null)}
               >
                 {t('workout.cancel')}

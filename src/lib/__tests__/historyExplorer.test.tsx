@@ -42,6 +42,18 @@ describe('history explorer regressions', () => {
     expect(html).toContain('august-evening');
     expect(html).not.toContain('july-session');
   });
+  it('does not offer a reset when the entire month is already shown', () => {
+    const html = renderToStaticMarkup(<History />);
+    expect(html).not.toContain('history.showWholeMonth');
+    expect(html).toContain('history.monthScope');
+  });
+  it('shows an enabled reset only when a day filter is active', () => {
+    data.surface.selectedDay = '2026-08-03';
+    const html = renderToStaticMarkup(<History />);
+    expect(html).toContain('history.showWholeMonth');
+    expect(html).toContain('history.dayScope');
+    expect(html).not.toContain('disabled=""');
+  });
   it('orders dates before pagination even when timestamps disagree', () => {
     data.surface = { mode: 'list', visibleCount: 1 };
     data.workouts = [

@@ -187,6 +187,13 @@
     "showWholeMonth": "Show the whole month",
     "workoutOptions": "Workout options",
     "editWorkout": "Edit workout",
+    "invalidDate": "Choose a valid workout date.",
+    "invalidStartTime": "Enter a valid start time from 00:00 to 23:59.",
+    "invalidDuration": "Enter a valid duration of at least 1 minute.",
+    "invalidSetValues": "Check the highlighted sets: loads must be 0 or more, reps must be whole numbers of 0 or more, and seconds must be greater than 0.",
+    "invalidWorkout": "Check the workout date, time, duration and set values before saving.",
+    "savingWorkout": "Saving…",
+    "saveWorkoutError": "Could not save the workout. Your edits are still here. Try Save again.",
     "repeatWorkout": "Repeat workout",
     "saveAsRoutine": "Save as routine",
     "routineName": "Workout name",
@@ -216,7 +223,11 @@
     "nextMonth": "Next month",
     "emptyMonth": "No workouts this month",
     "emptyDay": "No workouts on this day",
-    "calendarHint": "Select a day to see its workouts"
+    "calendarHint": "Select a day to see its workouts",
+    "monthScope": "Workouts in {{month}}",
+    "dayScope": "Workouts on {{date}}",
+    "resumeCurrentWorkout": "Resume current workout",
+    "activeWorkoutHint": "A workout is already in progress. Resume it before repeating this workout."
   },
   "progress": {
     "title": "Progress",
@@ -243,7 +254,8 @@
     "overview": "Training overview",
     "previousPeriod": "Previous period",
     "nextPeriod": "Next period",
-    "overviewSummary": "{{metric}} · {{period}}. {{values}}"
+    "overviewSummary": "{{metric}} · {{period}}. {{values}}",
+    "noExerciseHistory": "No completed sets for this exercise yet."
   },
   "library": {
     "title": "Exercises",
@@ -299,7 +311,9 @@
     "allEquipment": "All equipment",
     "sort": "Order",
     "sortName": "Name",
-    "sortRecent": "Recently used"
+    "sortRecent": "Recently used",
+    "loadError": "Could not load exercises. Check your connection and try again.",
+    "retry": "Retry"
   },
   "settings": {
     "title": "Settings",
@@ -480,7 +494,9 @@
     "routineNamePh": "e.g. Upper A, Push…",
     "programNamePh": "e.g. Strength A/B…",
     "createConfirm": "Create",
-    "save": "Save"
+    "save": "Save",
+    "working": "Saving…",
+    "actionError": "Could not save the change. Your input is still here. Try again."
   },
   "profile": {
     "trainingSummary": "Training summary",

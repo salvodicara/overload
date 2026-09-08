@@ -72,7 +72,15 @@ function topSets(
   return { tracking: current, sessions };
 }
 
-function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id: string): void }) {
+function TrainingSection({
+  picked,
+  requested,
+  onPick,
+}: {
+  picked: string | null;
+  requested?: string;
+  onPick(id: string): void;
+}) {
   const { t, i18n } = useTranslation();
   const { workouts, catalogReady, settings } = useStore();
   useCatalog(workouts.length > 0);
@@ -82,6 +90,7 @@ function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id:
   const options = useMemo(() => {
     void catalogReady;
     const ids = new Set<string>();
+    if (requested) ids.add(requested);
     for (const workout of workouts) {
       for (const set of workout.sets) {
         if (set.done && kindOf(set.kind) === 'working') ids.add(set.exerciseId);
@@ -93,7 +102,7 @@ function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id:
         (left, right) =>
           Number(right.known) - Number(left.known) || left.name.localeCompare(right.name),
       );
-  }, [workouts, catalogReady, i18n.language]);
+  }, [workouts, catalogReady, i18n.language, requested]);
 
   const selected =
     picked && options.some((option) => option.id === picked) ? picked : options[0]?.id;
@@ -102,12 +111,46 @@ function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id:
     [workouts, selected],
   );
 
-  if (!selected || !progress || progress.sessions.length === 0) {
+  if (!selected) {
     return <div className="progress-empty">{t('history.empty')}</div>;
   }
 
-  const { tracking, sessions } = progress;
+  const { tracking, sessions } = progress ?? { tracking: 'weight_reps' as const, sessions: [] };
   const name = exerciseName(selected, i18n.language);
+  const picker = (
+    <>
+      <label className="field-label" htmlFor="progress-exercise">
+        {t('progress.pick')}
+      </label>
+      <select
+        id="progress-exercise"
+        name="exercise"
+        autoComplete="off"
+        value={selected}
+        onChange={(event) => onPick(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+  if (sessions.length === 0)
+    return (
+      <div className="progress-training">
+        {picker}
+        <section className="progress-chart card card-pad" aria-labelledby="progress-chart-title">
+          <h2 id="progress-chart-title" className="progress-section-title">
+            {name}
+          </h2>
+          <p className="progress-state" role="status">
+            {t('progress.noExerciseHistory')}
+          </p>
+        </section>
+      </div>
+    );
   const formatAxisValue = (value: number): string =>
     tracking === 'weight_reps'
       ? formatWeight(value, unit, i18n.language)
@@ -145,22 +188,7 @@ function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id:
   });
   return (
     <div className="progress-training">
-      <label className="field-label" htmlFor="progress-exercise">
-        {t('progress.pick')}
-      </label>
-      <select
-        id="progress-exercise"
-        name="exercise"
-        autoComplete="off"
-        value={selected}
-        onChange={(event) => onPick(event.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}
-          </option>
-        ))}
-      </select>
+      {picker}
 
       <section className="progress-chart card card-pad" aria-labelledby="progress-chart-title">
         <h2 id="progress-chart-title" className="progress-section-title">
@@ -222,6 +250,7 @@ export function Progress() {
           />
         )}
         <TrainingSection
+          requested={initialExerciseId}
           picked={surface.exerciseId ?? initialExerciseId ?? null}
           onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
         />
