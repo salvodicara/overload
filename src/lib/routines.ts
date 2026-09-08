@@ -1,9 +1,6 @@
 import type { Folder, Routine, Workout } from './types';
 
-const compareNewest = (left: Workout, right: Workout): number =>
-  right.startTs - left.startTs ||
-  right.updatedAt - left.updatedAt ||
-  right.id.localeCompare(left.id);
+import { newestWorkoutFirst as compareNewest } from './workoutHistory';
 
 const belongsTo = (routine: Routine, workout: Workout): boolean =>
   workout.routineId === routine.id ||

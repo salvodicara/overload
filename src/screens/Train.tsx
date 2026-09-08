@@ -40,8 +40,8 @@ function RoutineCard({ routine, suggested }: { routine: Routine; suggested?: boo
     <li className={`train-routine${suggested ? ' train-routine--suggested' : ''}`}>
       <button
         className="train-routine__edit"
-        aria-label={t('routines.edit', { routine: routine.name })}
-        onClick={() => nav({ view: 'routineEditor', id: routine.id })}
+        aria-label={t('routines.view', { routine: routine.name })}
+        onClick={() => nav({ view: 'routine', id: routine.id })}
       >
         <strong>{routine.name}</strong>
         <span className="train-routine__meta">

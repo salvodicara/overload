@@ -213,15 +213,14 @@ export async function startNeutralWorkout(page: Page): Promise<void> {
   await page.getByRole('button', { name: /start full body a|inizia full body a/i }).click();
   await expect(page.getByText(NEUTRAL_ROUTINE).first()).toBeVisible();
   const loads = page.getByRole('spinbutton', { name: /load|carico/i });
-  for (let index = 0; index < (await loads.count()); index += 1) {
-    const input = loads.nth(index);
-    if ((await input.inputValue()) === '') await input.fill('0');
-  }
+  const firstLoad = loads.first();
+  if ((await firstLoad.count()) && (await firstLoad.inputValue()) === '') await firstLoad.fill('0');
 }
 
 export async function openNeutralRoutineEditor(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^(train|allenati)$/i }).click();
-  await page.getByRole('button', { name: /edit full body a|modifica full body a/i }).click();
+  await page.getByRole('button', { name: /view full body a|vedi full body a/i }).click();
+  await page.getByRole('button', { name: /^(edit|modifica)$/i }).click();
   await expect(page.locator('.route-fallback')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: /routine name|nome scheda/i })).toBeVisible();
 }
@@ -1671,7 +1670,7 @@ test('home and Train keep active priority, exact counts and narrow CTA fit', asy
   await expect(page.getByText(/^2 routines$/i)).toBeVisible();
   await page.getByRole('button', { name: /solo program.*1 routine/i }).click();
   await expect(
-    page.getByRole('button', { name: /edit solo routine/i }).getByText(/^1 exercise$/i),
+    page.getByRole('button', { name: /view solo routine/i }).getByText(/^1 exercise$/i),
   ).toBeVisible();
 
   await page.getByRole('button', { name: /full body a\/b.*2 routines/i }).click();
@@ -1988,7 +1987,7 @@ test('routine editor persists rapid prescription edits after leaving', async ({ 
 
 test('routine editor preserves optional and canonical prescriptions', async ({ page }) => {
   await expect(
-    page.getByRole('button', { name: /edit full body a|modifica full body a/i }),
+    page.getByRole('button', { name: /view full body a|vedi full body a/i }),
   ).toBeVisible();
   await page.evaluate(async () => {
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -3097,7 +3096,7 @@ test('exercise detail keeps the journal collapsed and opens the exercise in Prog
   await expect(journal).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByText('Linked observation', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: /open in progress|apri in progressi/i }).click();
+  await page.getByRole('button', { name: /exercise statistics|statistiche esercizio/i }).click();
   await expect(page.getByRole('heading', { name: 'Barbell Squat', exact: true })).toBeVisible();
   await expect(page.locator('#progress-exercise')).toHaveValue('Barbell_Squat');
 });
@@ -3316,7 +3315,8 @@ test('session notes stay on their workouts', async ({ page }) => {
   expect(firstWorkoutNotes).toContain('First session');
 
   await startNeutralWorkout(page);
-  await expect(session).toContainText(/how this exercise felt|com'è andato/i);
+  await expect(session).not.toContainText('First session');
+  await expect(session.locator('.workout-note__summary')).toHaveCount(0);
   await session.click();
   await page
     .getByRole('button', { name: /^(edit note|modifica nota)$/i })
@@ -3758,6 +3758,8 @@ test('mid-workout rest tweak can update the routine', async ({ page }) => {
   await page.locator('.setcheck').first().click();
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await expect(page.getByText(/update the routine|aggiornare la scheda/i)).toBeVisible();
+  await expect(page.getByText(/1\. Barbell Squat.*150/)).toBeVisible();
+  await expect(page.getByText(/1\. Barbell Squat.*165/)).toBeVisible();
   await page.getByRole('button', { name: /update routine|aggiorna scheda/i }).click();
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
   // The routine now carries the new rest: start again and check the chip.
@@ -4820,4 +4822,112 @@ test('reference synthesis keeps three tabs and shared personal detail paths', as
     await page.locator('.page-header__back').click();
     await expect(page.locator('.profile-hub')).toBeVisible();
   }
+});
+
+test('unfinished entered sets and logged exercise changes can be cancelled without loss', async ({
+  page,
+}) => {
+  await startNeutralWorkout(page);
+  const first = page.locator('.exercise-block').first();
+  const weights = first.locator('input[aria-label*="kg"], input[aria-label*="lb"]');
+  await weights.first().fill('60');
+  await first.locator('.setcheck').first().click();
+  await weights.nth(1).fill('65');
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  const review = page.getByRole('dialog', { name: /unchecked sets|serie non completate/i });
+  await expect(review).toBeVisible();
+  await review.getByRole('button', { name: /continue workout|continua allenamento/i }).click();
+  await expect(weights.nth(1)).toHaveValue('65');
+  await first.getByRole('button', { name: /exercise options|opzioni esercizio/i }).click();
+  await page.getByRole('button', { name: /remove exercise|rimuovi esercizio/i }).click();
+  const protect = page.getByRole('dialog', {
+    name: /remove logged exercise|rimuovere l.esercizio registrato/i,
+  });
+  await expect(protect).toBeVisible();
+  await protect.getByRole('button', { name: /cancel|annulla/i }).click();
+  await expect(
+    first.getByRole('button', { name: /exercise options|opzioni esercizio/i }),
+  ).toBeFocused();
+  await expect(first.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
+  await expect(weights.nth(1)).toHaveValue('65');
+  await first.getByRole('button', { name: /exercise options|opzioni esercizio/i }).click();
+  await page.getByRole('button', { name: /replace exercise|sostituisci esercizio/i }).click();
+  const replacement = page.getByRole('dialog', {
+    name: /replace logged exercise|sostituire l.esercizio registrato/i,
+  });
+  await expect(replacement).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(
+    first.getByRole('button', { name: /exercise options|opzioni esercizio/i }),
+  ).toBeFocused();
+  await expect(weights.nth(1)).toHaveValue('65');
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await review
+    .getByRole('button', { name: /finish with completed sets|termina con le serie completate/i })
+    .click();
+  await page.getByRole('button', { name: /view workout|vedi allenamento/i }).click();
+  await expect(page.locator('.workout-detail-header')).toBeVisible();
+});
+
+test('routine preview supports reading before editing or starting at 320px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.getByRole('button', { name: /^home$/i }).click();
+  await page.getByRole('button', { name: /view full body a|vedi full body a/i }).click();
+  await expect(page.locator('.routine-preview__list > li')).toHaveCount(6);
+  await expect(page.locator('.routine-preview input')).toHaveCount(0);
+  await page.locator('.routine-preview__exercise').first().click();
+  await expect(
+    page.getByRole('navigation').getByRole('button', { name: /^(train|allenati)$/i }),
+  ).toHaveAttribute('aria-current', 'page');
+  await page.goBack();
+  await expect(page.locator('.routine-preview__sets').first()).toContainText('6–10');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+  await page.getByRole('button', { name: /^(edit|modifica)$/i }).click();
+  await page.getByRole('textbox', { name: /routine name|nome scheda/i }).fill('My gym plan');
+  await expect(page.getByRole('status')).toHaveText(
+    /saved on this device|salvato su questo dispositivo/i,
+  );
+  await page.getByRole('button', { name: /^(done|fine)$/i }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('My gym plan');
+  await page.getByRole('button', { name: /^(start|inizia)$/i }).click();
+  await expect(page.locator('.exercise-block')).toHaveCount(6);
+});
+
+test('exercise equipment and recent order persist after inspecting a result', async ({ page }) => {
+  await installCompletedWorkoutFixture(page);
+  await openPersonalPage(page, 'library');
+  await page.getByRole('combobox', { name: 'Equipment', exact: true }).selectOption('barbell');
+  await page.getByRole('combobox', { name: 'Order', exact: true }).selectOption('recent');
+  const first = page.locator('.library-result').first();
+  await expect(first).toContainText('Barbell Squat');
+  await first.click();
+  await page.goBack();
+  await expect(page.getByRole('combobox', { name: 'Equipment', exact: true })).toHaveValue(
+    'barbell',
+  );
+  await expect(page.getByRole('combobox', { name: 'Order', exact: true })).toHaveValue('recent');
+  await expect(first).toContainText('Barbell Squat');
+});
+
+test('finish failure explains recovery and keeps the session through reload', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.locator('.setcheck').first().click();
+  await page.evaluate(async () => {
+    const modulePath = '/src/state/useStore.ts';
+    const { useStore } = await import(/* @vite-ignore */ modulePath);
+    useStore.setState({
+      finishWorkout: async () => {
+        throw new Error('Simulated local write failure');
+      },
+    });
+  });
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    /session is still here|sessione è ancora qui/i,
+  );
+  await expect(page.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(page.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
+  await expect(page.getByRole('button', { name: /view workout|vedi allenamento/i })).toBeVisible();
 });

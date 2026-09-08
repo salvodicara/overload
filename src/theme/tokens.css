@@ -1697,7 +1697,7 @@ textarea:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 32px;
+  min-height: 44px;
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;

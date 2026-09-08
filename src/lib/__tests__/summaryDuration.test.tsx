@@ -7,6 +7,7 @@ vi.mock('../../state/useStore', () => ({
   useStore: (select?: (state: unknown) => unknown) => {
     const state = {
       settings: {},
+      routines: [],
       workouts: [
         {
           id: 'paused-session',

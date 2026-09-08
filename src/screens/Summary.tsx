@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { kindOf } from '../lib/types';
+import { normalizeRoutineOccurrences } from '../lib/workoutOccurrences';
 import { displayVolume, weightLabel } from '../lib/units';
 import { useStore } from '../state/useStore';
 import '../theme/workout-surfaces.css';
@@ -9,7 +10,7 @@ import '../theme/workout-surfaces.css';
 export function Summary({ workoutId }: { workoutId: string }) {
   const { t, i18n } = useTranslation();
   useCatalog();
-  const { settings, workouts } = useStore();
+  const { settings, workouts, routines } = useStore();
   const nav = useStore((s) => s.nav);
   const pending = useStore((s) => s.pendingRoutineChanges);
   const applyRoutineChanges = useStore((s) => s.applyRoutineChanges);
@@ -39,6 +40,39 @@ export function Summary({ workoutId }: { workoutId: string }) {
   const workingSetCount = w.sets.filter((set) => set.done && kindOf(set.kind) === 'working').length;
   const durationSec = w.durationSec ?? (w.endTs ? (w.endTs - w.startTs) / 1000 : 0);
   const mins = durationSec > 0 ? Math.max(1, Math.round(durationSec / 60)) : 0;
+  const original = routines.find((routine) => routine.id === pending?.routineId);
+  const before = original ? normalizeRoutineOccurrences(original).exercises : [];
+  const after = pending?.nextRoutine?.exercises ?? [];
+  const changes = pending?.nextRoutine
+    ? [
+        ...after.flatMap((exercise, index) => {
+          const oldIndex = before.findIndex((item) => item.occurrenceId === exercise.occurrenceId);
+          const old = before[oldIndex];
+          if (
+            old &&
+            oldIndex === index &&
+            old.exerciseId === exercise.exerciseId &&
+            old.sets === exercise.sets &&
+            old.restSec === exercise.restSec
+          )
+            return [];
+          return [{ before: old, after: exercise, oldIndex, index }];
+        }),
+        ...before.flatMap((exercise, oldIndex) =>
+          after.some((item) => item.occurrenceId === exercise.occurrenceId)
+            ? []
+            : [{ before: exercise, after: undefined, oldIndex, index: -1 }],
+        ),
+      ]
+    : [];
+  const prescription = (exercise: (typeof before)[number], index: number): string =>
+    String(index + 1) +
+    '. ' +
+    exerciseName(exercise.exerciseId, i18n.language) +
+    ' · ' +
+    t('summary.workingSetCount', { count: exercise.sets }) +
+    ' · ' +
+    t('routines.restPreview', { seconds: exercise.restSec });
 
   return (
     <div className="screen">
@@ -89,8 +123,24 @@ export function Summary({ workoutId }: { workoutId: string }) {
         <div className="card card-pad stack" style={{ marginTop: 14 }}>
           <strong>{t('summary.updateRoutineTitle')}</strong>
           <span className="muted small">
-            {t('summary.updateRoutineBody', { n: pending.items.length })}
+            {t(changes.length ? 'summary.reviewChanges' : 'summary.updateRoutineBody', {
+              n: pending.items.length,
+            })}
           </span>
+          {changes.map((change, index) => (
+            <div key={index} className="small" style={{ overflowWrap: 'anywhere' }}>
+              {change.before && (
+                <p>
+                  <span className="muted">{t('summary.before')}: </span>
+                  {prescription(change.before, change.oldIndex)}
+                </p>
+              )}
+              <p>
+                <strong>{t('summary.after')}: </strong>
+                {change.after ? prescription(change.after, change.index) : t('summary.removed')}
+              </p>
+            </div>
+          ))}
           <div className="row">
             <button
               className="btn btn-accent"
@@ -106,6 +156,13 @@ export function Summary({ workoutId }: { workoutId: string }) {
         </div>
       )}
 
+      <button
+        className="btn btn-ghost btn-block"
+        style={{ marginTop: 24 }}
+        onClick={() => nav({ view: 'workoutDetail', id: w.id })}
+      >
+        {t('summary.viewWorkout')}
+      </button>
       <button
         className="btn btn-solid btn-block btn-big"
         style={{ marginTop: 24 }}

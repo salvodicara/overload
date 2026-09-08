@@ -69,6 +69,17 @@ export function Workout() {
   const pauseWorkoutClock = useStore((s) => s.pauseWorkoutClock);
   const resumeWorkoutClock = useStore((s) => s.resumeWorkoutClock);
   const [confirming, setConfirming] = useState(false);
+  const [reviewFinish, setReviewFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState(false);
+  const finishingRef = useRef(false);
+  const [pendingExerciseChange, setPendingExerciseChange] = useState<{
+    action: 'remove' | 'replace';
+    instanceId: string;
+    name: string;
+  } | null>(null);
+  const continueWorkoutRef = useRef<HTMLButtonElement>(null);
+  const cancelExerciseChangeRef = useRef<HTMLButtonElement>(null);
   const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
   const [editingRest, setEditingRest] = useState<number | null>(null);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
@@ -81,6 +92,7 @@ export function Workout() {
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
   const addSetRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
+  const exerciseOptionRefs = useRef<Record<string, RefObject<HTMLButtonElement | null>>>({});
   const setRemovalCommittedRef = useRef(false);
   const [, tick] = useState(0);
 
@@ -98,6 +110,41 @@ export function Workout() {
   if (!active || !routine) return null;
 
   const unit = settings.unit ?? 'kg';
+  const uncheckedEdited = active.ex
+    .flatMap((exercise) => exercise.sets)
+    .filter((set) => !set.done && set.edited).length;
+  const finishReviewed = async (): Promise<void> => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
+    setFinishing(true);
+    setFinishError(false);
+    try {
+      await finish();
+    } catch {
+      setFinishError(true);
+      setReviewFinish(false);
+    } finally {
+      finishingRef.current = false;
+      setFinishing(false);
+    }
+  };
+  const changeExercise = (action: 'remove' | 'replace', instanceId: string): void => {
+    if (action === 'remove') removeWorkoutExercise(instanceId);
+    else nav({ view: 'library', pickFor: { activeWorkout: true, replaceInstanceId: instanceId } });
+  };
+  const requestExerciseChange = (action: 'remove' | 'replace'): void => {
+    if (!exerciseOptions) return;
+    const exercise = active.ex[exerciseOptions.index];
+    if (exercise?.sets.some((set) => set.done || set.edited) || exercise?.sessionNote?.trim()) {
+      setPendingExerciseChange({
+        action,
+        instanceId: exerciseOptions.instanceId,
+        name: exerciseOptions.name,
+      });
+    } else changeExercise(action, exerciseOptions.instanceId);
+    setExerciseOptions(null);
+  };
+
   const elapsed = Math.floor(elapsedWorkoutMs(active) / 1000);
 
   return (
@@ -129,13 +176,19 @@ export function Workout() {
           <button
             className="btn btn-accent workout-header__finish"
             aria-label={t('workout.finish')}
-            onClick={() => void finish()}
+            disabled={finishing}
+            onClick={() => (uncheckedEdited ? setReviewFinish(true) : void finishReviewed())}
           >
             {t('workout.finishShort')}
           </button>
         }
       />
 
+      {finishError && (
+        <p role="alert" className="banner banner-warn">
+          {t('workout.saveError')}
+        </p>
+      )}
       {routine.warmup && (
         <details className="workout-preparation">
           <summary>{t('workout.warmup')}</summary>
@@ -183,6 +236,9 @@ export function Workout() {
           const addSetRef =
             addSetRefs.current[exerciseIndex] ??
             (addSetRefs.current[exerciseIndex] = createRef<HTMLButtonElement>());
+          const optionRef =
+            exerciseOptionRefs.current[instanceId] ??
+            (exerciseOptionRefs.current[instanceId] = createRef<HTMLButtonElement>());
           let workingIndex = 0;
 
           return (
@@ -200,6 +256,7 @@ export function Workout() {
                   <button
                     type="button"
                     className="iconbtn exercise-block__options"
+                    ref={optionRef}
                     aria-label={t('workout.exerciseOptions')}
                     onClick={() => setExerciseOptions({ instanceId, name, index: exerciseIndex })}
                   >
@@ -295,11 +352,11 @@ export function Workout() {
                             <span className="workout-note__scope">
                               {t('notes.techniqueAndNotes')}
                             </span>
-                            <span className="workout-note__summary">
-                              {exercise.sessionNote ||
-                                prescription?.note ||
-                                t('notes.sessionPlaceholder')}
-                            </span>
+                            {(exercise.sessionNote || prescription?.note) && (
+                              <span className="workout-note__summary">
+                                {exercise.sessionNote || prescription?.note}
+                              </span>
+                            )}
                           </span>
                           <span className="workout-note__chevron" aria-hidden="true">
                             ▾
@@ -632,31 +689,82 @@ export function Workout() {
             >
               {t('editor.moveDown')}
             </button>
-            <button
-              className="btn btn-ghost"
-              onClick={() =>
-                nav({
-                  view: 'library',
-                  pickFor: {
-                    activeWorkout: true,
-                    replaceInstanceId: exerciseOptions.instanceId,
-                  },
-                })
-              }
-            >
+            <button className="btn btn-ghost" onClick={() => requestExerciseChange('replace')}>
               {t('workout.replaceExercise')}
             </button>
             <button
               className="btn btn-danger"
               disabled={active.ex.length <= 1}
               onClick={() => {
-                removeWorkoutExercise(exerciseOptions.instanceId);
-                setExerciseOptions(null);
+                requestExerciseChange('remove');
               }}
             >
               {t('workout.removeExercise')}
             </button>
           </div>
+        </BottomSheet>
+      )}
+
+      {reviewFinish && (
+        <BottomSheet
+          open
+          title={t('workout.uncheckedTitle')}
+          initialFocusRef={continueWorkoutRef}
+          onClose={() => {
+            if (!finishing) setReviewFinish(false);
+          }}
+        >
+          <p>{t('workout.uncheckedBody', { count: uncheckedEdited })}</p>
+          <button
+            ref={continueWorkoutRef}
+            className="btn btn-accent btn-block"
+            disabled={finishing}
+            onClick={() => setReviewFinish(false)}
+          >
+            {t('workout.continueWorkout')}
+          </button>
+          <button
+            className="btn btn-ghost btn-block"
+            disabled={finishing}
+            onClick={() => void finishReviewed()}
+          >
+            {t('workout.finishCompleted')}
+          </button>
+        </BottomSheet>
+      )}
+      {pendingExerciseChange && (
+        <BottomSheet
+          open
+          title={t(
+            pendingExerciseChange.action === 'remove'
+              ? 'workout.removeLoggedTitle'
+              : 'workout.replaceLoggedTitle',
+          )}
+          initialFocusRef={cancelExerciseChangeRef}
+          fallbackFocusRef={exerciseOptionRefs.current[pendingExerciseChange.instanceId]}
+          onClose={() => setPendingExerciseChange(null)}
+        >
+          <p>{t('workout.loggedChangeBody', { name: pendingExerciseChange.name })}</p>
+          <button
+            className="btn btn-danger btn-block"
+            onClick={() => {
+              changeExercise(pendingExerciseChange.action, pendingExerciseChange.instanceId);
+              setPendingExerciseChange(null);
+            }}
+          >
+            {t(
+              pendingExerciseChange.action === 'remove'
+                ? 'workout.removeExercise'
+                : 'workout.replaceExercise',
+            )}
+          </button>
+          <button
+            ref={cancelExerciseChangeRef}
+            className="btn btn-ghost btn-block"
+            onClick={() => setPendingExerciseChange(null)}
+          >
+            {t('workout.cancel')}
+          </button>
         </BottomSheet>
       )}
 

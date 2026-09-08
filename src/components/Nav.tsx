@@ -15,6 +15,7 @@ const GROUP: Partial<Record<Route['view'], Route['view']>> = {
   workoutEditor: 'profile',
   summary: 'home',
   routineEditor: 'train',
+  routine: 'train',
   exercise: 'profile',
   library: 'profile',
   progress: 'profile',
@@ -30,7 +31,9 @@ export function Nav() {
   const nav = useStore((s) => s.nav);
   if (route.view === 'workout') return null;
   const current =
-    route.view === 'library' && route.pickFor ? 'train' : (GROUP[route.view] ?? route.view);
+    (route.view === 'library' && route.pickFor) || (route.view === 'exercise' && route.from)
+      ? 'train'
+      : (GROUP[route.view] ?? route.view);
   return (
     <nav className="nav" aria-label={t('app.name')}>
       <div className="nav-inner">

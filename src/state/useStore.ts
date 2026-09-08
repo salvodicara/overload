@@ -102,8 +102,9 @@ export type Route =
       view: 'library';
       pickFor?: { routineId: string } | { activeWorkout: true; replaceInstanceId?: string };
     }
-  | { view: 'exercise'; id: string; from?: 'workout' }
+  | { view: 'exercise'; id: string; from?: 'workout' | 'routine' }
   | { view: 'importExport' }
+  | { view: 'routine'; id: string }
   | { view: 'routineEditor'; id: string };
 
 export type AppUser = { uid: string; name: string | null };
@@ -670,7 +671,7 @@ export const useStore = create<Store>((set, get) => ({
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
-    Object.assign(next.ex[ei].sets[si], patch);
+    Object.assign(next.ex[ei].sets[si], patch, { edited: true });
     persistActive(next);
     set({ active: next });
   },

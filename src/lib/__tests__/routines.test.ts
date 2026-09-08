@@ -64,3 +64,10 @@ it('skips empty draft routines when recommending a workout', () => {
   expect(nextRoutine([a, draft, b], [program], [done('a', 100)])?.id).toBe('b');
   expect(nextRoutine([draft], [program], [])).toBeNull();
 });
+
+it('uses the training date consistently when an older session was imported later', () => {
+  const latest = { ...done('a', 100), date: '2026-09-08' };
+  const importedEarlier = { ...done('b', 200), date: '2026-09-01' };
+  expect(nextRoutine([a, b], [program], [latest, importedEarlier])?.id).toBe('b');
+  expect(lastCompletedFor(a, [latest, { ...importedEarlier, routineId: 'a' }])?.date).toBe('2026-09-08');
+});

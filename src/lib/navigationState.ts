@@ -18,7 +18,13 @@ export type SurfaceStateMap = {
     visibleCount?: number;
     selectedDay?: string | null;
   };
-  library: { query?: string; group?: string | null; visibleCount?: number };
+  library: {
+    query?: string;
+    group?: string | null;
+    visibleCount?: number;
+    equipment?: string;
+    sort?: 'name' | 'recent';
+  };
   progress: HomeSurfaceState & {
     section?: string;
     exerciseId?: string;

@@ -28,6 +28,8 @@ The app is installed as a PWA and used during live training, between sets, durin
 
 ## Shipped Capabilities and Constraints
 
+- Home and Train open a read-only routine preview before the explicit Edit action. The editor reports local save status; Summary exposes concrete routine changes before applying them and links back to the saved workout. Exercise discovery supports equipment filtering and recent-use ordering.
+- Entered unchecked sets and logged exercise removal/replacement receive a recoverable review. Untouched planned sets do not add a confirmation to finishing.
 - The active workout is the highest-priority surface. Set logging, previous values, progression suggestions, rest timing, and recovery after interruption remain immediate.
 - Optional Full Body and Push / Pull / Legs packs provide neutral starting points. Users own their programs, routines, preparation, warm-up sets, set targets, rest periods, starting loads, increments, tracking modes, and exercise order.
 - Weighted working-set guidance uses the most recent completed working sets. It repeats the prior load until all prescribed sets reach the top of the rep range, then applies the configured increment.

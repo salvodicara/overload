@@ -17,6 +17,7 @@ import { Profile } from './screens/Profile';
 import { Settings } from './screens/Settings';
 import { PersonalMetrics } from './screens/PersonalMetrics';
 import { Progress } from './screens/Progress';
+import { RoutineDetail } from './screens/RoutineDetail';
 import { RoutineEditor } from './screens/RoutineEditor';
 import { Summary } from './screens/Summary';
 import { Train } from './screens/Train';
@@ -37,7 +38,10 @@ function Screen() {
             route.view === 'workoutDetail' ||
             route.view === 'workoutEditor'
           ? t('history.title')
-          : route.view === 'workout' || route.view === 'train' || route.view === 'routineEditor'
+          : route.view === 'workout' ||
+              route.view === 'train' ||
+              route.view === 'routineEditor' ||
+              route.view === 'routine'
             ? t('nav.workout')
             : route.view === 'progress'
               ? t('profile.statistics')
@@ -82,6 +86,8 @@ function Screen() {
       return <ExerciseSheet id={route.id} />;
     case 'importExport':
       return <ImportExport />;
+    case 'routine':
+      return <RoutineDetail id={route.id} />;
     case 'routineEditor':
       return <RoutineEditor id={route.id} />;
   }

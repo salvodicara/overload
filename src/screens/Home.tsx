@@ -83,14 +83,18 @@ export function Home() {
               <h2 id="next-workout" className="home-primary-action__title">
                 {t('home.nextWorkout')}
               </h2>
-              <div className="home-primary-action__routine">
+              <button
+                className="home-primary-action__routine"
+                aria-label={t('routines.view', { routine: next.name })}
+                onClick={() => nav({ view: 'routine', id: next.id })}
+              >
                 <strong>{next.name}</strong>
                 <span>
                   {t('home.exercises', {
                     count: next.exercises.length,
                   })}
                 </span>
-              </div>
+              </button>
               <button
                 className="btn btn-block home-primary-action__button"
                 onClick={() => startWorkout(next.id)}

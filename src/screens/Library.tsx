@@ -8,10 +8,12 @@ import { useCatalog } from '../hooks/useCatalog';
 import { useSurfaceState } from '../hooks/useSurfaceState';
 import {
   equipmentLabelKey,
+  getCatalog,
   muscleGroup,
   searchExercises,
   type MuscleGroup,
 } from '../lib/exercises';
+import { newestWorkoutFirst } from '../lib/workoutHistory';
 import type { TrackingType } from '../lib/types';
 import {
   isAccountActionCurrent,
@@ -76,6 +78,7 @@ export function Library({
 }) {
   const { t, i18n } = useTranslation();
   useCatalog();
+  const workouts = useStore((s) => s.workouts);
   const catalogReady = useStore((s) => s.catalogReady);
   const nav = useStore((s) => s.nav);
   const addExerciseToRoutine = useStore((s) => s.addExerciseToRoutine);
@@ -86,8 +89,23 @@ export function Library({
     query: '',
     group: null,
     visibleCount: MAX_RESULTS,
+    equipment: '',
+    sort: pickFor ? 'recent' : 'name',
   });
   const query = surface.query ?? '';
+  const equipment = surface.equipment ?? '';
+  const sort = surface.sort ?? 'name';
+  const equipmentOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          [...getCatalog().values()]
+            .map((item) => item.equipment)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ].sort((a, b) => t(equipmentLabelKey(a)).localeCompare(t(equipmentLabelKey(b)))),
+    [catalogReady, t],
+  );
   const group = GROUPS.includes(surface.group as MuscleGroup)
     ? (surface.group as MuscleGroup)
     : null;
@@ -117,10 +135,18 @@ export function Library({
     };
   }, []);
 
-  const results = useMemo(
-    () => searchExercises(query, group, i18n.language),
-    [catalogReady, query, group, i18n.language],
-  );
+  const results = useMemo(() => {
+    const filtered = searchExercises(query, group, i18n.language).filter(
+      (item) => !equipment || item.equipment === equipment,
+    );
+    if (sort !== 'recent') return filtered;
+    const recent = new Map<string, number>();
+    for (const workout of [...workouts].sort(newestWorkoutFirst)) {
+      for (const set of workout.sets)
+        if (set.done && !recent.has(set.exerciseId)) recent.set(set.exerciseId, recent.size);
+    }
+    return filtered.sort((a, b) => (recent.get(a.id) ?? Infinity) - (recent.get(b.id) ?? Infinity));
+  }, [catalogReady, query, group, i18n.language, equipment, sort, workouts]);
   const shown = results.slice(0, visibleCount);
   const hasMore = shown.length < results.length;
   function revealMore(): void {
@@ -287,6 +313,44 @@ export function Library({
         </div>
       </div>
 
+      <div className="row" style={{ gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+        <label className="field" style={{ flex: '1 1 150px', minWidth: 0 }}>
+          <span>{t('library.equipmentFilter')}</span>
+          <select
+            value={equipment}
+            onChange={(event) =>
+              setSurface((current) => ({
+                ...current,
+                equipment: event.target.value,
+                visibleCount: MAX_RESULTS,
+              }))
+            }
+          >
+            <option value="">{t('library.allEquipment')}</option>
+            {equipmentOptions.map((item) => (
+              <option key={item} value={item}>
+                {t(equipmentLabelKey(item))}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field" style={{ flex: '1 1 150px', minWidth: 0 }}>
+          <span>{t('library.sort')}</span>
+          <select
+            value={sort}
+            onChange={(event) =>
+              setSurface((current) => ({
+                ...current,
+                sort: event.target.value as 'name' | 'recent',
+                visibleCount: MAX_RESULTS,
+              }))
+            }
+          >
+            <option value="name">{t('library.sortName')}</option>
+            <option value="recent">{t('library.sortRecent')}</option>
+          </select>
+        </label>
+      </div>
       {operationError && !creating && (
         <div className="form-feedback form-feedback--error" role="alert">
           {operationError}

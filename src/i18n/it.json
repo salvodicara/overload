@@ -113,7 +113,16 @@
     "restMore": "aumenta recupero",
     "minimize": "Riduci a icona",
     "moreActions": "Altre azioni allenamento",
-    "enterLoad": "Inserisci il carico prima di completare la serie"
+    "enterLoad": "Inserisci il carico prima di completare la serie",
+    "uncheckedTitle": "Serie non completate",
+    "continueWorkout": "Continua allenamento",
+    "finishCompleted": "Termina con le serie completate",
+    "removeLoggedTitle": "Rimuovere l’esercizio registrato?",
+    "replaceLoggedTitle": "Sostituire l’esercizio registrato?",
+    "loggedChangeBody": "Rimuovendo o sostituendo {{name}} perderai le sue serie e la nota della sessione. Mantienilo per conservare il lavoro registrato.",
+    "saveError": "Impossibile salvare l’allenamento. La sessione è ancora qui: riprova con Termina.",
+    "uncheckedBody_other": "Hai modificato {{count}} serie non spuntate. Terminando salvi solo le serie spuntate. Continua per controllarle oppure termina senza includerle.",
+    "uncheckedBody_one": "Hai modificato una serie non spuntata. Terminando salvi solo le serie spuntate. Continua per controllarla oppure termina senza includerla."
   },
   "suggest": {
     "start": "Parti da {{weight}}",
@@ -140,7 +149,12 @@
     "updateRoutineTitle": "Aggiornare la scheda?",
     "updateRoutineBody": "{{n}} modifiche alla struttura. Vuoi salvarle nella scheda per le prossime volte?",
     "updateRoutineYes": "Aggiorna scheda",
-    "updateRoutineNo": "Solo questo allenamento"
+    "updateRoutineNo": "Solo questo allenamento",
+    "viewWorkout": "Vedi allenamento",
+    "reviewChanges": "Controlla cosa cambierà nella scheda per i prossimi allenamenti.",
+    "before": "Prima",
+    "after": "Dopo",
+    "removed": "Esercizio rimosso"
   },
   "history": {
     "title": "Storico",
@@ -266,7 +280,12 @@
     "addError": "Impossibile aggiungere l'esercizio. Riprova.",
     "createError": "Impossibile creare l'esercizio. Riprova.",
     "detailLoading": "Caricamento dettagli esercizio…",
-    "instructionsLoading": "Caricamento istruzioni tradotte…"
+    "instructionsLoading": "Caricamento istruzioni tradotte…",
+    "equipmentFilter": "Attrezzatura",
+    "allEquipment": "Tutte",
+    "sort": "Ordine",
+    "sortName": "Nome",
+    "sortRecent": "Usati di recente"
   },
   "settings": {
     "title": "Impostazioni",
@@ -341,7 +360,12 @@
     "templates": "Template",
     "useTemplate": "Usa",
     "edit": "Modifica {{routine}}",
-    "start": "Inizia {{routine}}"
+    "start": "Inizia {{routine}}",
+    "view": "Vedi {{routine}}",
+    "editAction": "Modifica",
+    "restPreview": "Recupero: {{seconds}} s",
+    "warmupCount": "Serie di riscaldamento: {{count}}",
+    "emptyPreview": "Aggiungi gli esercizi da Modifica per preparare questa scheda."
   },
   "editor": {
     "title": "Modifica scheda",
@@ -411,7 +435,12 @@
     "noFolder": "Nessun programma",
     "deleteRoutine": "Elimina routine",
     "deleteRoutineBody": "La routine sparisce da tutti i dispositivi. Lo storico degli allenamenti resta.",
-    "journalLatest": "Diario"
+    "journalLatest": "Diario",
+    "saved": "Salvato su questo dispositivo",
+    "saving": "Salvataggio…",
+    "error": "Impossibile salvare le modifiche",
+    "retrySave": "Riprova",
+    "done": "Fine"
   },
   "train": {
     "explorePrograms": "Esplora programmi",
@@ -460,7 +489,7 @@
     "previousSession": "Sessione precedente · {{date}}",
     "lastTime": "Ultima volta",
     "best": "Record",
-    "openProgress": "Apri in Progressi",
+    "openProgress": "Statistiche esercizio",
     "journal": "Diario",
     "journalEntries_one": "Diario, {{count}} voce",
     "journalEntries_other": "Diario, {{count}} voci",

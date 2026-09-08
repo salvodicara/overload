@@ -215,10 +215,12 @@ export function Progress() {
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
       <section className="progress-panel" aria-label={t('profile.statistics')}>
-        <TrainingOverview
-          surface={surface}
-          onChange={(patch) => setSurface((current) => ({ ...current, ...patch }))}
-        />
+        {!initialExerciseId && (
+          <TrainingOverview
+            surface={surface}
+            onChange={(patch) => setSurface((current) => ({ ...current, ...patch }))}
+          />
+        )}
         <TrainingSection
           picked={surface.exerciseId ?? initialExerciseId ?? null}
           onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}

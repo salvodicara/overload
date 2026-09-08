@@ -113,7 +113,16 @@
     "restMore": "raise rest",
     "minimize": "Minimize",
     "moreActions": "More workout actions",
-    "enterLoad": "Enter the load before completing the set"
+    "enterLoad": "Enter the load before completing the set",
+    "uncheckedTitle": "Unchecked sets",
+    "continueWorkout": "Continue workout",
+    "finishCompleted": "Finish with completed sets",
+    "removeLoggedTitle": "Remove logged exercise?",
+    "replaceLoggedTitle": "Replace logged exercise?",
+    "loggedChangeBody": "Removing or replacing {{name}} discards its sets and session note. Keep it to preserve your logged work.",
+    "saveError": "Could not save this workout. Your session is still here. Try Finish again.",
+    "uncheckedBody_other": "You edited {{count}} unchecked sets. Finishing saves only checked sets. Continue to review them or finish without them.",
+    "uncheckedBody_one": "You edited one unchecked set. Finishing saves only checked sets. Continue to review it or finish without it."
   },
   "suggest": {
     "start": "Start at {{weight}}",
@@ -140,7 +149,12 @@
     "updateRoutineTitle": "Update the routine?",
     "updateRoutineBody": "{{n}} structural changes. Save them to the routine for next time?",
     "updateRoutineYes": "Update routine",
-    "updateRoutineNo": "This workout only"
+    "updateRoutineNo": "This workout only",
+    "viewWorkout": "View workout",
+    "reviewChanges": "Review what will change in your routine for future workouts.",
+    "before": "Before",
+    "after": "After",
+    "removed": "Exercise removed"
   },
   "history": {
     "title": "History",
@@ -266,7 +280,12 @@
     "addError": "Could not add the exercise. Try again.",
     "createError": "Could not create the exercise. Try again.",
     "detailLoading": "Loading exercise details…",
-    "instructionsLoading": "Loading translated instructions…"
+    "instructionsLoading": "Loading translated instructions…",
+    "equipmentFilter": "Equipment",
+    "allEquipment": "All equipment",
+    "sort": "Order",
+    "sortName": "Name",
+    "sortRecent": "Recently used"
   },
   "settings": {
     "title": "Settings",
@@ -341,7 +360,12 @@
     "templates": "Templates",
     "useTemplate": "Use",
     "edit": "Edit {{routine}}",
-    "start": "Start {{routine}}"
+    "start": "Start {{routine}}",
+    "view": "View {{routine}}",
+    "editAction": "Edit",
+    "restPreview": "Rest: {{seconds}} s",
+    "warmupCount": "Warm-up sets: {{count}}",
+    "emptyPreview": "Add exercises using Edit to prepare this routine."
   },
   "editor": {
     "title": "Edit routine",
@@ -411,7 +435,12 @@
     "noFolder": "No program",
     "deleteRoutine": "Delete routine",
     "deleteRoutineBody": "The routine disappears from all your devices. Workout history stays.",
-    "journalLatest": "Journal"
+    "journalLatest": "Journal",
+    "saved": "Saved on this device",
+    "saving": "Saving…",
+    "error": "Changes could not be saved",
+    "retrySave": "Retry save",
+    "done": "Done"
   },
   "train": {
     "explorePrograms": "Explore programs",
@@ -460,7 +489,7 @@
     "previousSession": "Previous session · {{date}}",
     "lastTime": "Last time",
     "best": "Record",
-    "openProgress": "Open in Progress",
+    "openProgress": "Exercise statistics",
     "journal": "Journal",
     "journalEntries_one": "Journal, {{count}} entry",
     "journalEntries_other": "Journal, {{count}} entries",

@@ -10,6 +10,7 @@ import {
 } from './types';
 
 export type ActiveSet = {
+  edited?: boolean;
   weightKg: number | null;
   reps: number | null;
   durationSec: number | null;

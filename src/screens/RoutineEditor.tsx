@@ -200,6 +200,7 @@ export function RoutineEditor({ id }: { id: string }) {
   const deleteRoutine = useStore((s) => s.deleteRoutine);
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
   const [expandedIndex, setExpandedIndex] = useState(0);
   const [exerciseMenuIndex, setExerciseMenuIndex] = useState<number | null>(null);
   const [goalTypeIndex, setGoalTypeIndex] = useState<number | null>(null);
@@ -228,19 +229,32 @@ export function RoutineEditor({ id }: { id: string }) {
     mutate(draft);
     draftRef.current = draft;
     if (structural) setRev((v) => v + 1);
+    setSaveState('saving');
     const save = saveRoutine(draft);
     latestSaveRef.current = save;
+    void save.then(
+      (result) => {
+        if (latestSaveRef.current === save && isAccountActionCurrent(result)) setSaveState('saved');
+      },
+      () => {
+        if (latestSaveRef.current === save) setSaveState('error');
+      },
+    );
   }
 
   async function startEditedWorkout(): Promise<void> {
-    let save = latestSaveRef.current;
-    while (save) {
-      const result = await save;
-      if (!isAccountActionCurrent(result)) return;
-      if (save === latestSaveRef.current) break;
-      save = latestSaveRef.current;
+    try {
+      let save = latestSaveRef.current;
+      while (save) {
+        const result = await save;
+        if (!isAccountActionCurrent(result)) return;
+        if (save === latestSaveRef.current) break;
+        save = latestSaveRef.current;
+      }
+      startWorkout(id);
+    } catch {
+      setSaveState('error');
     }
-    startWorkout(id);
   }
 
   function updateWarmup(
@@ -375,6 +389,24 @@ export function RoutineEditor({ id }: { id: string }) {
         }
       />
 
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+        <span className="small muted" role="status">
+          {t('editor.' + saveState)}
+        </span>
+        {saveState === 'error' ? (
+          <button className="btn btn-ghost" onClick={() => commit(() => {})}>
+            {t('editor.retrySave')}
+          </button>
+        ) : (
+          <button
+            className="btn btn-ghost"
+            disabled={saveState === 'saving'}
+            onClick={() => history.back()}
+          >
+            {t('editor.done')}
+          </button>
+        )}
+      </div>
       <label className="field" style={{ marginBottom: 'var(--space-3)' }}>
         <span
           className="mono meta muted"
