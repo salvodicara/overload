@@ -1,0 +1,246 @@
+.food-diary,
+.food-editor,
+.food-import {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.food-date {
+  max-width: 100%;
+  margin: 0;
+}
+.food-summary {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+.food-macros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.food-macros dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.food-macros dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.food-macros .mono {
+  font-size: 20px;
+  font-weight: 600;
+}
+.food-macros dd .small {
+  display: block;
+  color: var(--muted);
+}
+.food-nutrients {
+  display: grid;
+  gap: 0;
+  margin: 12px 0;
+}
+.food-nutrients > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+.food-nutrients dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.food-nutrients dd {
+  margin: 0;
+  text-align: right;
+  flex-shrink: 0;
+}
+.food-partial {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.food-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.food-tools > .btn {
+  flex: 1;
+  white-space: normal;
+}
+.food-meal h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.food-meal > .spread {
+  min-height: 48px;
+  gap: 8px;
+}
+.food-entries,
+.food-results,
+.food-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.food-entries li {
+  border-bottom: 1px solid var(--line);
+}
+.food-entries li > button,
+.food-result {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 0;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+}
+.food-entries li > button > span:first-child,
+.food-result > span:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.food-entries strong,
+.food-result strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.food-entries small,
+.food-result small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.food-entries .mono {
+  flex-shrink: 0;
+  font-size: 14px;
+  text-align: right;
+}
+.food-add {
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  text-align: left;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 8px 0;
+  width: 100%;
+}
+.food-attribution {
+  margin-top: 8px;
+}
+.food-attribution a {
+  color: inherit;
+  text-decoration: underline;
+}
+.food-diary details > summary,
+.food-editor details > summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-block: 12px;
+}
+.food-search-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.food-search-tabs > button {
+  flex: 1;
+  min-width: 72px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+}
+.food-search-tabs > button[aria-pressed='true'] {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+.food-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.food-result {
+  border-bottom: 1px solid var(--line);
+}
+.food-selected h2 {
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+.food-selected .field {
+  margin-bottom: 16px;
+}
+.food-source {
+  font-size: 12px;
+  color: var(--muted);
+}
+.food-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.food-form-grid input {
+  min-width: 0;
+  width: 100%;
+}
+.food-form-grid .field {
+  min-width: 0;
+}
+.food-import textarea {
+  field-sizing: fixed;
+  height: 150px;
+  overflow-y: auto;
+}
+.food-camera video {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.food-camera {
+  display: grid;
+  gap: 12px;
+}
+.food-save {
+  width: 100%;
+  min-height: 48px;
+}
+.food-status {
+  padding: 12px 0;
+  line-height: 1.5;
+}
+.food-empty {
+  padding: 24px 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (max-width: 350px) {
+  .food-macros {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .food-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.food-picker {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}

@@ -1,4 +1,5 @@
-import { validNutritionDay } from './nutrition';
+import { normalizeNutritionDay, validNutritionDay } from './nutrition';
+import { validateSavedMeals } from './foodDiary';
 import type {
   CustomExercise,
   ExerciseNote,
@@ -83,7 +84,10 @@ export function parseBackup(json: string): Backup {
       workouts: candidate.workouts as Workout[],
       routines: candidate.routines as Routine[],
     };
-    if (candidate.settings !== undefined) backup.settings = candidate.settings as Settings;
+    if (candidate.settings !== undefined) {
+      backup.settings = candidate.settings as Settings;
+      if (backup.settings.savedMeals !== undefined) backup.settings = {...backup.settings,savedMeals:validateSavedMeals(backup.settings.savedMeals)};
+    }
     return backup;
   }
 
@@ -109,5 +113,6 @@ export function parseBackup(json: string): Backup {
     throw new Error('import.invalid');
   }
 
-  return candidate as BackupV2;
+  const backup = candidate as BackupV2;
+  return {...backup,nutrition:backup.nutrition.map(normalizeNutritionDay),settings:{...backup.settings,...(backup.settings.savedMeals===undefined?{}:{savedMeals:validateSavedMeals(backup.settings.savedMeals)})}};
 }

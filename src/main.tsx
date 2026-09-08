@@ -5,6 +5,7 @@ import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/700.css';
 import './theme/tokens.css';
+import './theme/food.css';
 import App from './App';
 
 // Self-heal: a reload storm (stale or looping service worker) unregisters

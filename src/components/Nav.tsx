@@ -22,6 +22,10 @@ const GROUP: Partial<Record<Route['view'], Route['view']>> = {
   progress: 'profile',
   body: 'profile',
   diet: 'profile',
+  foodAdd: 'profile',
+  foodEdit: 'profile',
+  foodImport: 'profile',
+  foodTotals: 'profile',
   settings: 'profile',
   importExport: 'profile',
 };

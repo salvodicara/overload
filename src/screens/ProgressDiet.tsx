@@ -60,7 +60,7 @@ const nutrientLabels = {
   saltG: 'diet.salt',
 } as const;
 
-export function ProgressDiet() {
+export function ProgressDiet({ initialDate }: { initialDate?: string } = {}) {
   const { t, i18n } = useTranslation();
   const nutrition = useStore((state) => state.nutrition);
   const settings = useStore((state) => state.settings);
@@ -70,10 +70,19 @@ export function ProgressDiet() {
   const [saveError, setSaveError] = useState(false);
   const [invalidInput, setInvalidInput] = useState(false);
   const [invalidTarget, setInvalidTarget] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? todayISO);
   const targetsId = useId();
   const today = todayISO();
-  const selectedRow = nutrition.find((day) => day.id === selectedDate);
+  const storedRow = nutrition.find((day) => day.id === selectedDate);
+  const manual = storedRow?.entries?.find((entry) => entry.food.source === 'manual');
+  const selectedRow = storedRow?.entries
+    ? {
+        ...storedRow,
+        ...Object.fromEntries(
+          NUTRIENT_FIELDS.map((field) => [field, manual?.food.nutrients[field] ?? null]),
+        ),
+      }
+    : storedRow;
   const recentDays = nutrition
     .filter((day) => NUTRIENT_FIELDS.some((field) => day[field] != null))
     .sort((left, right) => right.date.localeCompare(left.date));
@@ -183,6 +192,7 @@ export function ProgressDiet() {
               <span className="field-label">{t(nutrientLabels[field])}</span>
               <input
                 key={`${selectedDate}-${field}-${selectedRow?.[field] ?? ''}`}
+                aria-label={t(nutrientLabels[field])}
                 name={field === 'kcal' ? 'calories' : field === 'proteinG' ? 'protein' : field}
                 type="number"
                 inputMode="decimal"

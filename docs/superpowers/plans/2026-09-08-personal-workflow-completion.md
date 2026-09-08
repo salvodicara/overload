@@ -7,7 +7,7 @@ Architecture: extend existing local-first store and screens. Dedicated additive 
 - [x] Add Train → Import plan screen with file/paste, actionable validation, plan preview and explicit import. Use existing headers, buttons and fields; localize IT/EN.
 - [x] Audit timer/persistence/duration with current platform documentation; implement reliable supported behavior and identify any platform choice required for suspended app alerts.
 - [x] Complete the common daily-nutrient base with eight fields and past dates, preserving backup compatibility, missing-versus-zero semantics, decimal values and history.
-- [ ] Await the user’s food/meal-diary preference and phone platform before dependent diary or native alert work.
+- [x] User chose food diary and confirmed Android PWA. Diary delivered in the subsequent food-diary plan; native alert work explicitly deferred while the user tests existing alerts.
 - [x] Verify actual duration correction from seven hours to ninety minutes, technique/note navigation, records, attendance and restored session. Add targeted regressions for changes.
 - [x] Freeze source, run unit/build/E2E, batched mobile visual checks, independent review, document evidence and remaining platform dependencies, commit.
 

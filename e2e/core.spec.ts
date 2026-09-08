@@ -4054,6 +4054,7 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
     });
   });
   await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
 
   await expect(page.getByText('No nutrition entries yet', { exact: true })).toBeVisible();
   await expect(page.getByText(/meal examples/i)).toHaveCount(0);
@@ -4090,15 +4091,17 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
   await page.reload();
   await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
   await expect(calories).toHaveValue('0');
   await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
   const recent = page.getByRole('region', { name: 'Recorded days' });
   await expect(recent.getByRole('listitem')).toHaveCount(1);
 
   const prior = '2026-08-24';
-  await putStoredRow(page, 'nutrition', { id: prior, date: prior, kcal: 2000, proteinG: 120 });
+  await putStoredRow(page, 'nutrition', { id: prior, date: prior, kcal: 2000, proteinG: 120, updatedAt: Date.now() });
   await page.reload();
   await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
   await expect(recent.getByRole('listitem')).toHaveCount(2);
 
   await expectNarrowTouchTargets(
@@ -5125,6 +5128,7 @@ test('daily nutrients accept decimals and zero on past dates and survive reopeni
   page,
 }) => {
   await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
   await page.getByLabel('Date', { exact: true }).fill('2026-09-01');
   const values = [
     ['Carbohydrates (g)', '220.5'],
@@ -5141,9 +5145,130 @@ test('daily nutrients accept decimals and zero on past dates and survive reopeni
   await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
   await page.reload();
   await openPersonalPage(page, 'diet');
+  await page.getByRole('button', { name: 'Quick totals & targets', exact: true }).click();
   await page.getByLabel('Date', { exact: true }).fill('2026-09-01');
   for (const [label, value] of values)
     await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
   await page.setViewportSize({ width: 320, height: 740 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+
+test('food diary guides custom food, quantity editing, saved meals and reopening', async ({ page }) => {
+  await installProgressSurfaceFixture(page);
+  await openPersonalPage(page, 'diet');
+  await page.getByRole('region', {name:'Lunch',exact:true}).getByRole('button',{name:'Add food'}).click();
+  await page.getByRole('button',{name:'Create food',exact:true}).click();
+  await page.getByLabel('Food name',{exact:true}).fill('Yogurt personale');
+  await page.getByLabel('Calories (kcal)',{exact:true}).fill('200');
+  await page.getByLabel('Protein (g)',{exact:true}).fill('15');
+  await page.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByLabel('Quantity (g)',{exact:true}).fill('80');
+  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+  const lunch=page.getByRole('region',{name:'Lunch',exact:true});
+  await expect(lunch).toContainText('160');
+  await lunch.getByRole('button',{name:/Yogurt personale/}).click();
+  await page.getByLabel('Quantity (g)',{exact:true}).fill('100');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
+  await expect(lunch).toContainText('200');
+  await lunch.getByRole('button',{name:'Save meal',exact:true}).click();
+  await page.getByLabel('Meal name',{exact:true}).fill('Pranzo abituale');
+  await page.getByRole('dialog').getByRole('button',{name:'Save',exact:true}).click();
+  await page.getByRole('region',{name:'Dinner',exact:true}).getByRole('button',{name:'Add food'}).click();
+  await page.getByRole('button',{name:'Saved meals',exact:true}).click();
+  await page.getByRole('button',{name:/^Pranzo abituale/}).click();
+  await page.getByLabel('Meal portions',{exact:true}).fill('0.5');
+  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('100');
+  await page.reload();
+  await openPersonalPage(page, 'diet');
+  await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('300');
+  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('50 g');
+  await page.getByRole('region',{name:'Snacks',exact:true}).getByRole('button',{name:'Add food'}).click();
+  await page.getByRole('button',{name:'Saved meals',exact:true}).click();
+  await page.getByRole('button',{name:'Remove saved meal Pranzo abituale',exact:true}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Delete',exact:true}).click();
+  await expect(page.getByText('Save a meal from your diary to find it here.',{exact:true})).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('region',{name:'Dinner',exact:true})).toContainText('50 g');
+  await page.getByRole('region',{name:'Dinner',exact:true}).getByRole('button',{name:/Yogurt personale/}).click();
+  await page.getByRole('button',{name:'Delete entry',exact:true}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Delete',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('200');
+});
+
+test('food import previews days, preserves existing totals and does not duplicate a retry', async ({page})=>{
+  await installProgressSurfaceFixture(page);
+  const source=JSON.stringify({format:'overload-food-log',version:1,entries:[{date:'2026-08-26',meal:'lunch',quantity:80,food:{name:'Pasta test',basis:'g',nutrients:{kcal:350,proteinG:12,ironMg:2}}}]});
+  await openPersonalPage(page,'diet');
+  await page.getByRole('button',{name:'Quick totals & targets',exact:true}).click();
+  await page.getByLabel('Calories (kcal)',{exact:true}).fill('100');
+  await page.getByLabel('Calories (kcal)',{exact:true}).press('Tab');
+  await page.goBack();
+  for(let attempt=0;attempt<2;attempt++){
+    await page.getByRole('button',{name:'Import food diary',exact:true}).click();
+    await page.getByLabel('Paste JSON or CSV',{exact:true}).fill(source);
+    await page.getByRole('button',{name:'Review diary',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Review 1 food',exact:true})).toBeVisible();
+    await expect(page.getByText('Pasta test',{exact:true})).toBeVisible();
+    await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+    await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('380');
+  }
+  await expect(page.getByRole('region',{name:'Lunch',exact:true}).getByRole('button',{name:/Pasta test/})).toHaveCount(1);
+  await page.getByText('All nutrients',{exact:true}).click();
+  await expect(page.getByText('Partial',{exact:true}).first()).toBeVisible();
+});
+
+test('food library searches Italian foods and amount validation does not create entries', async ({page})=>{
+  await installProgressSurfaceFixture(page);
+  await openPersonalPage(page,'diet');
+  await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
+  await page.getByLabel('Search foods',{exact:true}).fill('riso');
+  await expect(page.locator('.food-results button').first()).toBeVisible();
+  await page.locator('.food-results button').first().click();
+  await page.getByLabel('Quantity (g)',{exact:true}).fill('100001');
+  await expect(page.getByRole('heading',{name:'Add food',exact:true})).toBeVisible();
+  await page.getByLabel('Quantity (g)',{exact:true}).fill('0');
+  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Add food',exact:true})).toBeVisible();
+  await page.getByLabel('Quantity (g)',{exact:true}).fill('125.5');
+  await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Breakfast',exact:true})).toContainText('125.5 g');
+});
+
+test('barcode lookup locks competing choices and preserves millilitres', async ({page})=>{
+ await installProgressSurfaceFixture(page);
+ let release!:()=>void;
+ const held=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/v3.6/product/**',async route=>{await held;await route.fulfill({json:{product:{code:'3017620422003',product_name:'Milk test',nutrition:{aggregated_set:{per:'100ml',preparation:'as_sold',nutrients:{'energy-kcal':{value:40,unit:'kcal',source:'packaging'},calcium:{value:120,unit:'mg',source:'packaging'}}}}}}});});
+ await openPersonalPage(page,'diet');
+ await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
+ await page.getByText('Find a packaged product',{exact:true}).click();
+ await page.getByLabel('Barcode number',{exact:true}).fill('3017620422003');
+ await page.getByRole('button',{name:'Find',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Create food',exact:true})).toBeDisabled();
+ release();
+ await expect(page.getByRole('heading',{name:'Milk test',exact:true})).toBeVisible();
+ await page.getByLabel('Quantity (ml)',{exact:true}).fill('250');
+ await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Breakfast',exact:true})).toContainText('250 ml');
+ await expect(page.getByRole('region',{name:'Daily nutrition'})).toContainText('100');
+});
+
+test('a delayed food save does not navigate back after the user opens Home',async({page})=>{
+ await installProgressSurfaceFixture(page);
+ await openPersonalPage(page,'diet');
+ await page.evaluate(async()=>{
+  const path='/src/state/useStore.ts';const {useStore}=await import(path) as typeof import('../src/state/useStore');
+  const original=useStore.getState().addDiaryEntries;
+  useStore.setState({addDiaryEntries:async(...args)=>{await new Promise<void>(resolve=>{(window as unknown as {releaseFoodSave:()=>void}).releaseFoodSave=resolve;});const result=await original(...args);document.documentElement.dataset.foodSaved='true';return result;}});
+ });
+ await page.getByRole('region',{name:'Breakfast',exact:true}).getByRole('button',{name:'Add food'}).click();
+ await page.getByLabel('Search foods',{exact:true}).fill('banana');
+ await page.locator('.food-results button').first().click();
+ await page.getByRole('button',{name:'Add to diary',exact:true}).click();
+ await page.getByRole('navigation').getByRole('button',{name:'Home',exact:true}).click();
+ await page.evaluate(()=>(window as unknown as {releaseFoodSave:()=>void}).releaseFoodSave());
+ await expect(page.locator('html')).toHaveAttribute('data-food-saved','true');
+ await expect(page.locator('.home-screen')).toBeVisible();
 });

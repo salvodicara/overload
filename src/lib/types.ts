@@ -1,4 +1,5 @@
 import type { WeightUnit } from './units';
+import type { FoodEntry, SavedMeal } from './foodDiary';
 
 export type TrackingType = 'weight_reps' | 'reps' | 'duration';
 
@@ -101,6 +102,7 @@ export type Settings = {
   kcalTarget?: number;
   proteinTarget?: number;
   weeklyGoal?: number;
+  savedMeals?: SavedMeal[];
   updatedAt: number;
 };
 
@@ -134,6 +136,7 @@ export type NutritionDay = {
   fiberG?: number | null;
   sugarG?: number | null;
   saltG?: number | null;
+  entries?: FoodEntry[];
   updatedAt: number;
 };
 

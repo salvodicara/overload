@@ -8,6 +8,8 @@ import {
   deleteMeasurement as dbDeleteMeasurement,
   deleteWorkout as dbDeleteWorkout,
   getSettings,
+  mutateDiaryEntries,
+  importDiaryDays as dbImportDiaryDays,
   importRoutinePlanRecords,
   listFolders,
   listRoutines,
@@ -87,6 +89,8 @@ import type {
 } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 import type { BackupV2 } from '../lib/importer';
+import type { DiaryMutation, FoodEntry } from '../lib/foodDiary';
+import { normalizeNutritionDay } from '../lib/nutrition';
 import { materializeRoutinePlan, parseRoutinePlan, type RoutinePlan } from '../lib/routinePlan';
 
 export type Route =
@@ -98,6 +102,10 @@ export type Route =
   | { view: 'settings' }
   | { view: 'body' }
   | { view: 'diet' }
+  | { view: 'foodAdd'; date: string; meal: import('../lib/foodDiary').FoodEntry['meal'] }
+  | { view: 'foodEdit'; date: string; entryId: string }
+  | { view: 'foodImport' }
+  | { view: 'foodTotals'; date: string }
   | { view: 'workout' }
   | { view: 'summary'; workoutId: string }
   | { view: 'workoutDetail'; id: string }
@@ -255,6 +263,18 @@ async function withOwnedLocalWrite<T>(
   });
 }
 
+async function commitDiaryMutation(date: string, mutation: DiaryMutation): Promise<AccountActionResult<NutritionDay>> {
+  const owner = captureOwner();
+  if (!owner) return STALE_ACCOUNT_ACTION;
+  const snapshot = structuredClone(mutation);
+  const result = await withOwnedLocalWrite(owner, () => mutateDiaryEntries(date,snapshot));
+  if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+  const day = result.value;
+  useStore.setState((state) => ({nutrition:[...state.nutrition.filter(item=>item.id!==date),day]}));
+  if (owns(owner)) await pushRecord(owner.uid,'nutrition',day);
+  return accountActionForOwner(owner,day);
+}
+
 // Tab-like views restore their scroll position when you come back (e.g. from
 // an exercise's technique page straight back to where you were in the workout).
 const RESTORE_SCROLL = new Set<Route['view']>([
@@ -384,6 +404,10 @@ export type Store = {
     date: string,
     patch: NutritionPatch,
   ): Promise<AccountActionResult>;
+  addDiaryEntries(date: string, entries: FoodEntry[]): Promise<AccountActionResult<NutritionDay>>;
+  updateDiaryEntry(date: string, entry: FoodEntry): Promise<AccountActionResult<NutritionDay>>;
+  deleteDiaryEntry(date: string, id: string): Promise<AccountActionResult<NutritionDay>>;
+  importDiaryDays(days: {date:string;entries:FoodEntry[]}[]): Promise<AccountActionResult>;
   deleteWorkout(id: string): Promise<AccountActionResult>;
   updateWorkout(id: string, draft: WorkoutDraft): Promise<AccountActionResult>;
   repeatWorkout(id: string): Promise<AccountActionResult>;
@@ -1165,6 +1189,24 @@ export const useStore = create<Store>((set, get) => ({
     return accountActionForOwner(owner, undefined);
   },
 
+  addDiaryEntries(date, entries) { return commitDiaryMutation(date, {kind:'add',entries}); },
+  updateDiaryEntry(date, entry) { return commitDiaryMutation(date, {kind:'update',entry}); },
+  deleteDiaryEntry(date, id) { return commitDiaryMutation(date, {kind:'delete',id}); },
+  async importDiaryDays(days) {
+    const owner = captureOwner();
+    if (!owner) return STALE_ACCOUNT_ACTION;
+    const snapshot = structuredClone(days);
+    const result = await withOwnedLocalWrite(owner, () => dbImportDiaryDays(snapshot));
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+    set((state) => ({nutrition:[...state.nutrition.filter(day=>!result.value.some(next=>next.id===day.id)),...result.value]}));
+    for (const day of result.value) {
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+      const current = get().nutrition.find(item => item.id === day.id);
+      if (current) await pushRecord(owner.uid,'nutrition',current);
+    }
+    return accountActionForOwner(owner,undefined);
+  },
+
   async saveNutritionDay(date, patch) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
@@ -1319,6 +1361,7 @@ export const useStore = create<Store>((set, get) => ({
   async restoreBackup(backup) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
+    backup = {...backup,nutrition:backup.nutrition.map(normalizeNutritionDay)};
     const result = await withOwnedLocalWrite(owner, async () => {
       await restoreBackupCollections(backup);
       await migrateLegacyRoutines();

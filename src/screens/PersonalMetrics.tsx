@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { IconBack } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
 import { ProgressBody } from './ProgressBody';
-import { ProgressDiet } from './ProgressDiet';
+import { FoodDiary } from './FoodDiary';
 
 export function PersonalMetrics({ kind }: { kind: 'body' | 'diet' }) {
   const { t } = useTranslation();
@@ -13,7 +13,7 @@ export function PersonalMetrics({ kind }: { kind: 'body' | 'diet' }) {
         title={t(kind === 'body' ? 'profile.measurements' : 'progress.seg.diet')}
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
-      <div className="progress-panel">{kind === 'body' ? <ProgressBody /> : <ProgressDiet />}</div>
+      <div className="progress-panel">{kind === 'body' ? <ProgressBody /> : <FoodDiary />}</div>
     </div>
   );
 }

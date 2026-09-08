@@ -40,7 +40,8 @@ export default defineConfig({
               url.origin === self.location.origin &&
               url.search === '' &&
               (url.pathname === '/data/exercises.json' ||
-                url.pathname === '/data/instructions.it.json'),
+                url.pathname === '/data/instructions.it.json' ||
+                url.pathname === '/data/foods-usda.json'),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'exercise-data',

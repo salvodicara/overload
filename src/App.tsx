@@ -15,6 +15,9 @@ import { ImportExport } from './screens/ImportExport';
 import { Library } from './screens/Library';
 import { Profile } from './screens/Profile';
 import { Settings } from './screens/Settings';
+import { FoodEntryEditor } from './screens/FoodEntryEditor';
+import { FoodLogImport } from './screens/FoodLogImport';
+import { NutritionTotals } from './screens/NutritionTotals';
 import { PersonalMetrics } from './screens/PersonalMetrics';
 import { Progress } from './screens/Progress';
 import { RoutineImport } from './screens/RoutineImport';
@@ -51,7 +54,7 @@ function Screen() {
                 ? t('settings.title')
                 : route.view === 'body'
                   ? t('profile.measurements')
-                  : route.view === 'diet'
+                  : route.view === 'diet' || route.view.startsWith('food')
                     ? t('progress.seg.diet')
                     : route.view === 'profile' || route.view === 'importExport'
                       ? t('nav.profile')
@@ -72,6 +75,14 @@ function Screen() {
     case 'body':
     case 'diet':
       return <PersonalMetrics kind={route.view} />;
+    case 'foodAdd':
+      return <FoodEntryEditor date={route.date} meal={route.meal} />;
+    case 'foodEdit':
+      return <FoodEntryEditor date={route.date} entryId={route.entryId} />;
+    case 'foodImport':
+      return <FoodLogImport />;
+    case 'foodTotals':
+      return <NutritionTotals date={route.date} />;
     case 'workout':
       return <Workout />;
     case 'summary':

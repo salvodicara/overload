@@ -9,6 +9,7 @@ export type HomeSurfaceState = {
 
 export type SurfaceStateMap = {
   home: HomeSurfaceState;
+  diet: { date?: string };
   history: {
     mode?: 'list' | 'calendar';
     anchor?: string;

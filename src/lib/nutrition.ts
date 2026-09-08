@@ -1,4 +1,5 @@
 import type { NutritionDay } from './types';
+import { nutritionDayWithEntries, validateFoodEntries } from './foodDiary';
 
 export const NUTRIENT_FIELDS = [
   'kcal',
@@ -20,6 +21,13 @@ export function validNutrient(value: unknown): boolean {
 export function validNutritionDay(value: unknown): value is NutritionDay {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const day = value as Record<string, unknown>;
+  if (day.entries !== undefined) {
+    try {
+      validateFoodEntries(day.entries);
+    } catch {
+      return false;
+    }
+  }
   return (
     typeof day.date === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(day.date) &&
@@ -34,4 +42,14 @@ export function validNutritionDay(value: unknown): value is NutritionDay {
         validNutrient(day[field]),
     )
   );
+}
+
+export function normalizeNutritionDay(day: NutritionDay): NutritionDay {
+  if (!validNutritionDay(day)) throw new Error('diet.invalid');
+  return day.entries === undefined
+    ? day
+    : {
+        ...nutritionDayWithEntries(day.date, day.entries, day),
+        updatedAt: day.updatedAt,
+      };
 }

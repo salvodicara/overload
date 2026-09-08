@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { validNutritionDay, type NutritionPatch } from './nutrition';
+import { applyDiaryMutation, legacyManualEntry, nutritionDayWithEntries, validateSavedMeals, type DiaryMutation, type FoodEntry } from './foodDiary';
+import { normalizeNutritionDay } from './nutrition';
+import { NUTRIENT_FIELDS, validNutrient, validNutritionDay, type NutritionPatch } from './nutrition';
 import type { BackupV2 } from './importer';
 import type {
   CustomExercise,
@@ -76,6 +78,7 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<Settings> {
+  if (patch.savedMeals !== undefined) patch = { ...patch, savedMeals: validateSavedMeals(patch.savedMeals) };
   const current = await getSettings();
   const next: Settings = { ...current, ...patch, id: SETTINGS_ID, updatedAt: Date.now() };
   await db.settings.put(next);
@@ -138,6 +141,21 @@ export async function listMeasurements(): Promise<Measurement[]> {
 export async function saveNutrition(date: string, patch: NutritionPatch): Promise<NutritionDay> {
   return db.transaction('rw', db.nutrition, async () => {
     const existing = await db.nutrition.get(date);
+    if (existing?.entries !== undefined) {
+      const manual = existing.entries.find(entry => entry.id === `manual:${date}` && entry.food.source === 'manual');
+      const nutrients = { ...manual?.food.nutrients };
+      for (const [key, value] of Object.entries(patch)) {
+        if (!NUTRIENT_FIELDS.includes(key as typeof NUTRIENT_FIELDS[number]) || !validNutrient(value)) throw new Error('diet.invalid');
+        if (value === null) delete nutrients[key as keyof typeof nutrients];
+        else nutrients[key as keyof typeof nutrients] = value;
+      }
+      const snapshot = legacyManualEntry({ id: date, date, kcal: null, proteinG: null, ...nutrients, updatedAt: 0 });
+      const entries = existing.entries.filter(entry => entry !== manual);
+      if (snapshot) entries.unshift(snapshot);
+      const next = nutritionDayWithEntries(date, entries, existing);
+      await db.nutrition.put(next);
+      return next;
+    }
     const next: NutritionDay = {
       ...existing,
       id: date,
@@ -154,7 +172,24 @@ export async function saveNutrition(date: string, patch: NutritionPatch): Promis
 }
 
 export async function listNutrition(): Promise<NutritionDay[]> {
-  return db.nutrition.toArray();
+  return (await db.nutrition.toArray()).map(normalizeNutritionDay);
+}
+
+export async function mutateDiaryEntries(date: string, mutation: DiaryMutation): Promise<NutritionDay> {
+  return db.transaction('rw', db.nutrition, async () => {
+    const next = applyDiaryMutation(date, await db.nutrition.get(date), mutation);
+    await db.nutrition.put(next);
+    return next;
+  });
+}
+
+export async function importDiaryDays(days: {date:string;entries:FoodEntry[]}[]): Promise<NutritionDay[]> {
+  if (days.length > 366) throw new Error('diet.invalid');
+  return db.transaction('rw', db.nutrition, async () => {
+    const changed = new Map<string,NutritionDay>();
+    for (const day of days) changed.set(day.date, await mutateDiaryEntries(day.date, {kind:'add',entries:day.entries}));
+    return [...changed.values()];
+  });
 }
 
 export async function saveCustomExercise(x: CustomExercise): Promise<void> {
@@ -217,6 +252,9 @@ export async function clearAllUserData(): Promise<void> {
 
 /** Restores a complete version 2 backup atomically across every local table. */
 export async function restoreBackupCollections(backup: BackupV2): Promise<void> {
+  backup = { ...backup, nutrition: backup.nutrition.map(normalizeNutritionDay), settings: {
+    ...backup.settings, ...(backup.settings.savedMeals === undefined ? {} : {savedMeals: validateSavedMeals(backup.settings.savedMeals)}),
+  } };
   await db.transaction(
     'rw',
     [
