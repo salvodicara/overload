@@ -1,0 +1,86 @@
+/* Personal training hub: compact identity, direct destinations, canonical log preview. */
+.profile-hub .profile-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.profile-hub .profile-shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 64px;
+  padding: var(--space-3);
+  text-align: left;
+  font-weight: 650;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.profile-hub .profile-shortcut svg,
+.profile-hub .profile-nutrition svg,
+.profile-hub .profile-history-link svg {
+  flex: none;
+}
+
+.profile-hub .profile-shortcut svg {
+  color: var(--accent-text);
+}
+
+.profile-hub .profile-nutrition {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  padding: var(--space-3);
+  margin-top: var(--space-2);
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-hub .profile-nutrition span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-hub .profile-recent {
+  margin-top: var(--space-6);
+}
+
+.profile-hub .profile-recent__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.profile-hub .profile-recent__heading h2 {
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.profile-hub .profile-history-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-height: 44px;
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+}
+
+.profile-hub .profile-empty {
+  padding-block: var(--space-4);
+}
+
+.profile-hub .profile-shortcut:active,
+.profile-hub .profile-nutrition:active {
+  background: var(--surface2);
+}
