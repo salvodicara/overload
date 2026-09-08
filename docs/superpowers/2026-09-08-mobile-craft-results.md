@@ -25,3 +25,9 @@ The quality objective is a coherent, carefully verified mobile interface. These 
 ## Release
 
 Implementation `f2bf739` pushed to main and deployed to Firebase Hosting. Read-only production smoke passed: published assets match the final build, login renders, service worker is active,7,793 foods load online/offline, no document overflow or JavaScript errors. No personal training data was mutated.
+
+## Owner corrections: navigation, stable weeks and rounded focus
+
+Restored the previous64px navigation/icon layout and removed the selected icon's tinted background. Home now reserves the natural dimensions of both localized headings and the Today action, excluding hidden content from accessibility and keyboard focus. Removed the redundant empty-week sentence: zero-valued labeled totals already communicate the empty state, without a conditional block changing the card height or reserving a blank paragraph. Profile's first/last rows inherit the container's inner corner geometry, so their inset focus outlines remain rounded and uncut.
+
+Regression evidence: new geometry assertions failed on the previous implementation at320/390px, then passed for five previous weeks and Today in English/Italian at both widths. Native touch paging also preserves card height and pager offset. Seven focused browser regressions passed, plus the strengthened native-touch assertion passed separately.419 unit tests and production build passed.16 final viewport captures plus4 contrast checks report no document overflow, JS errors or harness failures; inspected current/previous week and rounded focus at IT320. Independent review found no remaining issue. Local evidence: `~/Workspace/Codex/overload-qa/mobile-fixes/` and `mobile-fixes-*.log`.

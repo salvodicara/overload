@@ -100,3 +100,10 @@
 .profile-hub .profile-shortcut:focus-visible {
   outline-offset: -3px;
 }
+
+.profile-hub .profile-shortcut:first-child {
+  border-radius: calc(var(--r-card) - 1px) calc(var(--r-card) - 1px) 0 0;
+}
+.profile-hub .profile-shortcut:last-child {
+  border-radius: 0 0 calc(var(--r-card) - 1px) calc(var(--r-card) - 1px);
+}

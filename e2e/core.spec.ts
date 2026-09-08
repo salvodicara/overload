@@ -5449,9 +5449,13 @@ test('Home browses weeks with native touch and returns to the current week', asy
   const pager = week.locator('.period-pager');
   await pager.scrollIntoViewIfNeeded();
   const box = (await pager.boundingBox())!;
+  const initialCard = (await week.boundingBox())!;
   await nativeSwipe(page, box.x + 30, box.y + 30, box.width - 60, 0);
   await expect(week.locator('.period-navigation__label')).not.toHaveText(initial);
   await expect(week.getByRole('button', { name: /next week/i })).toBeEnabled();
+  const afterCard = (await week.boundingBox())!;
+  expect(afterCard.height).toBe(initialCard.height);
+  expect((await pager.boundingBox())!.y - afterCard.y).toBeCloseTo(box.y - initialCard.y, 1);
   await week.getByRole('button', { name: /^today$/i }).click();
   await expect(week.locator('.period-navigation__label')).toHaveText(initial);
   await expect(week.getByRole('button', { name: /next week/i })).toBeDisabled();
@@ -5478,3 +5482,38 @@ test('An empty calendar day has a visible touch dismissal and can be reopened', 
     await expect(dialog).toHaveCount(0);
   }
 });
+
+for (const width of [320, 390]) {
+  for (const locale of ['en', 'it']) {
+    test(`Home week browsing keeps its vertical geometry at ${width}px (${locale})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await installCoreSurfaceFixture(page);
+      if (locale === 'it') {
+        await openPersonalPage(page, 'settings');
+        await page.getByRole('button', { name: 'Italiano' }).click();
+      }
+      await page.getByRole('button', { name: /^home$/i }).click();
+      const week = page.locator('.home-current-week');
+      const geometry = () =>
+        week.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            height: rect.height,
+            pagerTop:
+              element.querySelector('.period-pager')!.getBoundingClientRect().top - rect.top,
+            navigationTop:
+              element.querySelector('.period-navigation')!.getBoundingClientRect().top - rect.top,
+          };
+        });
+      const initial = await geometry();
+      for (let i = 0; i < 5; i++) {
+        await week.getByRole('button', { name: /previous week|settimana precedente/i }).click();
+        await expect.poll(geometry).toEqual(initial);
+      }
+      await week.getByRole('button', { name: /^(today|oggi)$/i }).click();
+      await expect.poll(geometry).toEqual(initial);
+    });
+  }
+}

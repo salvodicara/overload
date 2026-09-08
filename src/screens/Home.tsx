@@ -142,16 +142,17 @@ export function Home() {
         <section className="home-week home-current-week" aria-labelledby="current-week-title">
           <div className="home-week-heading">
             <h2 id="current-week-title" className="section-title">
-              {t(isCurrentWeek ? 'home.thisWeek' : 'home.selectedWeek')}
+              <span aria-hidden={!isCurrentWeek || undefined}>{t('home.thisWeek')}</span>
+              <span aria-hidden={isCurrentWeek || undefined}>{t('home.selectedWeek')}</span>
             </h2>
-            {!isCurrentWeek && (
-              <button
-                className="period-return"
-                onClick={() => setSurface((current) => ({ ...current, periodAnchor: today }))}
-              >
-                {t('home.today')}
-              </button>
-            )}
+            <button
+              className="period-return"
+              disabled={isCurrentWeek}
+              aria-hidden={isCurrentWeek || undefined}
+              onClick={() => setSurface((current) => ({ ...current, periodAnchor: today }))}
+            >
+              {t('home.today')}
+            </button>
           </div>
           <div className="period-navigation">
             <button
@@ -198,9 +199,6 @@ export function Home() {
                       </span>
                     ))}
                   </div>
-                  {summary.workouts === 0 && (
-                    <p className="home-empty-guidance small muted">{t('home.emptyWeek')}</p>
-                  )}
                   <dl className="home-week-totals">
                     {[
                       [t('home.sessions', { count: summary.workouts }), summary.workouts],

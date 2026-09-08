@@ -120,3 +120,21 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.025em;
 }
+
+/* Both labels and the return action reserve their natural size before a swipe. */
+.home-current-week .home-week-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 44px;
+}
+.home-current-week .home-week-heading .section-title {
+  display: grid;
+  min-width: 0;
+}
+.home-current-week .home-week-heading .section-title > span {
+  grid-area: 1 / 1;
+}
+.home-current-week .home-week-heading [aria-hidden='true'] {
+  visibility: hidden;
+}
