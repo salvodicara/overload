@@ -3630,3 +3630,15 @@ dialog.sheet-scrim::backdrop {
     }
   }
 }
+
+/* Compact, readable navigation titles for Profile's detail destinations. */
+.detail-page-header .page-header__title {
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 700;
+  font-variation-settings: normal;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}

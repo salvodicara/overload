@@ -14,6 +14,8 @@ import { History } from './screens/History';
 import { ImportExport } from './screens/ImportExport';
 import { Library } from './screens/Library';
 import { Profile } from './screens/Profile';
+import { Settings } from './screens/Settings';
+import { PersonalMetrics } from './screens/PersonalMetrics';
 import { Progress } from './screens/Progress';
 import { RoutineEditor } from './screens/RoutineEditor';
 import { Summary } from './screens/Summary';
@@ -31,15 +33,23 @@ function Screen() {
     const section =
       route.view === 'home'
         ? t('nav.home')
-        : route.view === 'history' || route.view === 'workoutDetail' || route.view === 'workoutEditor'
+        : route.view === 'history' ||
+            route.view === 'workoutDetail' ||
+            route.view === 'workoutEditor'
           ? t('history.title')
           : route.view === 'workout' || route.view === 'train' || route.view === 'routineEditor'
             ? t('nav.workout')
             : route.view === 'progress'
-              ? t('nav.progress')
-              : route.view === 'profile' || route.view === 'importExport'
-                ? t('nav.profile')
-                : t('nav.library');
+              ? t('profile.statistics')
+              : route.view === 'settings'
+                ? t('settings.title')
+                : route.view === 'body'
+                  ? t('profile.measurements')
+                  : route.view === 'diet'
+                    ? t('progress.seg.diet')
+                    : route.view === 'profile' || route.view === 'importExport'
+                      ? t('nav.profile')
+                      : t('nav.library');
     document.title = `${section} · ${t('app.name')}`;
   }, [route.view, t]);
   switch (route.view) {
@@ -51,6 +61,11 @@ function Screen() {
       return <Train />;
     case 'profile':
       return <Profile />;
+    case 'settings':
+      return <Settings />;
+    case 'body':
+    case 'diet':
+      return <PersonalMetrics kind={route.view} />;
     case 'workout':
       return <Workout />;
     case 'summary':

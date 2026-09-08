@@ -1,5 +1,8 @@
 # Coherent fitness UX
 
+> Navigation organization superseded by [reference synthesis](./2026-09-08-reference-pattern-synthesis.md).
+
+
 Preserve Overload's graphite/volt palette, Archivo typography, light/dark themes, private local-first scope, and existing workout/routine editing. Use Hevy's separation of reusable routines, personal history/calendar and exercise statistics. No social feed is introduced.
 
 Home: next/resumable workout, current-week consistency, compact weekly totals, direct links to history and progress. No full historical calendar, multi-period analytics or duplicated workout feed.

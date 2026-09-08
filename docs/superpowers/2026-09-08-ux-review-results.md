@@ -1,5 +1,8 @@
 # Overload UX review — 8 September 2026
 
+> Navigation organization superseded by the [reference synthesis](./2026-09-08-reference-synthesis-results.md).
+
+
 ## Product decisions
 
 Keep Home, Train, Exercises, Progress and Profile. Home answers what to train next and how the current week is going. Profile owns the only workout history/calendar; Home links to that same explorer. Progress owns historical training charts, exercise analytics, body measurements and nutrition. Preserve Overload's graphite/volt identity and use familiar workout-app interactions rather than inventing new navigation.

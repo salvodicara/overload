@@ -2,6 +2,24 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { BackupV1, BackupV2 } from '../src/lib/importer';
 import type { Workout } from '../src/lib/types';
 
+async function openPersonalPage(
+  page: Page,
+  destination: 'statistics' | 'library' | 'body' | 'diet' | 'settings',
+): Promise<void> {
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^(profile|profilo)$/i })
+    .click();
+  const names = {
+    statistics: /^(statistics|statistiche)$/i,
+    library: /^(exercises|esercizi)$/i,
+    body: /^(measures|misure)$/i,
+    diet: /^(nutrition|nutrizione)$/i,
+    settings: /^(settings|impostazioni)$/i,
+  };
+  await page.getByRole('main').getByRole('button', { name: names[destination] }).click();
+}
+
 const NEUTRAL_ROUTINE = /full body a/i;
 const DOM_RECT_SUBPIXEL_EPSILON_PX = 0.01;
 
@@ -552,7 +570,7 @@ async function openExerciseDetail(
   query = 'squat',
   name: RegExp = /^(barbell squat legs|squat con bilanciere gambe)$/i,
 ): Promise<void> {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   await page.getByRole('searchbox').fill(query);
   await page.getByRole('button', { name }).first().click();
 }
@@ -1017,7 +1035,7 @@ async function installProfileSurfaceFixture(page: Page, locale: 'it' | 'en' = 'e
 
 async function openImportSurface(page: Page, locale: 'it' | 'en' = 'en'): Promise<void> {
   await installProfileSurfaceFixture(page, locale);
-  await page.getByRole('button', { name: locale === 'it' ? 'Profilo' : 'Profile' }).click();
+  await openPersonalPage(page, 'settings');
   await page
     .getByRole('button', { name: locale === 'it' ? 'Importa o ripristina' : 'Import or restore' })
     .click();
@@ -1257,7 +1275,7 @@ test('document language starts in Italian and follows the selected locale', asyn
   await setStoredLocale(page, 'it');
   await expect(page.locator('html')).toHaveAttribute('lang', 'it');
 
-  await page.getByRole('button', { name: 'Profilo' }).click();
+  await openPersonalPage(page, 'settings');
   await page.getByRole('button', { name: 'English' }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 });
@@ -1312,13 +1330,16 @@ test('home prioritizes the next routine and keeps history secondary', async ({ p
 });
 
 test('route motion keeps its hierarchy and clears deterministic metadata', async ({ page }) => {
-  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /profile|profilo/i })
+    .click();
   await expect(page.locator('html')).toHaveAttribute('data-route-motion', 'peer');
   await expect(page.locator('html')).not.toHaveAttribute('data-route-motion', { timeout: 600 });
 });
 
 test('exercise navigation never fades the whole screen', async ({ page }) => {
-  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await openPersonalPage(page, 'library');
   await page.waitForTimeout(320);
   await page.locator('.library-result').first().click();
   await page.waitForTimeout(40);
@@ -1336,7 +1357,7 @@ test('exercise navigation never fades the whole screen', async ({ page }) => {
 });
 
 test('route transition never restarts with a vertical entrance', async ({ page }) => {
-  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await openPersonalPage(page, 'library');
   await page.waitForTimeout(320);
   await startRouteFrameTrace(page);
   await page.locator('.library-result').first().click();
@@ -1358,7 +1379,7 @@ test('route transition never restarts with a vertical entrance', async ({ page }
 test('route reaches its target scroll before the first painted frame in both directions', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
+  await openPersonalPage(page, 'library');
   await page.waitForTimeout(320);
   await page.locator('.library-result').nth(20).scrollIntoViewIfNeeded();
   await startRouteFrameTrace(page);
@@ -1407,15 +1428,11 @@ test('every page navigation keeps one opaque final surface', async ({ page }) =>
     Object.assign(window, { __routeVisual: visual, __routeVisualObserver: observer });
   });
 
-  for (const destination of [
-    /train|allenati/i,
-    /progress|progressi/i,
-    /profile|profilo/i,
-    /exercises|esercizi/i,
-  ]) {
+  for (const destination of [/train|allenati/i, /profile|profilo/i]) {
     await page.getByRole('button', { name: destination }).click();
     await page.waitForTimeout(80);
   }
+  await openPersonalPage(page, 'library');
   await page.locator('.library-result').first().click();
   await expect(page.locator('.exercise-detail')).toBeVisible();
   await page.goBack();
@@ -1443,8 +1460,8 @@ test('rapid navigation interrupts motion without an unhandled rejection', async 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.getByRole('button', { name: /exercises|esercizi/i }).click();
-  await page.getByRole('button', { name: /progress|progressi/i }).click();
+  await openPersonalPage(page, 'library');
+  await openPersonalPage(page, 'statistics');
   await page.waitForTimeout(350);
 
   expect(errors).toEqual([]);
@@ -1456,7 +1473,10 @@ test('Home links to one Profile-owned history and keeps analytics in Progress', 
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
   await expect(page.locator('.home-current-week')).toBeVisible();
-  await page.getByRole('button', { name: /all history/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
   await expect(
     page.getByRole('navigation').getByRole('button', { name: /^profile$/i }),
   ).toHaveAttribute('aria-current', 'page');
@@ -1467,7 +1487,7 @@ test('Home links to one Profile-owned history and keeps analytics in Progress', 
     .getByRole('navigation')
     .getByRole('button', { name: /^profile$/i })
     .click();
-  await page.getByRole('button', { name: /history/i }).click();
+  await page.getByRole('button', { name: /^all history$/i }).click();
   await expect(page.getByRole('button', { name: /truthful august/i })).toBeVisible();
 });
 
@@ -1475,10 +1495,7 @@ test('Progress navigates aggregate periods with visible buttons and preserves se
   page,
 }) => {
   await installCoreSurfaceFixture(page);
-  await page
-    .getByRole('navigation')
-    .getByRole('button', { name: /^progress$/i })
-    .click();
+  await openPersonalPage(page, 'statistics');
   const overview = page.locator('.training-overview');
   await overview.getByRole('button', { name: /^month$/i }).click();
   await expect(overview.locator('.home-period-label')).toHaveText('August 2026');
@@ -1489,10 +1506,7 @@ test('Progress navigates aggregate periods with visible buttons and preserves se
     .getByRole('navigation')
     .getByRole('button', { name: /^profile$/i })
     .click();
-  await page
-    .getByRole('navigation')
-    .getByRole('button', { name: /^progress$/i })
-    .click();
+  await openPersonalPage(page, 'statistics');
   await expect(overview.locator('.home-period-label')).toHaveText('July 2026');
   await expect(overview.getByRole('button', { name: /^duration$/i })).toHaveAttribute(
     'aria-pressed',
@@ -1507,7 +1521,10 @@ test('calendar filters the visible month and restores the selected day after ope
 }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
-  await page.getByRole('button', { name: /all history/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
   await page.getByRole('tab', { name: /calendar/i }).click();
   const calendar = page.getByRole('region', { name: /^calendar$/i });
   await expect(calendar.locator('.history-calendar__grid > *')).toHaveCount(42);
@@ -1530,7 +1547,10 @@ test('calendar filters the visible month and restores the selected day after ope
 test('calendar swipe changes month but vertical scrolling does not', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
-  await page.getByRole('button', { name: /all history/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
   await page.getByRole('tab', { name: /calendar/i }).click();
   const calendar = page.getByRole('region', { name: /^calendar$/i });
   const pointer = { pointerId: 1, isPrimary: true, button: 0, pointerType: 'touch' };
@@ -1572,10 +1592,7 @@ test('Progress compacts extreme metrics and keeps the chart inside a narrow view
   });
   await page.setViewportSize({ width: 320, height: 700 });
   await page.reload();
-  await page
-    .getByRole('navigation')
-    .getByRole('button', { name: /^progress$/i })
-    .click();
+  await openPersonalPage(page, 'statistics');
 
   const volume = page.locator('.week-metric--volume strong');
   await expect(volume).toContainText(/100M kg/i);
@@ -1589,7 +1606,10 @@ test('Progress compacts extreme metrics and keeps the chart inside a narrow view
 test('history groups truthful completed working activity by month', async ({ page }) => {
   await installCoreSurfaceFixture(page);
   await page.getByRole('button', { name: /^home$/i }).click();
-  await page.getByRole('button', { name: /all history/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
 
   const august = page.getByRole('region', { name: /august 2026/i });
   const july = page.getByRole('region', { name: /july 2026/i });
@@ -2495,7 +2515,10 @@ test('log a workout end to end', async ({ page }) => {
   await page.getByRole('button', { name: /back home|torna alla home/i }).click();
   await expect(page.getByText(/this week|questa settimana/i)).toBeVisible();
   await expect(page.getByText('Full Body B', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /all history|tutto lo storico/i }).click();
+  await page
+    .getByRole('button', { name: /all history|tutto lo storico/i })
+    .first()
+    .click();
   await expect(page.locator('.workout-row')).toContainText('Full Body A');
 });
 
@@ -2777,7 +2800,7 @@ test('routine exercise removal restores focus to add exercise', async ({ page })
 });
 
 test('custom exercise sheet closes from its scrim', async ({ page }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   const trigger = page.getByRole('button', {
     name: /create custom exercise|crea esercizio personalizzato/i,
   });
@@ -2793,7 +2816,7 @@ test('custom exercise sheet closes from its scrim', async ({ page }) => {
 });
 
 test('custom creation failure clears its alert when the sheet is dismissed', async ({ page }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   await page.evaluate(async () => {
     const modulePath = '/src/state/useStore.ts';
     const { useStore } = (await import(modulePath)) as typeof import('../src/state/useStore');
@@ -2825,7 +2848,7 @@ test('library keeps labelled search, filters, and scroll context through hardwar
 }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   const search = page.getByRole('searchbox', { name: /search exercises|cerca esercizi/i });
   const searchId = await search.getAttribute('id');
   expect(searchId).toBeTruthy();
@@ -2868,7 +2891,7 @@ test('library keeps labelled search, filters, and scroll context through hardwar
 test('library progressively reveals the complete catalog and tolerates an Italian typo', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   const results = page.getByRole('list', { name: /exercise results|risultati esercizi/i });
   await expect(results.getByRole('button')).toHaveCount(60);
 
@@ -2883,7 +2906,7 @@ test('library progressively reveals the complete catalog and tolerates an Italia
 test('library keeps progressively revealed rows when returning from exercise detail', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   const results = page.getByRole('list', { name: /exercise results|risultati esercizi/i });
   await page.getByRole('button', { name: /show more|mostra altri/i }).scrollIntoViewIfNeeded();
   await expect.poll(() => results.getByRole('button').count()).toBeGreaterThan(60);
@@ -2903,7 +2926,7 @@ test('library keeps progressively revealed rows when returning from exercise det
 
 test('Italian exercise surfaces localize dynamic equipment metadata', async ({ page }) => {
   await setStoredLocale(page, 'it');
-  await page.getByRole('button', { name: 'Esercizi' }).click();
+  await openPersonalPage(page, 'library');
   const search = page.getByRole('searchbox', { name: 'Cerca esercizi' });
   await search.fill('squat con bilanciere');
   const result = page.getByRole('list', { name: 'Risultati esercizi' }).getByRole('button').first();
@@ -2992,7 +3015,7 @@ test('routine custom exercise creates once with its selected prescription tracki
 });
 
 test('custom exercise detail omits a media hero when no media exists', async ({ page }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   await page
     .getByRole('button', { name: /create custom exercise|crea esercizio personalizzato/i })
     .click();
@@ -3367,7 +3390,10 @@ for (const locale of ['it', 'en'] as const) {
     await installCompletedWorkoutFixture(page);
     await setStoredLocale(page, locale);
     await page.getByRole('button', { name: /^(home)$/i }).click();
-    await page.getByRole('button', { name: /all history|tutto lo storico/i }).click();
+    await page
+      .getByRole('button', { name: /all history|tutto lo storico/i })
+      .first()
+      .click();
     const workout = page
       .locator('.workout-row')
       .filter({ hasText: locale === 'it' ? /25 ago/i : /25 Aug/i })
@@ -3708,7 +3734,10 @@ test('summary and workout detail preserve canonical kg volume rounding', async (
   await expect(page.getByText('−127 kg vs your last Full Body A', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: /back home/i }).click();
-  await page.getByRole('button', { name: /all history/i }).click();
+  await page
+    .getByRole('button', { name: /all history/i })
+    .first()
+    .click();
   await page
     .getByRole('main')
     .getByRole('button', { name: /Full Body A.*128 kg/i })
@@ -3736,39 +3765,9 @@ test('mid-workout rest tweak can update the routine', async ({ page }) => {
   await expect(page.getByRole('button', { name: /2[’′]45|165/ }).first()).toBeVisible();
 });
 
-test('progress uses working sets, current tracking and complete keyboard tabs', async ({
-  page,
-}) => {
+test('statistics use working sets and current exercise tracking', async ({ page }) => {
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
-
-  const tablist = page.getByRole('tablist', { name: 'Progress sections' });
-  const training = tablist.getByRole('tab', { name: 'Training' });
-  const body = tablist.getByRole('tab', { name: 'Body' });
-  const nutrition = tablist.getByRole('tab', { name: 'Nutrition' });
-  await expect(training).toHaveAttribute('tabindex', '0');
-  await expect(body).toHaveAttribute('tabindex', '-1');
-  await expect(training).toHaveAttribute('aria-selected', 'true');
-  const panels: Locator[] = [];
-  for (const tab of [training, body, nutrition]) {
-    const panelId = await tab.getAttribute('aria-controls');
-    expect(panelId).toBeTruthy();
-    const panel = page.locator(`#${panelId}`);
-    await expect(panel).toHaveRole('tabpanel');
-    panels.push(panel);
-  }
-  await expect(panels[1]).toBeHidden();
-  await training.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(body).toBeFocused();
-  await expect(body).toHaveAttribute('aria-selected', 'true');
-  await expect(panels[1]).toBeVisible();
-  await page.keyboard.press('End');
-  await expect(nutrition).toBeFocused();
-  await expect(nutrition).toHaveAttribute('aria-selected', 'true');
-  await page.keyboard.press('Home');
-  await expect(training).toBeFocused();
-  await expect(training).toHaveAttribute('aria-selected', 'true');
+  await openPersonalPage(page, 'statistics');
 
   const exercise = page.getByLabel('Exercise');
   const summary = (name: string) => page.getByRole('group', { name: `${name} progress summary` });
@@ -3798,14 +3797,31 @@ test('progress uses working sets, current tracking and complete keyboard tabs', 
   await expect(summary('Plank')).not.toContainText('300');
   await expect(latestPr).toHaveCount(0);
 
-  await expectNarrowTouchTargets(page, tablist.getByRole('tab'));
+  await expectNarrowTouchTargets(page, page.locator('.overview-period-controls button'));
 });
 
-test('progress chart redraws when the system theme changes', async ({ page }) => {
+test('progress chart redraws with a legible series when the system theme changes', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const strokes: string[] = [];
+    const originalStroke = CanvasRenderingContext2D.prototype.stroke;
+    CanvasRenderingContext2D.prototype.stroke = function (path?: Path2D) {
+      if (this.lineWidth === 2) strokes.push(String(this.strokeStyle));
+      if (path) return originalStroke.call(this, path);
+      return (originalStroke as () => void).call(this);
+    };
+    Object.assign(window, { __chartStrokes: strokes });
+  });
   await page.emulateMedia({ colorScheme: 'light' });
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
+  await openPersonalPage(page, 'statistics');
   const canvas = page.getByRole('img', { name: /Barbell Squat.*3 sessions/i }).locator('canvas');
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __chartStrokes: string[] }).__chartStrokes),
+    )
+    .toContain('#55700e');
   const lightRender = await canvas.evaluate((node) => (node as HTMLCanvasElement).toDataURL());
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect
@@ -3823,7 +3839,7 @@ test('progress chart redraws when the system theme changes', async ({ page }) =>
 
 test('progress does not imply a trend from a single session', async ({ page }) => {
   await installCompletedWorkoutFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
+  await openPersonalPage(page, 'statistics');
   await page.getByLabel('Exercise').selectOption({ label: 'Dumbbell Bench Press' });
 
   await expect(page.getByRole('img', { name: /Dumbbell Bench Press/i })).toHaveCount(0);
@@ -3837,8 +3853,7 @@ test('progress does not imply a trend from a single session', async ({ page }) =
 
 test('body filters show a disabled treatment without shifting during save', async ({ page }) => {
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await openPersonalPage(page, 'body');
   await page.getByRole('button', { name: 'Add measurement' }).click();
   await page.getByLabel('Weight (lb)').fill('222');
   await page.evaluate(async () => {
@@ -3879,8 +3894,7 @@ test('body filters show a disabled treatment without shifting during save', asyn
 
 test('body converts only weight and names empty, single and trend states', async ({ page }) => {
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await openPersonalPage(page, 'body');
 
   const metrics = page.getByRole('group', { name: 'Measurement type' });
   await expect(metrics.getByRole('button', { name: 'Weight' })).toHaveAttribute(
@@ -3939,8 +3953,7 @@ test('body converts only weight and names empty, single and trend states', async
   }
   await putStoredRow(page, 'settings', { id: 'settings', locale: 'en', unit: 'kg' });
   await page.reload();
-  await page.getByRole('button', { name: /^progress$/i }).click();
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await openPersonalPage(page, 'body');
   await expect(page.getByRole('group', { name: 'Weight summary' })).toContainText('100 kg');
   const savedWeight = page.getByRole('button', {
     name: /Delete Weight measurement from 26 Aug 2026/i,
@@ -3956,8 +3969,7 @@ test('measurement deletion requires confirmation and ignores stale or double act
   page,
 }) => {
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
-  await page.getByRole('tab', { name: 'Body' }).click();
+  await openPersonalPage(page, 'body');
   await page
     .getByRole('group', { name: 'Measurement type' })
     .getByRole('button', {
@@ -4015,7 +4027,7 @@ test('measurement deletion requires confirmation and ignores stale or double act
 
 test('nutrition keeps optional targets and commits drafts on blur', async ({ page }) => {
   await installProgressSurfaceFixture(page);
-  await page.getByRole('button', { name: /^progress$/i }).click();
+  await openPersonalPage(page, 'statistics');
   await page.evaluate(async () => {
     const modulePath = '/src/state/useStore.ts';
     const storeModule = (await import(modulePath)) as typeof import('../src/state/useStore');
@@ -4035,7 +4047,7 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
       },
     });
   });
-  await page.getByRole('tab', { name: 'Nutrition' }).click();
+  await openPersonalPage(page, 'diet');
 
   await expect(page.getByText('No nutrition entries yet', { exact: true })).toBeVisible();
   await expect(page.getByText(/meal examples/i)).toHaveCount(0);
@@ -4064,7 +4076,7 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByRole('tab', { name: 'Nutrition' }).click();
+  await openPersonalPage(page, 'diet');
   await expect(calories).toHaveValue('0');
   await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
   const recent = page.getByRole('region', { name: 'Recent days' });
@@ -4073,7 +4085,7 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   const prior = '2026-08-24';
   await putStoredRow(page, 'nutrition', { id: prior, date: prior, kcal: 2000, proteinG: 120 });
   await page.reload();
-  await page.getByRole('tab', { name: 'Nutrition' }).click();
+  await openPersonalPage(page, 'diet');
   await expect(recent.getByRole('listitem')).toHaveCount(2);
 
   await expectNarrowTouchTargets(
@@ -4082,31 +4094,35 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   );
 });
 
-test('profile persists real units without personal setup fields', async ({ page }) => {
+test('Profile is a training hub while Settings persists real units', async ({ page }) => {
   await installProfileSurfaceFixture(page);
-  await page.getByRole('button', { name: 'Profile' }).click();
-  const profile = page.getByRole('main');
-  const summary = profile.getByRole('group', { name: 'Training summary' });
-  const units = profile.getByRole('group', { name: 'Weight units' });
+  await page.getByRole('navigation').getByRole('button', { name: 'Profile' }).click();
+  const main = page.getByRole('main');
+  const summary = main.getByRole('group', { name: 'Training summary' });
+  await expect(summary).toContainText('700 kg');
+  await expect(main.getByRole('group', { name: 'Weight units' })).toHaveCount(0);
+  await expect(main.getByRole('button', { name: 'Statistics', exact: true })).toBeVisible();
+  await openPersonalPage(page, 'settings');
+  const units = main.getByRole('group', { name: 'Weight units' });
   const kilograms = units.getByRole('button', { name: 'Kilograms (kg)' });
   const pounds = units.getByRole('button', { name: 'Pounds (lb)' });
-
-  await expect(profile.getByRole('heading', { name: 'Profile' })).toBeVisible();
-  await expect(profile.locator('input[type="date"]')).toHaveCount(0);
-  await expect(profile.getByText('Offline', { exact: true })).toBeVisible();
-  await expect(summary).toContainText('700 kg');
-  await expect(profile.getByRole('button', { name: 'Full backup (JSON)' })).toBeVisible();
-  await expect(profile.getByRole('button', { name: 'Export workouts (CSV)' })).toBeVisible();
+  await expect(main.getByRole('heading', { name: 'Settings' })).toBeVisible();
+  await expect(main.locator('input[type="date"]')).toHaveCount(0);
+  await expect(main.getByText('Offline', { exact: true })).toBeVisible();
+  await expect(main.getByRole('button', { name: 'Full backup (JSON)' })).toBeVisible();
+  await expect(main.getByRole('button', { name: 'Export workouts (CSV)' })).toBeVisible();
   await pounds.click();
   await expect(kilograms).toHaveAttribute('aria-pressed', 'false');
   await expect(pounds).toHaveAttribute('aria-pressed', 'true');
+  await expectNarrowTouchTargets(page, main.getByRole('button'));
+  await expectLightAndDarkSurfaces(page, main.locator('.settings-group').first(), pounds);
+  await page.goBack();
   await expect(summary).toContainText('1,543.2 lb');
   await page.reload();
   await expect(summary).toContainText('1,543.2 lb');
-  await expectNarrowTouchTargets(page, profile.getByRole('button'));
-  await expectLightAndDarkSurfaces(page, profile.locator('.profile-identity'), pounds);
-  await profile.getByRole('button', { name: 'Italiano' }).click();
-  await expect(profile.getByRole('group', { name: 'Unità di peso' })).toBeVisible();
+  await openPersonalPage(page, 'settings');
+  await main.getByRole('button', { name: 'Italiano' }).click();
+  await expect(main.getByRole('group', { name: 'Unità di peso' })).toBeVisible();
 });
 
 test('complete backup preview names every restored collection', async ({ page }) => {
@@ -4265,20 +4281,14 @@ test('restore outcomes stay truthful and busy submission stays single', async ({
   await expect(page.getByRole('heading', { name: 'Overload' })).toBeVisible();
 });
 
-test('no horizontal overflow on any tab', async ({ page }) => {
-  for (const tab of [
-    /^home$/i,
-    /^(train|allenati)$/i,
-    /^(exercises|esercizi)$/i,
-    /^(progress|progressi)$/i,
-    /^(profile|profilo)$/i,
-  ]) {
-    await page.getByRole('button', { name: tab }).click();
-    await page.waitForTimeout(250);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow, `overflow on ${tab}`).toBeLessThanOrEqual(0);
+test('no horizontal overflow on primary and nested personal screens', async ({ page }) => {
+  for (const tab of [/^home$/i, /^(train|allenati)$/i, /^(profile|profilo)$/i]) {
+    await page.getByRole('navigation').getByRole('button', { name: tab }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  }
+  for (const destination of ['statistics', 'library', 'body', 'diet', 'settings'] as const) {
+    await openPersonalPage(page, destination);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   }
 });
 
@@ -4362,7 +4372,7 @@ test('active Home clears fixed navigation at 320px without a persistent Resume b
 });
 
 test('hardware back navigates the app', async ({ page }) => {
-  await page.getByRole('button', { name: /^(exercises|esercizi)$/i }).click();
+  await openPersonalPage(page, 'library');
   await page.getByPlaceholder(/search|cerca/i).fill('barbell squat');
   await page
     .getByRole('button', { name: /^(barbell squat legs|squat con bilanciere gambe)$/i })
@@ -4418,9 +4428,12 @@ test('hydrated custom exercises stay searchable and usable without the public ca
     await coldPage.reload();
     await expect(coldPage.getByRole('heading', { name: 'Overload' })).toBeVisible();
 
-    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await openPersonalPage(coldPage, 'library');
     await expect.poll(() => attempts).toBe(1);
-    await coldPage.getByRole('button', { name: 'Back', exact: true }).click();
+    await coldPage
+      .locator('.library-filters')
+      .getByRole('button', { name: 'Back', exact: true })
+      .click();
     await coldPage.getByRole('searchbox', { name: 'Search exercises' }).fill('Offline carry');
     const customExercise = coldPage.getByRole('button', { name: 'Offline carry Back' });
     await expect(customExercise).toBeVisible();
@@ -4485,7 +4498,7 @@ test('cold empty screens defer the catalog until idle or first dependent use', a
     );
     expect(catalogRequests).toBe(0);
 
-    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await openPersonalPage(coldPage, 'library');
     await expect.poll(() => catalogRequests).toBe(1);
     await expect(coldPage.getByRole('searchbox', { name: 'Search exercises' })).toBeVisible();
 
@@ -4545,7 +4558,7 @@ test('catalog failure stays contained and retries once while already online', as
   coldPage.on('pageerror', (error) => pageErrors.push(error.message));
   try {
     await coldPage.goto('/');
-    await coldPage.getByRole('button', { name: 'Exercises' }).click();
+    await openPersonalPage(coldPage, 'library');
     await expect.poll(() => attempts).toBe(1);
     await expect(coldPage.getByRole('status', { name: 'Loading exercises' })).toBeVisible();
 
@@ -4658,6 +4671,7 @@ test('CSV export waits for exercise names while the full backup stays available'
     await expect(coldPage.getByRole('group', { name: 'Training summary' })).toContainText(
       '1 workout',
     );
+    await openPersonalPage(coldPage, 'settings');
     await expect(coldPage.getByRole('button', { name: 'Full backup (JSON)' })).toBeEnabled();
     await expect(coldPage.getByRole('button', { name: 'Export workouts (CSV)' })).toBeDisabled();
     releaseCatalog();
@@ -4767,4 +4781,43 @@ test('long program and routine names remain fully readable on narrow Home and Tr
   await expect(routine).toHaveText(longName);
   expect(await routine.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+test('reference synthesis keeps three tabs and shared personal detail paths', async ({ page }) => {
+  await installCoreSurfaceFixture(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  const primary = page.locator('nav.nav');
+  await expect(primary.getByRole('button')).toHaveCount(3);
+  await primary.getByRole('button', { name: 'Home', exact: true }).click();
+  await expect(page.locator('.home-recent .workout-row')).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'All history', exact: true })).toHaveCount(1);
+  await page.locator('.home-recent .workout-row').first().click();
+  await expect(page.locator('.workout-detail-header')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('.home-recent')).toBeVisible();
+  await primary.getByRole('button', { name: 'Profile', exact: true }).click();
+  await expect(page.locator('.profile-recent .workout-row')).toHaveCount(3);
+  await page.getByRole('main').getByRole('button', { name: 'Calendar', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Calendar', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'List', exact: true }).click();
+  await page.goBack();
+  await page.getByRole('main').getByRole('button', { name: 'Calendar', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Calendar', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.goBack();
+  for (const destination of ['statistics', 'library', 'body', 'diet', 'settings'] as const) {
+    await openPersonalPage(page, destination);
+    await expect(primary.getByRole('button', { name: 'Profile', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    await page.locator('.page-header__back').click();
+    await expect(page.locator('.profile-hub')).toBeVisible();
+  }
 });

@@ -149,13 +149,15 @@ export function Home() {
             ))}
           </dl>
           <div className="home-shortcuts">
-            <button
-              type="button"
-              className="home-history-link"
-              onClick={() => nav({ view: 'history' })}
-            >
-              {t('home.allHistory')} <IconForward />
-            </button>
+            {workouts.length === 0 && (
+              <button
+                type="button"
+                className="home-history-link"
+                onClick={() => nav({ view: 'history' })}
+              >
+                {t('home.allHistory')} <IconForward />
+              </button>
+            )}
             <button
               type="button"
               className="home-progress-link"
@@ -169,7 +171,7 @@ export function Home() {
       {workouts.length > 0 && (
         <section className="home-recent" aria-labelledby="recent-workouts-title">
           <div className="home-section-heading">
-            <h2 id="recent-workouts-title" className="display section-title">
+            <h2 id="recent-workouts-title" className="section-title">
               {t('home.recent')}
             </h2>
             <button
@@ -177,7 +179,7 @@ export function Home() {
               className="home-history-link"
               onClick={() => nav({ view: 'history' })}
             >
-              {t('home.allHistory')}
+              {t('home.allHistory')} <IconForward />
             </button>
           </div>
           <WorkoutList

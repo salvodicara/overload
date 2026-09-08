@@ -11,8 +11,8 @@ Overload is a mobile-first workout tracker for people who run their own training
 - History-based double progression for weighted working sets, with previous values kept visible while logging
 - Three tracking modes: weight and reps, reps only, and duration
 - Two clear note scopes: a persistent Technique note and a This session note saved with the completed workout
-- Focused Home with next workout and current-week summary; a single searchable history and swipeable calendar under Profile
-- Aggregate week/month/year charts and exercise performance in Progress, alongside body measurements and kcal/protein logging
+- Three tabs: StrengthLog-style Home with next workout, quick stats and recent sessions; Hevy/Strong routine folders in Train; Hevy-style personal hub in Profile
+- Profile opens Statistics, Exercises, Measures, the single history/calendar, and nutrition; preferences and data tools have a separate Settings screen
 - Exercise journal and complete workout history
 - Exercise library with custom exercises, Italian instructions, and public-domain demonstrations
 - Kilogram or pound display and input, with kilograms retained as the canonical stored weight

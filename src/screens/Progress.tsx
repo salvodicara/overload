@@ -1,4 +1,4 @@
-import { useMemo, type KeyboardEvent } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LineChart, type ChartPoint } from '../components/LineChart';
 import { TrainingOverview } from '../components/TrainingOverview';
@@ -9,8 +9,7 @@ import { exerciseName, getCatalog } from '../lib/exercises';
 import { formatWeight } from '../lib/units';
 import { kindOf, trackingOf, type SetLog, type TrackingType, type Workout } from '../lib/types';
 import { useStore } from '../state/useStore';
-import { ProgressBody } from './ProgressBody';
-import { ProgressDiet } from './ProgressDiet';
+import { IconBack } from '../components/Icons';
 
 type SessionTop = {
   date: string;
@@ -203,84 +202,28 @@ function TrainingSection({ picked, onPick }: { picked: string | null; onPick(id:
   );
 }
 
-const SEGMENTS = ['training', 'body', 'diet'] as const;
-type Segment = (typeof SEGMENTS)[number];
-
 export function Progress() {
   const { t } = useTranslation();
   const route = useStore((state) => state.route);
   const initialExerciseId = route.view === 'progress' ? route.exerciseId : undefined;
-  const [surface, setSurface] = useSurfaceState('progress', {
-    section: 'training',
-    exerciseId: initialExerciseId,
-  });
-  const segment = SEGMENTS.includes(surface.section as Segment)
-    ? (surface.section as Segment)
-    : 'training';
-  const setSegment = (section: Segment): void => setSurface((current) => ({ ...current, section }));
-
-  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    const current = SEGMENTS.indexOf(event.currentTarget.dataset.segment as Segment);
-    let next = current;
-    if (event.key === 'ArrowRight') next = (current + 1) % SEGMENTS.length;
-    else if (event.key === 'ArrowLeft') next = (current - 1 + SEGMENTS.length) % SEGMENTS.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = SEGMENTS.length - 1;
-    else return;
-    event.preventDefault();
-    setSegment(SEGMENTS[next]);
-    event.currentTarget.parentElement
-      ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-      [next]?.focus();
-  };
-
+  const [surface, setSurface] = useSurfaceState('progress', { exerciseId: initialExerciseId });
   return (
     <div className="screen progress-screen">
-      <PageHeader title={t('progress.title')} />
-      <div className="row seg progress-tabs" role="tablist" aria-label={t('progress.tabsLabel')}>
-        {SEGMENTS.map((key) => (
-          <button
-            key={key}
-            id={`progress-tab-${key}`}
-            data-segment={key}
-            role="tab"
-            aria-selected={segment === key}
-            aria-controls={`progress-panel-${key}`}
-            tabIndex={segment === key ? 0 : -1}
-            className={`seg-btn${segment === key ? ' on' : ''}`}
-            onClick={() => setSegment(key)}
-            onKeyDown={onTabKeyDown}
-          >
-            {t(`progress.seg.${key}`)}
-          </button>
-        ))}
-      </div>
-      {SEGMENTS.map((key) => (
-        <section
-          key={key}
-          id={`progress-panel-${key}`}
-          role="tabpanel"
-          aria-labelledby={`progress-tab-${key}`}
-          tabIndex={segment === key ? 0 : -1}
-          hidden={segment !== key}
-          className="progress-panel"
-        >
-          {segment === key && key === 'training' && (
-            <>
-              <TrainingOverview
-                surface={surface}
-                onChange={(patch) => setSurface((current) => ({ ...current, ...patch }))}
-              />
-              <TrainingSection
-                picked={surface.exerciseId ?? initialExerciseId ?? null}
-                onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
-              />
-            </>
-          )}
-          {segment === key && key === 'body' && <ProgressBody />}
-          {segment === key && key === 'diet' && <ProgressDiet />}
-        </section>
-      ))}
+      <PageHeader
+        className="detail-page-header"
+        title={t('profile.statistics')}
+        back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+      />
+      <section className="progress-panel" aria-label={t('profile.statistics')}>
+        <TrainingOverview
+          surface={surface}
+          onChange={(patch) => setSurface((current) => ({ ...current, ...patch }))}
+        />
+        <TrainingSection
+          picked={surface.exerciseId ?? initialExerciseId ?? null}
+          onPick={(exerciseId) => setSurface((current) => ({ ...current, exerciseId }))}
+        />
+      </section>
     </div>
   );
 }

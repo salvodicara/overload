@@ -29,11 +29,12 @@ export function Settings() {
   return (
     <div className="screen">
       <PageHeader
+        className="detail-page-header"
         title={t('settings.title')}
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
 
-      <Section id="profile-preferences" title={t('settings.title')}>
+      <Section id="profile-preferences" title={t('settings.preferences')}>
         <div className="settings-row settings-row--control">
           <strong id="profile-language-label">{t('settings.language')}</strong>
           <div

@@ -1,13 +1,11 @@
 import type { ComponentType, SVGProps } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, type Route } from '../state/useStore';
-import { IconBarbell, IconChart, IconHome, IconLibrary, IconUser } from './Icons';
+import { IconBarbell, IconHome, IconUser } from './Icons';
 
 const TABS: { view: Route['view']; key: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   { view: 'home', key: 'nav.home', Icon: IconHome },
   { view: 'train', key: 'nav.workout', Icon: IconBarbell },
-  { view: 'library', key: 'nav.library', Icon: IconLibrary },
-  { view: 'progress', key: 'nav.progress', Icon: IconChart },
   { view: 'profile', key: 'nav.profile', Icon: IconUser },
 ];
 
@@ -17,7 +15,12 @@ const GROUP: Partial<Record<Route['view'], Route['view']>> = {
   workoutEditor: 'profile',
   summary: 'home',
   routineEditor: 'train',
-  exercise: 'library',
+  exercise: 'profile',
+  library: 'profile',
+  progress: 'profile',
+  body: 'profile',
+  diet: 'profile',
+  settings: 'profile',
   importExport: 'profile',
 };
 
@@ -26,7 +29,8 @@ export function Nav() {
   const route = useStore((s) => s.route);
   const nav = useStore((s) => s.nav);
   if (route.view === 'workout') return null;
-  const current = GROUP[route.view] ?? route.view;
+  const current =
+    route.view === 'library' && route.pickFor ? 'train' : (GROUP[route.view] ?? route.view);
   return (
     <nav className="nav" aria-label={t('app.name')}>
       <div className="nav-inner">

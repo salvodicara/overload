@@ -87,9 +87,12 @@ import type { BackupV2 } from '../lib/importer';
 
 export type Route =
   | { view: 'home' }
-  | { view: 'history' }
+  | { view: 'history'; mode?: 'list' | 'calendar' }
   | { view: 'train' }
   | { view: 'profile' }
+  | { view: 'settings' }
+  | { view: 'body' }
+  | { view: 'diet' }
   | { view: 'workout' }
   | { view: 'summary'; workoutId: string }
   | { view: 'workoutDetail'; id: string }
@@ -260,10 +263,13 @@ const RESTORE_SCROLL = new Set<Route['view']>([
   'library',
   'progress',
   'profile',
+  'settings',
+  'body',
+  'diet',
   'workout',
 ]);
 const ROUTE_KEY = 'overload_route';
-const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'library', 'progress', 'profile']);
+const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'profile']);
 
 function applyScroll(view: Route['view'], entryKey?: string): void {
   const y = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
@@ -377,11 +383,7 @@ export type Store = {
   deleteWorkout(id: string): Promise<AccountActionResult>;
   updateWorkout(id: string, draft: WorkoutDraft): Promise<AccountActionResult>;
   repeatWorkout(id: string): Promise<AccountActionResult>;
-  saveWorkoutAsRoutine(
-    id: string,
-    name: string,
-    folderId?: string,
-  ): Promise<AccountActionResult>;
+  saveWorkoutAsRoutine(id: string, name: string, folderId?: string): Promise<AccountActionResult>;
   importWorkouts(fresh: Workout[]): Promise<AccountActionResult>;
   restoreBackup(backup: BackupV2): Promise<AccountActionResult>;
 };
@@ -480,6 +482,18 @@ export const useStore = create<Store>((set, get) => ({
     // history, switching tabs replaces the entry (Android convention).
     const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view);
     const nextEnvelope = newHistoryEnvelope(route, previousEnvelope?.surfaces);
+    if (route.view === 'history' && route.mode) {
+      nextEnvelope.surfaces = {
+        ...nextEnvelope.surfaces,
+        history: { ...nextEnvelope.surfaces?.history, mode: route.mode, selectedDay: null },
+      };
+    }
+    if (route.view === 'progress' && route.exerciseId) {
+      nextEnvelope.surfaces = {
+        ...nextEnvelope.surfaces,
+        progress: { ...nextEnvelope.surfaces?.progress, exerciseId: route.exerciseId },
+      };
+    }
     try {
       if (replace) history.replaceState(nextEnvelope, '');
       else history.pushState(nextEnvelope, '');
@@ -678,7 +692,9 @@ export const useStore = create<Store>((set, get) => ({
     const next: Routine = {
       ...normalized,
       exercises: normalized.exercises.map((exercise) =>
-        exercise.occurrenceId === instanceId ? { ...exercise, note: text.trim() || undefined } : exercise,
+        exercise.occurrenceId === instanceId
+          ? { ...exercise, note: text.trim() || undefined }
+          : exercise,
       ),
     };
     return get().saveRoutine(next);
@@ -1316,21 +1332,14 @@ export const useStore = create<Store>((set, get) => ({
 if (typeof window !== 'undefined') {
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   try {
-    history.replaceState(
-      ensureHistoryEnvelope(useStore.getState().route, history.state),
-      '',
-    );
+    history.replaceState(ensureHistoryEnvelope(useStore.getState().route, history.state), '');
   } catch {
     /* history unavailable */
   }
   window.addEventListener('popstate', (event) => {
     const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
     const currentEnvelope = readHistoryEnvelope();
-    writeEntryScroll(
-      useStore.getState().route.view,
-      window.scrollY,
-      currentEnvelope?.entryKey,
-    );
+    writeEntryScroll(useStore.getState().route.view, window.scrollY, currentEnvelope?.entryKey);
     const targetEnvelope = ensureHistoryEnvelope(route, event.state);
     transitionRoute('back', () => {
       try {

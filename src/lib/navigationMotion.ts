@@ -1,7 +1,7 @@
 type RouteLike = { view: string };
 export type RouteMotion = 'peer' | 'forward' | 'back';
 
-const TABS = new Set(['home', 'train', 'library', 'progress', 'profile']);
+const TABS = new Set(['home', 'train', 'profile']);
 
 export function routeMotion(from: RouteLike, to: RouteLike): Exclude<RouteMotion, 'back'> {
   return TABS.has(from.view) && TABS.has(to.view) ? 'peer' : 'forward';

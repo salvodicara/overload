@@ -14,3 +14,22 @@
 .home-recent .workout-row__exercises {
   overflow-wrap: anywhere;
 }
+
+.home-recent .section-title {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.home-recent .home-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent-text);
+  font-size: var(--text-sm);
+}
+.home-recent .home-history-link svg {
+  flex: none;
+}

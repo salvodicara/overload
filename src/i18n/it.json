@@ -68,7 +68,7 @@
     "allHistory": "Tutto lo storico",
     "moreExercises_one": "+ {{count}} altro esercizio",
     "moreExercises_other": "+ altri {{count}} esercizi",
-    "viewProgress": "Vedi progressi"
+    "viewProgress": "Statistiche"
   },
   "workout": {
     "warmup": "Riscaldamento",
@@ -269,7 +269,7 @@
     "instructionsLoading": "Caricamento istruzioni tradotte…"
   },
   "settings": {
-    "title": "Preferenze",
+    "title": "Impostazioni",
     "language": "Lingua",
     "it": "Italiano",
     "en": "English",
@@ -290,7 +290,8 @@
       "pending": "In attesa di rete",
       "offline": "Offline",
       "error": "Errore di sincronizzazione"
-    }
+    },
+    "preferences": "Preferenze"
   },
   "import": {
     "title": "Importa dati",
@@ -441,7 +442,9 @@
     "trainingSummary": "Riepilogo allenamento",
     "workouts_one": "{{count}} allenamento",
     "workouts_other": "{{count}} allenamenti",
-    "historyHint": "I tuoi allenamenti, in elenco o sul calendario"
+    "historyHint": "I tuoi allenamenti, in elenco o sul calendario",
+    "statistics": "Statistiche",
+    "measurements": "Misure"
   },
   "notes": {
     "coach": "Nota tecnica della scheda",

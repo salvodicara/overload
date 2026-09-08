@@ -53,7 +53,7 @@ export function LineChart({ points, label, height = 180, formatValue }: LineChar
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
 
-      const accent = cssVar(canvas, '--accent', '#c9f73a');
+      const accent = cssVar(canvas, '--accent-text', '#c9f73a');
       const muted = cssVar(canvas, '--muted', '#8b939c');
       const line = cssVar(canvas, '--line', '#262b31');
       const good = cssVar(canvas, '--good', '#55d187');

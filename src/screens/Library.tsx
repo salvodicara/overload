@@ -234,12 +234,9 @@ export function Library({
   return (
     <div className="screen library-screen">
       <PageHeader
+        className="detail-page-header"
         title={t(pickFor ? 'library.pickTitle' : 'library.title')}
-        back={
-          pickFor
-            ? { label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }
-            : undefined
-        }
+        back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
 
       <div className="library-tools" role="search">

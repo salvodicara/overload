@@ -69,18 +69,25 @@ import { Nav } from '../../components/Nav';
 import { ActiveWorkoutBar } from '../../components/ActiveWorkoutBar';
 import { Profile } from '../../screens/Profile';
 
-it.each(['history', 'workoutDetail', 'workoutEditor'] as const)(
-  'keeps %s inside the Profile navigation destination',
-  async (view) => {
-    await i18n.changeLanguage('en');
-    shellHarness.state = { ...originalState, route: { view, id: 'saved' } } as Store;
-    const markup = renderToStaticMarkup(<Nav />);
-    const currentButton = markup.match(
-      /<button[^>]*aria-current="page"[^>]*>[\s\S]*?<\/button>/,
-    )?.[0];
-    expect(currentButton).toContain('Profile');
-  },
-);
+it.each([
+  'history',
+  'workoutDetail',
+  'workoutEditor',
+  'progress',
+  'library',
+  'exercise',
+  'body',
+  'diet',
+  'settings',
+] as const)('keeps %s inside the Profile navigation destination', async (view) => {
+  await i18n.changeLanguage('en');
+  shellHarness.state = { ...originalState, route: { view, id: 'saved' } } as Store;
+  const markup = renderToStaticMarkup(<Nav />);
+  const currentButton = markup.match(
+    /<button[^>]*aria-current="page"[^>]*>[\s\S]*?<\/button>/,
+  )?.[0];
+  expect(currentButton).toContain('Profile');
+});
 
 it('makes saved workouts discoverable from Profile', async () => {
   await i18n.changeLanguage('en');
@@ -89,7 +96,7 @@ it('makes saved workouts discoverable from Profile', async () => {
     workouts: [],
     settings: { id: 'settings', updatedAt: 0 },
   };
-  expect(renderToStaticMarkup(<Profile />)).toContain(i18n.t('history.title'));
+  expect(renderToStaticMarkup(<Profile />)).toContain(i18n.t('history.calendar'));
 });
 
 it('keeps the minimized clock consistent with a paused workout', async () => {
@@ -108,4 +115,13 @@ it('keeps the minimized clock consistent with a paused workout', async () => {
   } as unknown as Store;
   const markup = renderToStaticMarkup(<ActiveWorkoutBar />);
   expect(markup).toContain('1:00');
+});
+
+it('keeps only Home, Train and Profile in primary navigation', async () => {
+  await i18n.changeLanguage('en');
+  shellHarness.state = { ...originalState, route: { view: 'home' } };
+  const markup = renderToStaticMarkup(<Nav />);
+  expect(markup.match(/class="nav-btn/g)).toHaveLength(3);
+  expect(markup).not.toContain('>Exercises<');
+  expect(markup).not.toContain('>Progress<');
 });

@@ -68,7 +68,7 @@
     "allHistory": "All history",
     "moreExercises_one": "+ {{count}} more exercise",
     "moreExercises_other": "+ {{count}} more exercises",
-    "viewProgress": "View progress"
+    "viewProgress": "Statistics"
   },
   "workout": {
     "warmup": "Warm-up",
@@ -269,7 +269,7 @@
     "instructionsLoading": "Loading translated instructions…"
   },
   "settings": {
-    "title": "Preferences",
+    "title": "Settings",
     "language": "Language",
     "it": "Italiano",
     "en": "English",
@@ -290,7 +290,8 @@
       "pending": "Waiting for network",
       "offline": "Offline",
       "error": "Sync error"
-    }
+    },
+    "preferences": "Preferences"
   },
   "import": {
     "title": "Import data",
@@ -441,7 +442,9 @@
     "trainingSummary": "Training summary",
     "workouts_one": "{{count}} workout",
     "workouts_other": "{{count}} workouts",
-    "historyHint": "Your workouts, in a list or calendar"
+    "historyHint": "Your workouts, in a list or calendar",
+    "statistics": "Statistics",
+    "measurements": "Measures"
   },
   "notes": {
     "coach": "Routine technique note",
