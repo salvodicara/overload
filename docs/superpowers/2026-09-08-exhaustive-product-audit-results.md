@@ -99,7 +99,7 @@ The detailed local evidence inventory is [final-whole-app-matrix.md](/Users/salv
 - `pnpm exec playwright test`: **132 passed**, fresh server and frozen sources, 3.3 minutes.
 - Impeccable detector over screens/components/theme: no findings. This static detector is supplementary, not evidence of usability on its own.
 - Independent review findings were corrected and rechecked, including remote restore conflict reporting and historical Previous tracking compatibility.
-- Release destination: existing Firebase Hosting project overload-sdc, https://overload-sdc.web.app. Deployment receipt and production smoke are recorded after publication.
+- Release destination: existing Firebase Hosting project overload-sdc, https://overload-sdc.web.app. Source revision `fa9a99f` was pushed to codex/hevy-ux-review and main, then deployed successfully on 8 September 2026. Read-only production smoke passed: index, service worker, manifest and food catalogue hashes match the tested build; login screen renders; offline reload and all 7,793 cached food records remain available; no runtime errors or document overflow in that smoke. No personal records were modified by the verification.
 
 ## Practical limits
 

@@ -58,6 +58,6 @@ Files: local QA scripts/reports and e2e/core.spec.ts; no new product features.
 Files: docs/superpowers/2026-09-08-exhaustive-product-audit-results.md.
 
 - [x] Independent whole-diff review; reconcile all discovered findings with fixed/tested/not-reproduced/external-limit evidence.
-- [ ] Commit and push isolated branch, fast-forward main only if safe, push main.
-- [ ] Deploy existing Firebase Hosting build, compare published hashes with build, verify real login and offline shell read-only.
-- [ ] Report actual coverage and findings; no absolute quality guarantee.
+- [x] Commit and push isolated branch, fast-forward main only if safe, push main.
+- [x] Deploy existing Firebase Hosting build, compare published hashes with build, verify real login and offline shell read-only.
+- [x] Report actual coverage and findings; no absolute quality guarantee.
