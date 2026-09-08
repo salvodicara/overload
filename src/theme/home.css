@@ -1,0 +1,16 @@
+.home-recent .home-section-heading {
+  flex-wrap: wrap;
+}
+
+.home-recent .section-title {
+  margin: 0;
+}
+
+.home-recent .home-history-link {
+  padding-left: 0;
+}
+
+.home-screen .home-up-next__detail strong,
+.home-recent .workout-row__exercises {
+  overflow-wrap: anywhere;
+}

@@ -2,12 +2,14 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconForward } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
+import { WorkoutList } from '../components/WorkoutList';
 import { formatCompactNumber } from '../lib/format';
 import { nextRoutine } from '../lib/routines';
 import { periodSummary, weekDays, weekRangeLabel } from '../lib/trainingPeriods';
 import { kindOf } from '../lib/types';
 import { useStore } from '../state/useStore';
 import '../theme/overview.css';
+import '../theme/home.css';
 
 export { weekDays, weekRangeLabel } from '../lib/trainingPeriods';
 
@@ -164,6 +166,27 @@ export function Home() {
           </div>
         </section>
       </div>
+      {workouts.length > 0 && (
+        <section className="home-recent" aria-labelledby="recent-workouts-title">
+          <div className="home-section-heading">
+            <h2 id="recent-workouts-title" className="display section-title">
+              {t('home.recent')}
+            </h2>
+            <button
+              type="button"
+              className="home-history-link"
+              onClick={() => nav({ view: 'history' })}
+            >
+              {t('home.allHistory')}
+            </button>
+          </div>
+          <WorkoutList
+            workouts={workouts}
+            limit={3}
+            onOpen={(workout) => nav({ view: 'workoutDetail', id: workout.id })}
+          />
+        </section>
+      )}
     </div>
   );
 }
