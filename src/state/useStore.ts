@@ -1,3 +1,4 @@
+import { persistActiveSession } from '../lib/activePersistence';
 import { create } from 'zustand';
 import {
   applyImport as dbApplyImport,
@@ -7,6 +8,7 @@ import {
   deleteMeasurement as dbDeleteMeasurement,
   deleteWorkout as dbDeleteWorkout,
   getSettings,
+  importRoutinePlanRecords,
   listFolders,
   listRoutines,
   listMeasurements,
@@ -67,6 +69,7 @@ import {
   writeEntryScroll,
 } from '../lib/navigationState';
 import { closeRestNotifications, unlockAudio, requestNotifyPermission } from '../lib/audio';
+import type { NutritionPatch } from '../lib/nutrition';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
 import { todayISO } from '../lib/format';
 import { loadCatalog, registerCustomExercises } from '../lib/exercises';
@@ -84,11 +87,13 @@ import type {
 } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
 import type { BackupV2 } from '../lib/importer';
+import { materializeRoutinePlan, parseRoutinePlan, type RoutinePlan } from '../lib/routinePlan';
 
 export type Route =
   | { view: 'home' }
   | { view: 'history'; mode?: 'list' | 'calendar' }
   | { view: 'train' }
+  | { view: 'routineImport' }
   | { view: 'profile' }
   | { view: 'settings' }
   | { view: 'body' }
@@ -177,12 +182,7 @@ function readActive(): ActiveSession | null {
 }
 
 function persistActive(a: ActiveSession | null): void {
-  try {
-    if (a) localStorage.setItem(ACTIVE_KEY, JSON.stringify(a));
-    else localStorage.removeItem(ACTIVE_KEY);
-  } catch {
-    /* storage full/unavailable: session survives in memory */
-  }
+  persistActiveSession(a);
 }
 
 type ToastListener = (msg: string) => void;
@@ -337,6 +337,9 @@ export type Store = {
 
   nav(route: Route): void;
   ensureCatalog(): Promise<void>;
+  importRoutinePlan(
+    plan: RoutinePlan,
+  ): Promise<AccountActionResult<{ folderId: string; alreadyImported: boolean }>>;
   setUser(user: AppUser | null): void;
   init(): Promise<void>;
   reload(): Promise<void>;
@@ -379,7 +382,7 @@ export type Store = {
   deleteMeasurement(id: string): Promise<AccountActionResult>;
   saveNutritionDay(
     date: string,
-    patch: Partial<Pick<NutritionDay, 'kcal' | 'proteinG'>>,
+    patch: NutritionPatch,
   ): Promise<AccountActionResult>;
   deleteWorkout(id: string): Promise<AccountActionResult>;
   updateWorkout(id: string, draft: WorkoutDraft): Promise<AccountActionResult>;
@@ -644,6 +647,51 @@ export const useStore = create<Store>((set, get) => ({
     set({ settings });
     if (owns(owner)) await pushRecord(owner.uid, 'settings', settings);
     return accountActionForOwner(owner, undefined);
+  },
+
+  async importRoutinePlan(plan) {
+    const owner = captureOwner();
+    if (!owner) return STALE_ACCOUNT_ACTION;
+    await get().ensureCatalog();
+    if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+    // Validate again at the write boundary, including the current account's custom catalog.
+    const validated = parseRoutinePlan(JSON.stringify(plan));
+    const records = await materializeRoutinePlan(validated);
+    const result = await withOwnedLocalWrite(owner, async () => {
+      const imported = await importRoutinePlanRecords(records);
+      return { ...imported, folders: await listFolders(), routines: await listRoutines() };
+    });
+    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+    // Merge only additions: a concurrent editor may already hold newer optimistic values.
+    set((state) => ({
+      folders: [
+        ...state.folders,
+        ...result.value.folders.filter(
+          (item) =>
+            item.id === records.folder.id &&
+            !state.folders.some((current) => current.id === item.id),
+        ),
+      ],
+      routines: [
+        ...state.routines,
+        ...result.value.routines.filter(
+          (item) =>
+            records.routines.some((record) => record.id === item.id) &&
+            !state.routines.some((current) => current.id === item.id),
+        ),
+      ],
+    }));
+    // Retry sync using durable records, never the original plan over later user edits.
+    const folder = get().folders.find((item) => item.id === records.folder.id);
+    if (folder && owns(owner)) await pushRecord(owner.uid, 'folders', folder);
+    for (const routine of result.value.routines) {
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+      if (routine.folderId === records.folder.id) debouncedPushRoutine(owner, routine.id);
+    }
+    return accountActionForOwner(owner, {
+      folderId: records.folder.id,
+      alreadyImported: result.value.alreadyImported,
+    });
   },
 
   startWorkout(routineId) {
@@ -1120,20 +1168,9 @@ export const useStore = create<Store>((set, get) => ({
   async saveNutritionDay(date, patch) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    const existing = get().nutrition.find((n) => n.id === date);
-    const next: NutritionDay = {
-      id: date,
-      date,
-      kcal: existing?.kcal ?? null,
-      proteinG: existing?.proteinG ?? null,
-      ...patch,
-      updatedAt: Date.now(),
-    };
-    const result = await withOwnedLocalWrite(owner, async () => {
-      await saveNutrition(next);
-      return next;
-    });
+    const result = await withOwnedLocalWrite(owner, () => saveNutrition(date, patch));
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+    const next = result.value;
     set({ nutrition: [...get().nutrition.filter((n) => n.id !== date), next] });
     if (owns(owner)) await pushRecord(owner.uid, 'nutrition', next);
     return accountActionForOwner(owner, undefined);

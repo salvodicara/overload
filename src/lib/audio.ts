@@ -1,5 +1,5 @@
-// Rest-timer beep. Short Web Audio tones request transient audio focus on
-// Android, so they duck over background music (Hevy-like) instead of pausing it.
+// Short foreground rest-timer tones. Playback and interaction with music
+// depend on the browser and operating system audio policies.
 let ctx: AudioContext | null = null;
 export const REST_NOTIFICATION_TAG = 'overload-rest-over';
 
@@ -47,7 +47,7 @@ export function beep(): void {
   if (navigator.vibrate) navigator.vibrate([180, 90, 180]);
 }
 
-/** Locked-screen fallback: local notification with sound/vibration via SW. */
+/** Best-effort notification after the page observes expiry; not an OS-scheduled alarm. */
 export async function notifyRestOver(title: string, body: string): Promise<void> {
   try {
     if (Notification.permission !== 'granted') return;

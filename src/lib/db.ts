@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { validNutritionDay, type NutritionPatch } from './nutrition';
 import type { BackupV2 } from './importer';
 import type {
   CustomExercise,
@@ -104,6 +105,24 @@ export async function listFolders(): Promise<Folder[]> {
   return db.folders.toArray();
 }
 
+/** Add a complete plan once. Existing imported/edited records are never overwritten. */
+export async function importRoutinePlanRecords(
+  records: import('./routinePlan').RoutinePlanRecords,
+): Promise<{ alreadyImported: boolean }> {
+  return db.transaction('rw', [db.folders, db.routines], async () => {
+    if (await db.folders.get(records.folder.id)) {
+      // Cloud collections arrive separately. Fill missing children, but preserve edits.
+      const existing = await db.routines.bulkGet(records.routines.map((routine) => routine.id));
+      const missing = records.routines.filter((_, index) => !existing[index]);
+      if (missing.length) await db.routines.bulkAdd(missing);
+      return { alreadyImported: missing.length === 0 };
+    }
+    await db.folders.add(records.folder);
+    await db.routines.bulkAdd(records.routines);
+    return { alreadyImported: false };
+  });
+}
+
 export async function saveMeasurement(m: Measurement): Promise<void> {
   await db.measurements.put(m);
 }
@@ -116,8 +135,22 @@ export async function listMeasurements(): Promise<Measurement[]> {
   return db.measurements.orderBy('date').toArray();
 }
 
-export async function saveNutrition(n: NutritionDay): Promise<void> {
-  await db.nutrition.put(n);
+export async function saveNutrition(date: string, patch: NutritionPatch): Promise<NutritionDay> {
+  return db.transaction('rw', db.nutrition, async () => {
+    const existing = await db.nutrition.get(date);
+    const next: NutritionDay = {
+      ...existing,
+      id: date,
+      date,
+      kcal: existing?.kcal ?? null,
+      proteinG: existing?.proteinG ?? null,
+      ...patch,
+      updatedAt: Date.now(),
+    };
+    if (!validNutritionDay(next)) throw new Error('diet.invalid');
+    await db.nutrition.put(next);
+    return next;
+  });
 }
 
 export async function listNutrition(): Promise<NutritionDay[]> {

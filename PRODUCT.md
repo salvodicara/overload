@@ -24,7 +24,7 @@ The useful workout-logging discipline of Hevy and StrengthLog, rebuilt as a priv
 
 ## Operating Context
 
-The app is installed as a PWA and used during live training, between sets, during technique review, and later when inspecting history. The active workout and rest timer survive refreshes. A warmed install can reuse its cached app shell and exercise catalog offline, while a first-ever offline visit cannot load resources it has never cached. Local changes sync in the background when connectivity returns. Italian is the primary language and English is fully supported.
+The app is installed as a PWA and used during live training, between sets, during technique review, and later when inspecting history. The active workout and rest timer deadline survive refreshes when local storage succeeds; a persistent warning exposes active-session storage failures. Rest sound and page notifications are best effort: the PWA cannot guarantee them while closed or suspended. A warmed install can reuse its cached app shell and exercise catalog offline, while a first-ever offline visit cannot load resources it has never cached. Local changes sync in the background when connectivity returns. Italian is the primary language and English is fully supported.
 
 ## Shipped Capabilities and Constraints
 
@@ -37,7 +37,9 @@ The app is installed as a PWA and used during live training, between sets, durin
 - Notes have exactly two current scopes. Technique belongs to the exact exercise occurrence inside a routine; the same exercise can therefore carry different cues in different routines or positions. This session is saved with the completed workout and appears in the exercise journal. Imported historical entries remain readable in that journal.
 - Home follows StrengthLog: next/resumable workout, current-week summary linking to Statistics, and a three-workout preview linking to the canonical log.
 - Profile follows Hevy: personal training summary, Statistics, Exercises, Measures, Calendar and recent workouts. Statistics, measurements and nutrition are separate detail pages; preferences, data controls and account actions live behind the Settings gear. Calendar/list share one canonical history and workout detail.
-- Training progress, body measurements, and kcal/protein records remain compact operational tools rather than coaching surfaces.
+- Training progress and body measurements remain compact operational tools. Nutrition records daily calories, protein, carbohydrates, fat, saturated fat, fibre, sugars and salt, including past dates, decimal values and explicit zero. Missing values remain distinct from zero. Optional calorie/protein targets remain user-defined; a food/meal diary is a separate pending scope decision.
+- Train → Import plan accepts additive `overload-plan` JSON. A downloadable AI kit contains the schema, example and real exercise catalog. A separate readable preview precedes import; unknown exercises require explicit mapping. Atomic, repeat-safe addition preserves existing routines, history and settings. No external AI account data is sent automatically.
+- Completed workouts expose a duration editor. Correcting an accidentally long session preserves logged sets and recalculates chronological records using the actual workout date. Settings exposes a sound test, notification permission state and the suspended-page limitation.
 - The version-2 JSON backup contains workouts, routines, programs, exercise notes, measurements, nutrition days, custom exercises, and settings. CSV export is a flat report of completed sets with date, routine, exercise, weight in kilograms, and reps.
 - IndexedDB is authoritative locally. Firestore mirrors records within the authenticated user's account with last-write-wins timestamps.
 - The exercise catalog, Italian instructions, and public-domain demonstration media are shipped with the repository. Catalog data becomes available offline after it has been cached online.

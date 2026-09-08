@@ -1,3 +1,4 @@
+import { validNutritionDay } from './nutrition';
 import type {
   CustomExercise,
   ExerciseNote,
@@ -98,6 +99,7 @@ export function parseBackup(json: string): Backup {
     !Array.isArray(candidate.notes) ||
     !Array.isArray(candidate.measurements) ||
     !Array.isArray(candidate.nutrition) ||
+    !candidate.nutrition.every(validNutritionDay) ||
     !Array.isArray(candidate.customExercises) ||
     typeof settings !== 'object' ||
     settings === null ||

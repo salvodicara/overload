@@ -1,3 +1,4 @@
+import { RestAlertSettings } from '../components/RestAlertSettings';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
@@ -69,6 +70,9 @@ export function Settings() {
             ))}
           </div>
         </div>
+      </Section>
+      <Section id="rest-alert-settings" title={t('timer.alertSettings')}>
+        <RestAlertSettings />
       </Section>
 
       <Section id="profile-data" title={t('settings.data')}>

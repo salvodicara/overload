@@ -1,3 +1,4 @@
+import { newestWorkoutFirst } from './workoutHistory';
 import { computeVolume } from './volume';
 import { kindOf, trackingOf, type Routine, type SetLog, type Workout } from './types';
 import { newOccurrenceId } from './workoutOccurrences';
@@ -85,9 +86,7 @@ export function workoutFromDraft(
 }
 
 export function recomputeWorkoutFacts(workouts: Workout[]): Workout[] {
-  const chronological = [...workouts].sort(
-    (left, right) => left.startTs - right.startTs || left.id.localeCompare(right.id),
-  );
+  const chronological = [...workouts].sort((left, right) => -newestWorkoutFirst(left, right));
   const maxWeight = new Map<string, number>();
   const recomputed = chronological.map((workout) => {
     const sets = workout.sets.map((set) => {
@@ -106,9 +105,7 @@ export function recomputeWorkoutFacts(workouts: Workout[]): Workout[] {
     });
     return { ...workout, sets, volumeKg: computeVolume(sets) };
   });
-  return recomputed.sort(
-    (left, right) => right.startTs - left.startTs || right.id.localeCompare(left.id),
-  );
+  return recomputed.sort(newestWorkoutFirst);
 }
 
 export function routineFromWorkout(workout: Workout, name: string, folderId?: string): Routine {

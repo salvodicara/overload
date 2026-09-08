@@ -1,0 +1,37 @@
+import type { NutritionDay } from './types';
+
+export const NUTRIENT_FIELDS = [
+  'kcal',
+  'proteinG',
+  'carbsG',
+  'fatG',
+  'saturatedFatG',
+  'fiberG',
+  'sugarG',
+  'saltG',
+] as const;
+export type NutrientField = (typeof NUTRIENT_FIELDS)[number];
+export type NutritionPatch = Partial<Pick<NutritionDay, NutrientField>>;
+
+export function validNutrient(value: unknown): boolean {
+  return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
+}
+
+export function validNutritionDay(value: unknown): value is NutritionDay {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const day = value as Record<string, unknown>;
+  return (
+    typeof day.date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(day.date) &&
+    Number.isFinite(Date.parse(day.date)) &&
+    new Date(day.date).toISOString().slice(0, 10) === day.date &&
+    day.id === day.date &&
+    typeof day.updatedAt === 'number' &&
+    Number.isFinite(day.updatedAt) &&
+    NUTRIENT_FIELDS.every(
+      (field) =>
+        (field !== 'kcal' && field !== 'proteinG' && day[field] === undefined) ||
+        validNutrient(day[field]),
+    )
+  );
+}

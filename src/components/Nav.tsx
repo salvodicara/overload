@@ -16,6 +16,7 @@ const GROUP: Partial<Record<Route['view'], Route['view']>> = {
   summary: 'home',
   routineEditor: 'train',
   routine: 'train',
+  routineImport: 'train',
   exercise: 'profile',
   library: 'profile',
   progress: 'profile',

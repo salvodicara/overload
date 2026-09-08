@@ -122,7 +122,8 @@
     "loggedChangeBody": "Removing or replacing {{name}} discards its sets and session note. Keep it to preserve your logged work.",
     "saveError": "Could not save this workout. Your session is still here. Try Finish again.",
     "uncheckedBody_other": "You edited {{count}} unchecked sets. Finishing saves only checked sets. Continue to review them or finish without them.",
-    "uncheckedBody_one": "You edited one unchecked set. Finishing saves only checked sets. Continue to review it or finish without it."
+    "uncheckedBody_one": "You edited one unchecked set. Finishing saves only checked sets. Continue to review it or finish without it.",
+    "storageError": "This session could not be saved on this device. Keep the app open and finish the workout to try saving it to your history."
   },
   "suggest": {
     "start": "Start at {{weight}}",
@@ -134,7 +135,18 @@
   "timer": {
     "rest": "Rest",
     "plus15": "+15\"",
-    "skip": "Skip"
+    "skip": "Skip",
+    "alertSettings": "Rest alerts",
+    "sound": "Rest sound",
+    "testSound": "Test sound",
+    "openAppNotice": "Keep Overload open for reliable rest alerts. Notifications may be delayed or absent when the phone closes or suspends the web app.",
+    "enableNotifications": "Enable notifications",
+    "permission": {
+      "granted": "Notifications enabled",
+      "denied": "Notifications blocked. You can enable them in your browser or phone settings.",
+      "default": "Notifications are not enabled yet.",
+      "unsupported": "Notifications are unavailable here. On iPhone, install Overload on the Home Screen to enable them."
+    }
   },
   "summary": {
     "title": "Done.",
@@ -365,7 +377,8 @@
     "editAction": "Edit",
     "restPreview": "Rest: {{seconds}} s",
     "warmupCount": "Warm-up sets: {{count}}",
-    "emptyPreview": "Add exercises using Edit to prepare this routine."
+    "emptyPreview": "Add exercises using Edit to prepare this routine.",
+    "incrementPreview": "Progression increment: {{weight}}"
   },
   "editor": {
     "title": "Edit routine",
@@ -529,16 +542,45 @@
     "proteinTarget": "Protein target (g)",
     "calories": "Calories (kcal)",
     "protein": "Protein (g)",
-    "hint": "Log calories and protein when useful. Targets are optional.",
+    "hint": "Enter daily totals when useful. Leave untracked values blank; use 0 for none. Targets are optional.",
     "noCalorieTarget": "No calorie target",
     "noProteinTarget": "No protein target",
     "currentNoTarget": "{{current}} {{unit}}, no target",
     "currentTarget": "{{current}} of {{target}} {{unit}}",
     "empty": "No nutrition entries yet",
-    "recent": "Recent days",
-    "saveError": "Could not save nutrition. Try again."
+    "recent": "Recorded days",
+    "saveError": "Could not save nutrition. Try again.",
+    "date": "Date",
+    "carbs": "Carbohydrates (g)",
+    "fat": "Fat (g)",
+    "saturatedFat": "Saturated fat (g)",
+    "fiber": "Fibre (g)",
+    "sugar": "Sugars (g)",
+    "salt": "Salt (g)",
+    "invalid": "Enter a number of 0 or more. Leave the field blank if untracked.",
+    "invalidTarget": "Enter a target of at least 1. Leave it blank to remove the target."
   },
   "activeBar": {
     "resume": "Resume"
+  },
+  "plan": {
+    "title": "Import plan",
+    "prepare": "Prepare a plan with AI",
+    "instructions": "Download these instructions and give the file to your AI along with your goals, available equipment and weekly schedule. Ask it to return an Overload plan file, then load it here.",
+    "download": "Download AI instructions",
+    "file": "Open a plan file",
+    "paste": "Paste the plan",
+    "review": "Review plan",
+    "working": "Please wait…",
+    "confirm": "Add program",
+    "additive": "This adds a new program. Your existing routines, history and settings stay intact.",
+    "imported": "Program added",
+    "alreadyImported": "This program is already in your routines",
+    "unknownExercise": "Exercise not found: {{exercise}}. Choose the correct exercise below.",
+    "chooseExercise": "Find the correct exercise",
+    "invalid": "The plan has an invalid or missing value at {{field}}. Ask the AI to correct it using the downloaded instructions.",
+    "readError": "Could not read the plan or load the exercise library. Check your connection and choose a JSON or text file smaller than 2 MB.",
+    "saveError": "Could not save the program. You can retry; existing workouts are safe.",
+    "change": "Change plan"
   }
 }

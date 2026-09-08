@@ -128,6 +128,12 @@ export type NutritionDay = {
   date: string;
   kcal: number | null;
   proteinG: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+  saturatedFatG?: number | null;
+  fiberG?: number | null;
+  sugarG?: number | null;
+  saltG?: number | null;
   updatedAt: number;
 };
 

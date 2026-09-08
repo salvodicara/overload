@@ -1,17 +1,13 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fmtDate, todayISO } from '../lib/format';
+import { NUTRIENT_FIELDS, validNutrient, type NutrientField } from '../lib/nutrition';
 import { useStore } from '../state/useStore';
-
-function targetNumber(value: string): number | undefined {
-  const number = Number(value);
-  return value && Number.isFinite(number) && number > 0 ? number : undefined;
-}
 
 function dailyNumber(value: string): number | null {
   if (!value) return null;
   const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? number : null;
+  return number;
 }
 
 function Goal({
@@ -30,7 +26,7 @@ function Goal({
   const current = value?.toLocaleString(locale);
   const text = target
     ? t('diet.currentTarget', {
-        current: current ?? '0',
+        current: current ?? '−',
         target: target.toLocaleString(locale),
         unit,
       })
@@ -53,6 +49,17 @@ function Goal({
   );
 }
 
+const nutrientLabels = {
+  kcal: 'diet.calories',
+  proteinG: 'diet.protein',
+  carbsG: 'diet.carbs',
+  fatG: 'diet.fat',
+  saturatedFatG: 'diet.saturatedFat',
+  fiberG: 'diet.fiber',
+  sugarG: 'diet.sugar',
+  saltG: 'diet.salt',
+} as const;
+
 export function ProgressDiet() {
   const { t, i18n } = useTranslation();
   const nutrition = useStore((state) => state.nutrition);
@@ -61,17 +68,44 @@ export function ProgressDiet() {
   const updateSettings = useStore((state) => state.updateSettings);
   const [editTargets, setEditTargets] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [invalidInput, setInvalidInput] = useState(false);
+  const [invalidTarget, setInvalidTarget] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(todayISO);
   const targetsId = useId();
   const today = todayISO();
-  const todayRow = nutrition.find((day) => day.id === today);
+  const selectedRow = nutrition.find((day) => day.id === selectedDate);
   const recentDays = nutrition
-    .filter((day) => day.kcal != null || day.proteinG != null)
-    .sort((left, right) => right.date.localeCompare(left.date))
-    .slice(0, 7);
+    .filter((day) => NUTRIENT_FIELDS.some((field) => day[field] != null))
+    .sort((left, right) => right.date.localeCompare(left.date));
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const persist = (action: Promise<unknown>): void => {
     setSaveError(false);
     void action.catch(() => setSaveError(true));
+  };
+
+  const saveValue = (field: NutrientField, value: string, valid: boolean): void => {
+    const number = dailyNumber(value);
+    if (!valid || !validNutrient(number)) {
+      setInvalidInput(true);
+      return;
+    }
+    setInvalidInput(false);
+    if (number !== (selectedRow?.[field] ?? null))
+      persist(saveNutritionDay(selectedDate, { [field]: number }));
+  };
+
+  const saveTarget = (
+    field: 'kcalTarget' | 'proteinTarget',
+    value: string,
+    valid: boolean,
+  ): void => {
+    const number = value === '' ? undefined : Number(value);
+    if (!valid || (number !== undefined && (!Number.isFinite(number) || number < 1))) {
+      setInvalidTarget(true);
+      return;
+    }
+    setInvalidTarget(false);
+    if (number !== settings[field]) persist(updateSettings({ [field]: number }));
   };
 
   return (
@@ -79,7 +113,7 @@ export function ProgressDiet() {
       <section className="nutrition-today card card-pad" aria-labelledby="nutrition-today-title">
         <div className="spread">
           <h2 id="nutrition-today-title" className="progress-section-title">
-            {t('diet.today')}
+            {selectedDate === today ? t('diet.today') : fmtDate(selectedDate, i18n.language)}
           </h2>
           <button
             className="nutrition-targets-toggle"
@@ -92,6 +126,22 @@ export function ProgressDiet() {
           </button>
         </div>
 
+        <label className="field">
+          <span className="field-label">{t('diet.date')}</span>
+          <input
+            type="date"
+            name="nutrition-date"
+            value={selectedDate}
+            max={today}
+            onChange={(event) => {
+              if (event.target.value && event.target.validity.valid) {
+                setSelectedDate(event.target.value);
+                setInvalidInput(false);
+              }
+            }}
+          />
+        </label>
+
         {editTargets && (
           <div id={targetsId} className="nutrition-fields nutrition-targets">
             <label className="field">
@@ -99,16 +149,14 @@ export function ProgressDiet() {
               <input
                 name="calorie-target"
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
+                step="any"
                 min={1}
                 autoComplete="off"
                 defaultValue={settings.kcalTarget ?? ''}
-                onBlur={(event) => {
-                  const kcalTarget = targetNumber(event.target.value);
-                  if (kcalTarget !== settings.kcalTarget) {
-                    persist(updateSettings({ kcalTarget }));
-                  }
-                }}
+                onBlur={(event) =>
+                  saveTarget('kcalTarget', event.target.value, event.target.validity.valid)
+                }
               />
             </label>
             <label className="field">
@@ -116,71 +164,65 @@ export function ProgressDiet() {
               <input
                 name="protein-target"
                 type="number"
-                inputMode="numeric"
+                inputMode="decimal"
+                step="any"
                 min={1}
                 autoComplete="off"
                 defaultValue={settings.proteinTarget ?? ''}
-                onBlur={(event) => {
-                  const proteinTarget = targetNumber(event.target.value);
-                  if (proteinTarget !== settings.proteinTarget) {
-                    persist(updateSettings({ proteinTarget }));
-                  }
-                }}
+                onBlur={(event) =>
+                  saveTarget('proteinTarget', event.target.value, event.target.validity.valid)
+                }
               />
             </label>
           </div>
         )}
 
         <div className="nutrition-fields">
-          <label className="field">
-            <span className="field-label">{t('diet.calories')}</span>
-            <input
-              key={`kcal-${todayRow?.kcal ?? ''}`}
-              name="calories"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              autoComplete="off"
-              defaultValue={todayRow?.kcal ?? ''}
-              onBlur={(event) => {
-                const kcal = dailyNumber(event.target.value);
-                if (kcal !== (todayRow?.kcal ?? null)) {
-                  persist(saveNutritionDay(today, { kcal }));
+          {NUTRIENT_FIELDS.map((field) => (
+            <label className="field" key={field}>
+              <span className="field-label">{t(nutrientLabels[field])}</span>
+              <input
+                key={`${selectedDate}-${field}-${selectedRow?.[field] ?? ''}`}
+                name={field === 'kcal' ? 'calories' : field === 'proteinG' ? 'protein' : field}
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={0}
+                autoComplete="off"
+                defaultValue={selectedRow?.[field] ?? ''}
+                onBlur={(event) =>
+                  saveValue(field, event.target.value, event.target.validity.valid)
                 }
-              }}
-            />
-            <Goal
-              value={todayRow?.kcal ?? null}
-              target={settings.kcalTarget}
-              unit="kcal"
-              emptyKey="diet.noCalorieTarget"
-            />
-          </label>
-          <label className="field">
-            <span className="field-label">{t('diet.protein')}</span>
-            <input
-              key={`protein-${todayRow?.proteinG ?? ''}`}
-              name="protein"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              autoComplete="off"
-              defaultValue={todayRow?.proteinG ?? ''}
-              onBlur={(event) => {
-                const proteinG = dailyNumber(event.target.value);
-                if (proteinG !== (todayRow?.proteinG ?? null)) {
-                  persist(saveNutritionDay(today, { proteinG }));
-                }
-              }}
-            />
-            <Goal
-              value={todayRow?.proteinG ?? null}
-              target={settings.proteinTarget}
-              unit="g"
-              emptyKey="diet.noProteinTarget"
-            />
-          </label>
+              />
+              {field === 'kcal' && (
+                <Goal
+                  value={selectedRow?.kcal ?? null}
+                  target={settings.kcalTarget}
+                  unit="kcal"
+                  emptyKey="diet.noCalorieTarget"
+                />
+              )}
+              {field === 'proteinG' && (
+                <Goal
+                  value={selectedRow?.proteinG ?? null}
+                  target={settings.proteinTarget}
+                  unit="g"
+                  emptyKey="diet.noProteinTarget"
+                />
+              )}
+            </label>
+          ))}
         </div>
+        {invalidTarget && (
+          <div className="form-feedback form-feedback--error" role="alert">
+            {t('diet.invalidTarget')}
+          </div>
+        )}
+        {invalidInput && (
+          <div className="form-feedback form-feedback--error" role="alert">
+            {t('diet.invalid')}
+          </div>
+        )}
         <p className="small muted">{t('diet.hint')}</p>
         {saveError && (
           <div className="form-feedback form-feedback--error" role="alert">
@@ -198,19 +240,40 @@ export function ProgressDiet() {
           </h2>
           <ul>
             {recentDays.map((day) => (
-              <li key={day.id} className="spread">
-                <span className="mono small muted">
+              <li
+                key={day.id}
+                className="stack"
+                style={{ paddingBlock: 'var(--space-3)', gap: 'var(--space-2)' }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  aria-pressed={selectedDate === day.date}
+                  onClick={() => {
+                    setSelectedDate(day.date);
+                    setInvalidInput(false);
+                    document
+                      .querySelector('[name="nutrition-date"]')
+                      ?.scrollIntoView({ block: 'center' });
+                  }}
+                >
                   {fmtDate(day.date, i18n.language, {
                     weekday: 'short',
                     day: 'numeric',
                     month: 'short',
+                    year: 'numeric',
                   })}
-                </span>
-                <span className="mono small">
-                  {day.kcal == null ? '−' : `${day.kcal.toLocaleString(locale)} kcal`}
-                  <span aria-hidden="true"> · </span>
-                  {day.proteinG == null ? '−' : `${day.proteinG.toLocaleString(locale)} g`}
-                </span>
+                </button>
+                <dl className="nutrition-fields">
+                  {NUTRIENT_FIELDS.filter((field) => day[field] != null).map((field) => (
+                    <div key={field}>
+                      <dt className="small muted">{t(nutrientLabels[field])}</dt>
+                      <dd className="mono small">
+                        {day[field]!.toLocaleString(locale)} {field === 'kcal' ? 'kcal' : 'g'}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </li>
             ))}
           </ul>

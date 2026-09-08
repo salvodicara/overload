@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { Buffer } from 'node:buffer';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { BackupV1, BackupV2 } from '../src/lib/importer';
 import type { Workout } from '../src/lib/types';
@@ -134,6 +136,8 @@ test('Train keeps its empty-state divider clear of the explore-programs card', a
   await page.getByRole('button', { name: /delete program|elimina programma/i }).click();
   await page.getByRole('button', { name: /^(delete|elimina)$/i }).click();
 
+  await expect(page.locator('.train-empty')).toBeVisible();
+  await expect(page.locator('.train-explore')).toBeVisible();
   const gap = await page.locator('.train-empty, .train-explore').evaluateAll((elements) => {
     const [empty, explore] = elements.map((element) => element.getBoundingClientRect());
     return explore.top - empty.bottom;
@@ -4065,6 +4069,13 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   await expect(page.locator('html')).toHaveAttribute('data-settings-writes', '0');
   await protein.focus();
   await expect(page.locator('html')).toHaveAttribute('data-settings-writes', '1');
+  await target.fill('-1');
+  await protein.focus();
+  await expect(page.locator('html')).toHaveAttribute('data-settings-writes', '1');
+  await expect(page.getByRole('alert')).toContainText('Enter a target');
+  await target.fill('2500');
+  await protein.focus();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 
   await calories.fill('2100');
   await expect(page.locator('html')).toHaveAttribute('data-nutrition-writes', '0');
@@ -4081,7 +4092,7 @@ test('nutrition keeps optional targets and commits drafts on blur', async ({ pag
   await openPersonalPage(page, 'diet');
   await expect(calories).toHaveValue('0');
   await expect(page.getByText('0 of 2,500 kcal', { exact: true })).toBeVisible();
-  const recent = page.getByRole('region', { name: 'Recent days' });
+  const recent = page.getByRole('region', { name: 'Recorded days' });
   await expect(recent.getByRole('listitem')).toHaveCount(1);
 
   const prior = '2026-08-24';
@@ -4930,4 +4941,209 @@ test('finish failure explains recovery and keeps the session through reload', as
   await expect(page.locator('.setcheck').first()).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: /finish workout|termina allenamento/i }).click();
   await expect(page.getByRole('button', { name: /view workout|vedi allenamento/i })).toBeVisible();
+});
+
+test('AI program import previews real exercises and adds routines without replacing history', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  await page.getByRole('navigation').getByRole('button', { name: 'Train', exact: true }).click();
+  await page.getByRole('button', { name: 'Import plan', exact: true }).click();
+  const plan = {
+    format: 'overload-plan',
+    version: 1,
+    name: 'My AI program',
+    routines: [
+      {
+        name: 'Day A',
+        exercises: [{ exerciseId: 'Barbell_Squat', sets: 3, repMin: 6, repMax: 10, restSec: 120 }],
+      },
+    ],
+  };
+  await page.getByLabel('Paste the plan').fill(JSON.stringify(plan));
+  await page.getByRole('button', { name: 'Review plan', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'My AI program', exact: true })).toBeVisible();
+  await expect(page.locator('.plan-preview')).toContainText('Barbell Squat');
+  await expect(page.locator('.plan-preview')).toContainText('3 × 6–10');
+  await page.getByRole('button', { name: 'Add program', exact: true }).click();
+  await expect(
+    page.locator('.train-group__title').filter({ hasText: 'My AI program' }),
+  ).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Profile', exact: true }).click();
+  await expect(page.locator('.profile-recent .workout-row')).not.toHaveCount(0);
+});
+
+test('unknown AI exercise is explicitly resolved and inherited loads are visible before import', async ({
+  page,
+}) => {
+  await page.getByRole('navigation').getByRole('button', { name: 'Train', exact: true }).click();
+  await page.getByRole('button', { name: 'Import plan', exact: true }).click();
+  const plan = {
+    format: 'overload-plan',
+    version: 1,
+    name: 'Resolved program',
+    routines: [
+      {
+        name: 'Day A',
+        exercises: [
+          {
+            exerciseId: 'Unknown squat',
+            sets: 2,
+            repMin: 6,
+            repMax: 10,
+            restSec: 120,
+            startWeightKg: 40,
+            incrementKg: 2.5,
+            setTargets: [
+              { repMin: 8, repMax: 10 },
+              { repMin: 6, repMax: 8 },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  await page.getByLabel('Paste the plan').fill(JSON.stringify(plan));
+  await page.getByRole('button', { name: 'Review plan', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Unknown squat');
+  await expect(page.getByRole('button', { name: 'Add program', exact: true })).toHaveCount(0);
+  await page.getByLabel('Find the correct exercise').fill('Barbell Squat');
+  await page.getByRole('button', { name: 'Barbell Squat', exact: true }).click();
+  await expect(page.locator('.plan-preview')).toContainText('8–10 reps · 40 kg');
+  await expect(page.locator('.plan-preview')).toContainText('6–8 reps · 40 kg');
+  await expect(page.locator('.plan-preview')).toContainText('Progression increment: 2.5 kg');
+});
+
+test('forgotten seven-hour workout can be corrected to ninety minutes without changing sets', async ({
+  page,
+}) => {
+  await installCompletedWorkoutFixture(page);
+  const original = await page.evaluate(async () => {
+    const modulePath = '/src/lib/db.ts';
+    const { db } = await import(/* @vite-ignore */ modulePath);
+    const workout = await db.workouts.get('newest-detail');
+    await db.workouts.update(workout.id, {
+      durationSec: 7 * 3600,
+      endTs: workout.startTs + 7 * 3600000,
+    });
+    return workout.sets;
+  });
+  await page.reload();
+  await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
+  await page.locator('.home-recent .workout-row').first().click();
+  await page.getByRole('button', { name: 'Workout options', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit workout', exact: true }).click();
+  await expect(page.getByLabel('Duration (min)', { exact: true })).toHaveValue('420');
+  await page.getByLabel('Duration (min)', { exact: true }).fill('90');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('.workout-detail-header')).toBeVisible();
+  const saved = await page.evaluate(async () => {
+    const modulePath = '/src/lib/db.ts';
+    const { db } = await import(/* @vite-ignore */ modulePath);
+    return db.workouts.get('newest-detail');
+  });
+  expect(saved.durationSec).toBe(5400);
+  expect(saved.endTs - saved.startTs).toBe(5400000);
+  const recordedValues = (sets: Workout['sets']) =>
+    sets.map((set) => {
+      const copy = { ...set };
+      delete copy.isPr;
+      return copy;
+    });
+  expect(recordedValues(saved.sets)).toEqual(recordedValues(original));
+});
+
+test('loading a new plan locks the old source until the matching preview is ready', async ({
+  page,
+}) => {
+  await page.getByRole('navigation').getByRole('button', { name: 'Train', exact: true }).click();
+  await page.getByRole('button', { name: 'Import plan', exact: true }).click();
+  await page.getByLabel('Paste the plan').fill('{"name":"Old source"}');
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = function () {
+      return new Promise((resolve) => {
+        (window as unknown as { releasePlanFile: () => void }).releasePlanFile = () => {
+          void original.call(this).then(resolve);
+        };
+      });
+    };
+  });
+  const plan = {
+    format: 'overload-plan',
+    version: 1,
+    name: 'New file program',
+    routines: [
+      {
+        name: 'A',
+        exercises: [{ exerciseId: 'Barbell_Squat', sets: 3, repMin: 6, repMax: 10, restSec: 120 }],
+      },
+    ],
+  };
+  await page.getByLabel('Open a plan file').setInputFiles({
+    name: 'plan.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(plan)),
+  });
+  await expect(page.getByLabel('Paste the plan')).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Please wait…', exact: true })).toBeDisabled();
+  await page.evaluate(() =>
+    (window as unknown as { releasePlanFile: () => void }).releasePlanFile(),
+  );
+  await expect(page.getByRole('heading', { name: 'New file program', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Paste the plan')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Change plan', exact: true }).click();
+  await expect(page.getByLabel('Paste the plan')).toHaveValue(JSON.stringify(plan));
+});
+
+test('failed active-session storage stays visible until saving works again', async ({ page }) => {
+  await startNeutralWorkout(page);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    (window as unknown as { restoreActiveStorage: () => void }).restoreActiveStorage = () => {
+      Storage.prototype.setItem = original;
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'overload_active') throw new Error('Simulated quota error');
+      return original.call(this, key, value);
+    };
+  });
+  const load = page.getByRole('spinbutton', { name: /load|carico/i }).first();
+  await load.fill('60');
+  await expect(page.getByRole('alert')).toContainText('Keep the app open');
+  await expect(load).toHaveValue('60');
+  await page.evaluate(() =>
+    (window as unknown as { restoreActiveStorage: () => void }).restoreActiveStorage(),
+  );
+  await load.fill('65');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('spinbutton', { name: /load|carico/i }).first()).toHaveValue('65');
+});
+
+test('daily nutrients accept decimals and zero on past dates and survive reopening', async ({
+  page,
+}) => {
+  await openPersonalPage(page, 'diet');
+  await page.getByLabel('Date', { exact: true }).fill('2026-09-01');
+  const values = [
+    ['Carbohydrates (g)', '220.5'],
+    ['Fat (g)', '70.2'],
+    ['Saturated fat (g)', '12.4'],
+    ['Fibre (g)', '30.5'],
+    ['Sugars (g)', '0'],
+    ['Salt (g)', '4.2'],
+  ];
+  for (const [label, value] of values) {
+    await page.getByLabel(label, { exact: true }).fill(value);
+    await page.getByLabel(label, { exact: true }).press('Tab');
+  }
+  await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
+  await page.reload();
+  await openPersonalPage(page, 'diet');
+  await page.getByLabel('Date', { exact: true }).fill('2026-09-01');
+  for (const [label, value] of values)
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
+  await page.setViewportSize({ width: 320, height: 740 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });

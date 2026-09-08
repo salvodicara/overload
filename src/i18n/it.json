@@ -122,7 +122,8 @@
     "loggedChangeBody": "Rimuovendo o sostituendo {{name}} perderai le sue serie e la nota della sessione. Mantienilo per conservare il lavoro registrato.",
     "saveError": "Impossibile salvare l’allenamento. La sessione è ancora qui: riprova con Termina.",
     "uncheckedBody_other": "Hai modificato {{count}} serie non spuntate. Terminando salvi solo le serie spuntate. Continua per controllarle oppure termina senza includerle.",
-    "uncheckedBody_one": "Hai modificato una serie non spuntata. Terminando salvi solo le serie spuntate. Continua per controllarla oppure termina senza includerla."
+    "uncheckedBody_one": "Hai modificato una serie non spuntata. Terminando salvi solo le serie spuntate. Continua per controllarla oppure termina senza includerla.",
+    "storageError": "Non è stato possibile salvare la sessione sul dispositivo. Tieni l’app aperta e termina l’allenamento per provare a salvarlo nello storico."
   },
   "suggest": {
     "start": "Parti da {{weight}}",
@@ -134,7 +135,18 @@
   "timer": {
     "rest": "Recupero",
     "plus15": "+15\"",
-    "skip": "Salta"
+    "skip": "Salta",
+    "alertSettings": "Avvisi di recupero",
+    "sound": "Suono recupero",
+    "testSound": "Prova suono",
+    "openAppNotice": "Tieni Overload aperta per avvisi di recupero affidabili. Le notifiche possono arrivare in ritardo o mancare quando il telefono chiude o sospende l’app web.",
+    "enableNotifications": "Attiva notifiche",
+    "permission": {
+      "granted": "Notifiche attivate",
+      "denied": "Notifiche bloccate. Puoi attivarle dalle impostazioni del browser o del telefono.",
+      "default": "Le notifiche non sono ancora attivate.",
+      "unsupported": "Notifiche non disponibili qui. Su iPhone, installa Overload sulla schermata Home per abilitarle."
+    }
   },
   "summary": {
     "title": "Fatto.",
@@ -365,7 +377,8 @@
     "editAction": "Modifica",
     "restPreview": "Recupero: {{seconds}} s",
     "warmupCount": "Serie di riscaldamento: {{count}}",
-    "emptyPreview": "Aggiungi gli esercizi da Modifica per preparare questa scheda."
+    "emptyPreview": "Aggiungi gli esercizi da Modifica per preparare questa scheda.",
+    "incrementPreview": "Incremento di progressione: {{weight}}"
   },
   "editor": {
     "title": "Modifica scheda",
@@ -529,16 +542,45 @@
     "proteinTarget": "Obiettivo proteine (g)",
     "calories": "Calorie (kcal)",
     "protein": "Proteine (g)",
-    "hint": "Registra calorie e proteine quando ti è utile. Gli obiettivi sono facoltativi.",
+    "hint": "Inserisci i totali giornalieri quando vuoi. Lascia vuoti i valori non monitorati; usa 0 per nessuno. Gli obiettivi sono facoltativi.",
     "noCalorieTarget": "Nessun obiettivo calorie",
     "noProteinTarget": "Nessun obiettivo proteine",
     "currentNoTarget": "{{current}} {{unit}}, nessun obiettivo",
     "currentTarget": "{{current}} su {{target}} {{unit}}",
     "empty": "Nessun dato nutrizionale",
-    "recent": "Giorni recenti",
-    "saveError": "Impossibile salvare i dati nutrizionali. Riprova."
+    "recent": "Giorni registrati",
+    "saveError": "Impossibile salvare i dati nutrizionali. Riprova.",
+    "date": "Data",
+    "carbs": "Carboidrati (g)",
+    "fat": "Grassi (g)",
+    "saturatedFat": "Grassi saturi (g)",
+    "fiber": "Fibre (g)",
+    "sugar": "Zuccheri (g)",
+    "salt": "Sale (g)",
+    "invalid": "Inserisci un numero maggiore o uguale a 0. Lascia vuoto il campo se non monitorato.",
+    "invalidTarget": "Inserisci un obiettivo di almeno 1. Lascia il campo vuoto per rimuoverlo."
   },
   "activeBar": {
     "resume": "Riprendi"
+  },
+  "plan": {
+    "title": "Importa piano",
+    "prepare": "Prepara un piano con l’AI",
+    "instructions": "Scarica queste istruzioni e dai il file alla tua AI insieme a obiettivi, attrezzatura disponibile e giorni di allenamento. Chiedile di restituire un file piano Overload, poi caricalo qui.",
+    "download": "Scarica istruzioni per l’AI",
+    "file": "Apri un file piano",
+    "paste": "Incolla il piano",
+    "review": "Controlla piano",
+    "working": "Attendi…",
+    "confirm": "Aggiungi programma",
+    "additive": "Verrà aggiunto un nuovo programma. Le schede esistenti, lo storico e le impostazioni rimangono intatti.",
+    "imported": "Programma aggiunto",
+    "alreadyImported": "Questo programma è già nelle tue schede",
+    "unknownExercise": "Esercizio non trovato: {{exercise}}. Scegli quello corretto qui sotto.",
+    "chooseExercise": "Cerca l’esercizio corretto",
+    "invalid": "Il piano contiene un valore mancante o non valido in {{field}}. Chiedi all’AI di correggerlo seguendo le istruzioni scaricate.",
+    "readError": "Impossibile leggere il piano o caricare la libreria. Controlla la connessione e scegli un file JSON o di testo inferiore a 2 MB.",
+    "saveError": "Impossibile salvare il programma. Puoi riprovare: gli allenamenti esistenti sono al sicuro.",
+    "change": "Cambia piano"
   }
 }

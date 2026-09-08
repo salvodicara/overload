@@ -105,6 +105,41 @@ function workout(id: string, date: string, startTs: number): Workout {
   };
 }
 
+it('preserves all daily nutrients when editing another value or clearing one', async () => {
+  await login('nutrition-owner');
+  await useStore
+    .getState()
+    .saveNutritionDay('2026-09-07', { kcal: 2000, carbsG: 220.5, fatG: 0, saltG: 1.25 });
+  await useStore.getState().saveNutritionDay('2026-09-07', { proteinG: 120.5 });
+  await useStore.getState().saveNutritionDay('2026-09-07', { saltG: null });
+  expect(await db.nutrition.get('2026-09-07')).toMatchObject({
+    kcal: 2000,
+    proteinG: 120.5,
+    carbsG: 220.5,
+    fatG: 0,
+    saltG: null,
+  });
+});
+
+it.each([-1, Infinity, NaN])(
+  'rejects invalid nutrition without replacing saved values: %s',
+  async (fatG) => {
+    await login('nutrition-owner');
+    await useStore.getState().saveNutritionDay('2026-09-07', { kcal: 2000 });
+    await expect(useStore.getState().saveNutritionDay('2026-09-07', { fatG })).rejects.toThrow();
+    expect(await db.nutrition.get('2026-09-07')).toMatchObject({ kcal: 2000 });
+  },
+);
+
+it('keeps adjacent nutrition fields when blur saves overlap', async () => {
+  await login('nutrition-owner');
+  await Promise.all([
+    useStore.getState().saveNutritionDay('2026-09-07', { carbsG: 220.5 }),
+    useStore.getState().saveNutritionDay('2026-09-07', { saltG: 1.25 }),
+  ]);
+  expect(await db.nutrition.get('2026-09-07')).toMatchObject({ carbsG: 220.5, saltG: 1.25 });
+});
+
 async function login(uid: string, name: string | null = null): Promise<void> {
   storage.set('overload_uid', uid);
   useStore.getState().setUser({ uid, name });

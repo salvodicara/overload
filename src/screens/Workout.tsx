@@ -1,5 +1,14 @@
+import { activePersistenceStatus, subscribeActivePersistence } from '../lib/activePersistence';
 import '../theme/workout-surfaces.css';
-import { createRef, useEffect, useRef, useState, type FocusEvent, type RefObject } from 'react';
+import {
+  createRef,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FocusEvent,
+  type RefObject,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import {
@@ -50,6 +59,7 @@ type PendingSetRemoval = {
 
 export function Workout() {
   const { t, i18n } = useTranslation();
+  const persistence = useSyncExternalStore(subscribeActivePersistence, activePersistenceStatus);
   useCatalog();
   const { active, routines, workouts, settings } = useStore();
   const nav = useStore((s) => s.nav);
@@ -184,6 +194,11 @@ export function Workout() {
         }
       />
 
+      {persistence === 'error' && (
+        <p className="banner banner-warn" role="alert">
+          {t('workout.storageError')}
+        </p>
+      )}
       {finishError && (
         <p role="alert" className="banner banner-warn">
           {t('workout.saveError')}
