@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExportRows } from '../components/ExportRows';
 import { IconBack } from '../components/Icons';
@@ -74,6 +74,13 @@ export function ImportExport() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const fileRequestRef = useRef(0);
 
   async function onFile(file: File): Promise<void> {
@@ -122,6 +129,7 @@ export function ImportExport() {
     if (!preview || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    const actionRoute = useStore.getState().route;
     let stale = false;
     const completeBackup = preview.backup !== null;
     try {
@@ -131,6 +139,7 @@ export function ImportExport() {
         importWorkouts,
         importNotes,
         onSuccess: (freshCount) => {
+          if (!mounted.current || useStore.getState().route !== actionRoute) return;
           setPreview(null);
           toast(completeBackup ? t('import.backupDone') : t('import.done', { count: freshCount }));
           nav({ view: 'home' });
@@ -141,6 +150,7 @@ export function ImportExport() {
         return;
       }
     } catch (error) {
+      if (!mounted.current || useStore.getState().route !== actionRoute) return;
       toast(
         t(
           error instanceof BackupCloudSyncError

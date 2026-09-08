@@ -79,7 +79,7 @@ describe('toCsv', () => {
   const lines = csv.split('\n');
 
   it('starts with the fixed header', () => {
-    expect(lines[0]).toBe('date,day,exercise,weight_kg,reps');
+    expect(lines[0]).toBe('date,day,exercise,weight_kg,reps,tracking,duration_sec,set_kind');
   });
 
   it('emits one row per done set', () => {
@@ -87,15 +87,19 @@ describe('toCsv', () => {
   });
 
   it('writes date, day, exercise name, weight and reps', () => {
-    expect(lines[1]).toBe('2026-06-01,A,Squat,60,5');
+    expect(lines[1]).toBe('2026-06-01,A,Squat,60,5,weight_reps,,working');
   });
 
   it('quotes values containing commas or quotes', () => {
-    expect(lines[2]).toBe('2026-06-01,A,"Panca Piana, manubri",40,8');
-    expect(lines[3]).toBe('2026-06-08,"B, ""pesante""","Panca Piana, manubri",42.5,6');
+    expect(lines[2]).toBe('2026-06-01,A,"Panca Piana, manubri",40,8,weight_reps,,working');
+    expect(lines[3]).toBe(
+      '2026-06-08,"B, ""pesante""","Panca Piana, manubri",42.5,6,weight_reps,,working',
+    );
   });
 
   it('emits only the header when there is nothing done', () => {
-    expect(toCsv([], exerciseName)).toBe('date,day,exercise,weight_kg,reps');
+    expect(toCsv([], exerciseName)).toBe(
+      'date,day,exercise,weight_kg,reps,tracking,duration_sec,set_kind',
+    );
   });
 });

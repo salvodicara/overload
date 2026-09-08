@@ -1,5 +1,5 @@
 import '../theme/workout-surfaces.css';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
 import { IconBack, IconMore } from '../components/Icons';
@@ -8,7 +8,7 @@ import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { kindOf, trackingOf, type SetLog, type Workout } from '../lib/types';
 import { displayVolume, formatWeight, weightLabel } from '../lib/units';
-import { continueAccountAction, useStore } from '../state/useStore';
+import { isAccountActionCurrent, useStore, type AccountActionResult } from '../state/useStore';
 
 function fmtDate(iso: string, locale: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString(locale === 'it' ? 'it-IT' : 'en-GB', {
@@ -56,12 +56,60 @@ export function WorkoutDetail({ id }: { id: string }) {
   const [confirming, setConfirming] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [routineName, setRoutineName] = useState('');
+  const [pending, setPending] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  async function runAction(action: () => Promise<AccountActionResult<unknown>>, done?: () => void) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setPending(true);
+    setActionError('');
+    const route = useStore.getState().route;
+    const current = () => mountedRef.current && useStore.getState().route === route;
+    try {
+      const result = await action();
+      if (current() && isAccountActionCurrent(result)) done?.();
+    } catch {
+      if (current()) setActionError(t('train.actionError'));
+    } finally {
+      busyRef.current = false;
+      if (mountedRef.current) setPending(false);
+    }
+  }
+  const feedback = (
+    <>
+      {pending && <p role="status">{t('train.working')}</p>}
+      {actionError && (
+        <p role="alert" className="form-error">
+          {actionError}
+        </p>
+      )}
+    </>
+  );
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
 
   const workout = workouts.find((candidate) => candidate.id === id);
   if (!workout) {
-    nav({ view: 'home' });
-    return null;
+    return (
+      <div className="screen page">
+        <PageHeader
+          title={t('history.title')}
+          back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
+        />
+        <p role="status">{t('history.workoutMissing')}</p>
+        {feedback}
+        <button className="btn btn-ghost btn-block" onClick={() => nav({ view: 'home' })}>
+          {t('nav.home')}
+        </button>
+      </div>
+    );
   }
   void catalogReady; // re-render exercise names once the catalog resolves
 
@@ -133,6 +181,7 @@ export function WorkoutDetail({ id }: { id: string }) {
             className="iconbtn"
             aria-label={t('history.workoutOptions')}
             onClick={() => {
+              setActionError('');
               setRoutineName(workout.dayLabel ?? t('nav.workout'));
               setOptionsOpen(true);
             }}
@@ -205,8 +254,16 @@ export function WorkoutDetail({ id }: { id: string }) {
       )}
 
       {optionsOpen && (
-        <BottomSheet open title={t('history.workoutOptions')} onClose={() => setOptionsOpen(false)}>
+        <BottomSheet
+          open
+          title={t('history.workoutOptions')}
+          onClose={() => {
+            if (!busyRef.current) setOptionsOpen(false);
+          }}
+        >
+          {feedback}
           <button
+            disabled={pending}
             className="btn btn-solid btn-block"
             onClick={() => nav({ view: 'workoutEditor', id: workout.id })}
           >
@@ -214,9 +271,10 @@ export function WorkoutDetail({ id }: { id: string }) {
           </button>
           <button
             className="btn btn-ghost btn-block"
+            disabled={pending}
             onClick={() => {
               if (useStore.getState().active) nav({ view: 'workout' });
-              else void repeatWorkout(workout.id);
+              else void runAction(() => repeatWorkout(workout.id));
             }}
           >
             {t(active ? 'history.resumeCurrentWorkout' : 'history.repeatWorkout')}
@@ -228,15 +286,17 @@ export function WorkoutDetail({ id }: { id: string }) {
           <div className="row">
             <input
               id="save-workout-routine"
+              disabled={pending}
               value={routineName}
               onChange={(event) => setRoutineName(event.target.value)}
             />
             <button
               className="btn btn-ghost"
-              disabled={!routineName.trim()}
+              disabled={pending || !routineName.trim()}
               onClick={() =>
-                void continueAccountAction(saveWorkoutAsRoutine(workout.id, routineName), () =>
-                  setOptionsOpen(false),
+                void runAction(
+                  () => saveWorkoutAsRoutine(workout.id, routineName),
+                  () => setOptionsOpen(false),
                 )
               }
             >
@@ -245,6 +305,7 @@ export function WorkoutDetail({ id }: { id: string }) {
           </div>
           <button
             className="btn btn-danger btn-block"
+            disabled={pending}
             onClick={() => {
               setOptionsOpen(false);
               setConfirming(true);
@@ -260,19 +321,27 @@ export function WorkoutDetail({ id }: { id: string }) {
           open
           title={t('history.delete')}
           initialFocusRef={cancelDeleteRef}
-          onClose={() => setConfirming(false)}
+          onClose={() => {
+            if (!busyRef.current) setConfirming(false);
+          }}
         >
+          {feedback}
           <span className="muted small">{t('history.deleteBody')}</span>
           <button
             className="btn btn-danger btn-block"
+            disabled={pending}
             onClick={() => {
-              void continueAccountAction(deleteWorkout(workout.id), () => history.back());
+              void runAction(
+                () => deleteWorkout(workout.id),
+                () => history.back(),
+              );
             }}
           >
             {t('history.deleteConfirm')}
           </button>
           <button
             ref={cancelDeleteRef}
+            disabled={pending}
             className="btn btn-ghost btn-block"
             onClick={() => setConfirming(false)}
           >

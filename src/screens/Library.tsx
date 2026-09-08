@@ -35,8 +35,8 @@ export async function createCustomExerciseFlow(
     pickFor?: { routineId: string } | { activeWorkout: true; replaceInstanceId?: string };
   },
   actions: Pick<Store, 'createCustomExercise' | 'addExerciseToRoutine' | 'nav'> & {
-    addWorkoutExercise?(exerciseId: string): void;
-    replaceWorkoutExercise?(instanceId: string, exerciseId: string): void;
+    addWorkoutExercise?(exerciseId: string, tracking?: TrackingType): void;
+    replaceWorkoutExercise?(instanceId: string, exerciseId: string, tracking?: TrackingType): void;
     close(): void;
     isUiCurrent(): boolean;
   },
@@ -50,8 +50,8 @@ export async function createCustomExerciseFlow(
   if (input.pickFor) {
     if ('activeWorkout' in input.pickFor) {
       if (input.pickFor.replaceInstanceId)
-        actions.replaceWorkoutExercise?.(input.pickFor.replaceInstanceId, id);
-      else actions.addWorkoutExercise?.(id);
+        actions.replaceWorkoutExercise?.(input.pickFor.replaceInstanceId, id, input.tracking);
+      else actions.addWorkoutExercise?.(id, input.tracking);
       actions.close();
       return created;
     }

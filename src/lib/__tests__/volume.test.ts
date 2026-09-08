@@ -126,3 +126,25 @@ describe('flagPrs', () => {
     expect(flagPrs(warmup, history, '2026-06-08')[0].isPr).toBeUndefined();
   });
 });
+
+it('uses earlier sessions on the same day when flagging a newly finished workout', () => {
+  const history: Workout[] = [
+    {
+      id: 'morning',
+      date: '2026-09-08',
+      startTs: 100,
+      updatedAt: 1,
+      source: 'app',
+      volumeKg: 100,
+      sets: [{ exerciseId: 'squat', weightKg: 50, reps: 2, done: true }],
+    },
+  ];
+  expect(
+    flagPrs(
+      [{ exerciseId: 'squat', weightKg: 55, reps: 2, done: true }],
+      history,
+      '2026-09-08',
+      200,
+    )[0].isPr,
+  ).toBe(true);
+});

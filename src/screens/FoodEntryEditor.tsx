@@ -132,7 +132,12 @@ export function FoodEntryEditor({
       (saved &&
         (!Number.isFinite(multiplier) ||
           multiplier <= 0 ||
-          saved.entries.some((entry) => entry.quantity * multiplier > 100000)))
+          saved.entries.some(
+            (entry) =>
+              !Number.isFinite(entry.quantity * multiplier) ||
+              entry.quantity * multiplier <= 0 ||
+              entry.quantity * multiplier > 100000,
+          )))
     ) {
       setError(t('food.quantityError'));
       return;
@@ -268,7 +273,12 @@ export function FoodEntryEditor({
   const validPortions =
     Number.isFinite(Number(portions)) &&
     Number(portions) > 0 &&
-    saved?.entries.every((entry) => entry.quantity * Number(portions) <= 100000);
+    saved?.entries.every(
+      (entry) =>
+        Number.isFinite(entry.quantity * Number(portions)) &&
+        entry.quantity * Number(portions) > 0 &&
+        entry.quantity * Number(portions) <= 100000,
+    );
   const savedSummary = saved
     ? summarizeEntries(
         saved.entries.map((entry) => ({
@@ -301,65 +311,71 @@ export function FoodEntryEditor({
               void save();
             }}
           >
-            <label className="field">
-              <span>{t('food.meal')}</span>
-              <select
-                value={group}
-                onChange={(event) => setGroup(event.target.value as FoodEntry['meal'])}
-              >
-                {MEALS.map((item) => (
-                  <option key={item} value={item}>
-                    {t('food.meals.' + item)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span>
-                {picked ? t('food.quantity', { unit: picked.basis }) : t('food.portions')}
-              </span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0.001"
-                max={
-                  picked
-                    ? 100000
-                    : Math.min(...saved!.entries.map((entry) => 100000 / entry.quantity))
-                }
-                step="any"
-                required
-                value={picked ? quantity : portions}
-                onChange={(event) =>
-                  picked ? setQuantity(event.target.value) : setPortions(event.target.value)
-                }
-              />
-            </label>
-            {saved && (
-              <ul>
-                {saved.entries.map((entry) => (
-                  <li key={entry.id}>
-                    {foodName(entry.food, i18n.language)} · {entry.quantity} {entry.food.basis}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <FoodNutrients totals={picked ? currentTotals : savedSummary!.totals} compact />
-            <details>
-              <summary>{t('food.allNutrients')}</summary>
+            <fieldset disabled={busy} className="food-picker">
+              <label className="field">
+                <span>{t('food.meal')}</span>
+                <select
+                  value={group}
+                  onChange={(event) => setGroup(event.target.value as FoodEntry['meal'])}
+                >
+                  {MEALS.map((item) => (
+                    <option key={item} value={item}>
+                      {t('food.meals.' + item)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>
+                  {picked ? t('food.quantity', { unit: picked.basis }) : t('food.portions')}
+                </span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.001"
+                  max={
+                    picked
+                      ? 100000
+                      : Math.min(...saved!.entries.map((entry) => 100000 / entry.quantity))
+                  }
+                  step="any"
+                  required
+                  value={picked ? quantity : portions}
+                  onChange={(event) =>
+                    picked ? setQuantity(event.target.value) : setPortions(event.target.value)
+                  }
+                />
+              </label>
+              {saved && (
+                <ul>
+                  {saved.entries.map((entry) => (
+                    <li key={entry.id}>
+                      {foodName(entry.food, i18n.language)} · {entry.quantity} {entry.food.basis}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <FoodNutrients
                 totals={picked ? currentTotals : savedSummary!.totals}
-                incomplete={picked ? [] : savedSummary!.incomplete}
+                incomplete={savedSummary?.incomplete}
+                compact
               />
-            </details>
-            {error && (
-              <p role="alert" className="form-feedback form-feedback--error">
-                {error}
-              </p>
-            )}
-            <button className="btn btn-accent food-save" disabled={busy}>
-              {busy ? t('food.working') : t(entryId ? 'common.save' : 'food.addToDiary')}
-            </button>
+              <details>
+                <summary>{t('food.allNutrients')}</summary>
+                <FoodNutrients
+                  totals={picked ? currentTotals : savedSummary!.totals}
+                  incomplete={picked ? [] : savedSummary!.incomplete}
+                />
+              </details>
+              {error && (
+                <p role="alert" className="form-feedback form-feedback--error">
+                  {error}
+                </p>
+              )}
+              <button className="btn btn-accent food-save" disabled={busy}>
+                {busy ? t('food.working') : t(entryId ? 'common.save' : 'food.addToDiary')}
+              </button>
+            </fieldset>
           </form>
           {!entryId && (
             <button
@@ -421,6 +437,7 @@ export function FoodEntryEditor({
                   inputMode="decimal"
                   min="0"
                   step="any"
+                  max={1e9}
                   value={values[key] ?? ''}
                   onChange={(event) =>
                     setValues((current) => ({ ...current, [key]: event.target.value }))
@@ -442,6 +459,7 @@ export function FoodEntryEditor({
                     inputMode="decimal"
                     min="0"
                     step="any"
+                    max={1e9}
                     value={values[key] ?? ''}
                     onChange={(event) =>
                       setValues((current) => ({ ...current, [key]: event.target.value }))
@@ -547,6 +565,7 @@ export function FoodEntryEditor({
                 <div key={item.id} className="stack" style={{ gap: 4 }}>
                   <button
                     className="food-result"
+                    disabled={!item.entries.length}
                     onClick={() => {
                       setSaved(item);
                       setPortions('1');

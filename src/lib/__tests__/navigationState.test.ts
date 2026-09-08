@@ -95,3 +95,22 @@ describe('navigation entry state', () => {
     });
   });
 });
+
+it('clears filters and scroll when navigation changes account owner', async () => {
+  const { bindNavigationOwner, isNavigationOwnerCurrent } = await import('../navigationState');
+  const fake = {
+    state: null as unknown,
+    replaceState(state: unknown) {
+      this.state = state;
+    },
+  };
+  vi.stubGlobal('history', fake);
+  bindNavigationOwner('first', true);
+  replaceSurfaceState('history', { routineId: 'private-routine' });
+  writeEntryScroll('history', 900);
+  const first = history.state;
+  bindNavigationOwner('second', true);
+  expect(surfaceStateFor('history')).toEqual({});
+  expect(readEntryScroll('history')).toBe(0);
+  expect(isNavigationOwnerCurrent(first)).toBe(false);
+});

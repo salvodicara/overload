@@ -18,11 +18,14 @@ import type { Folder, Routine } from '../lib/types';
 
 export async function installTemplatePack(
   pack: (typeof TEMPLATES)[number],
-  actions: Pick<Store, 'saveFolder' | 'saveRoutine'>,
+  actions: Pick<Store, 'saveFolder' | 'saveRoutine'> & Partial<Pick<Store, 'folders' | 'routines'>>,
 ): Promise<AccountActionResult> {
-  let result = await actions.saveFolder(structuredClone(pack.folder));
+  let result = await actions.saveFolder(
+    structuredClone(actions.folders?.find((folder) => folder.id === pack.folder.id) ?? pack.folder),
+  );
   if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
   for (const routine of pack.routines) {
+    if (actions.routines?.some((existing) => existing.id === routine.id)) continue;
     result = await actions.saveRoutine(structuredClone(routine));
     if (!isAccountActionCurrent(result)) return STALE_ACCOUNT_ACTION;
   }
@@ -196,7 +199,7 @@ export function Train() {
 
   async function addTemplate(pack: (typeof TEMPLATES)[number]): Promise<void> {
     await runSheetAction(
-      () => installTemplatePack(pack, { saveFolder, saveRoutine }),
+      () => installTemplatePack(pack, useStore.getState()),
       () => setOpenProgramId(pack.folder.id),
     );
   }

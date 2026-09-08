@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName, searchExercises } from '../lib/exercises';
 import { formatPreviousSet, previousSets } from '../lib/format';
-import { kindOf, trackingOf, type SetLog } from '../lib/types';
+import { kindOf, trackingOf, type SetLog, type TrackingType } from '../lib/types';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import {
   draftFromWorkout,
@@ -18,6 +18,23 @@ import {
   type WorkoutDraft,
 } from '../lib/workoutEditing';
 import { isAccountActionCurrent, useStore } from '../state/useStore';
+
+export function newWorkoutEditorSet(
+  exerciseId: string,
+  tracking: TrackingType,
+  exerciseInstanceId: string,
+): SetLog {
+  return {
+    exerciseId,
+    exerciseInstanceId,
+    tracking,
+    kind: 'working',
+    done: true,
+    weightKg: 0,
+    reps: tracking === 'duration' ? 0 : 8,
+    ...(tracking === 'duration' ? { durationSec: 30 } : {}),
+  };
+}
 
 type DraftGroup = { key: string; exerciseId: string; sets: { set: SetLog; index: number }[] };
 
@@ -46,6 +63,7 @@ export function WorkoutEditor({ id }: { id: string }) {
     workout ? draftFromWorkout(workout) : null,
   );
   const [adding, setAdding] = useState(false);
+  const [newTracking, setNewTracking] = useState<TrackingType>('weight_reps');
   const [exerciseOptions, setExerciseOptions] = useState<DraftGroup | null>(null);
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
@@ -216,6 +234,8 @@ export function WorkoutEditor({ id }: { id: string }) {
               earlierWorkouts,
               group.exerciseId,
               workout.routineId,
+              group.sets[0]?.set.exerciseInstanceId,
+              tracking,
             );
             let workingIndex = 0;
             return (
@@ -393,6 +413,17 @@ export function WorkoutEditor({ id }: { id: string }) {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+            <label className="field">
+              <span>{t('library.trackingForRoutine')}</span>
+              <select
+                value={newTracking}
+                onChange={(event) => setNewTracking(event.target.value as TrackingType)}
+              >
+                <option value="weight_reps">{t('editor.trackingWeightReps')}</option>
+                <option value="reps">{t('editor.trackingReps')}</option>
+                <option value="duration">{t('editor.trackingDuration')}</option>
+              </select>
+            </label>
             <div className="workout-editor-picker">
               {choices.map((exercise) => (
                 <button
@@ -404,15 +435,7 @@ export function WorkoutEditor({ id }: { id: string }) {
                       exerciseOrder: [...draft.exerciseOrder, instance],
                       sets: [
                         ...draft.sets,
-                        {
-                          exerciseId: exercise.id,
-                          exerciseInstanceId: instance,
-                          weightKg: 0,
-                          reps: 8,
-                          done: true,
-                          tracking: 'weight_reps',
-                          kind: 'working',
-                        },
+                        newWorkoutEditorSet(exercise.id, newTracking, instance),
                       ],
                     });
                     setAdding(false);

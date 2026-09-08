@@ -78,6 +78,7 @@ function deferred<T>() {
     resolve = done;
     reject = fail;
   });
+  void promise.catch(() => {});
   return {
     promise,
     resolve(value: T) {
@@ -545,7 +546,7 @@ describe('account transitions', () => {
     const reloadRead = deferred<Routine[]>();
     const putSpy = vi
       .spyOn(db.routines, 'put')
-      .mockReturnValueOnce(failedWrite.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(failedWrite.promise) as PromiseExtended<string>);
     const readSpy = vi
       .spyOn(db.routines, 'toArray')
       .mockReturnValueOnce(rollbackRead.promise as PromiseExtended<Routine[]>)
@@ -604,7 +605,7 @@ describe('account transitions', () => {
     const write = deferred<string>();
     const putSpy = vi
       .spyOn(db.routines, 'put')
-      .mockReturnValueOnce(write.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(write.promise) as PromiseExtended<string>);
     const clearSpy = vi.spyOn(db.routines, 'clear');
 
     const save = useStore.getState().saveRoutine({
@@ -643,7 +644,7 @@ describe('account transitions', () => {
     const write = deferred<string>();
     const putSpy = vi
       .spyOn(db.routines, 'put')
-      .mockReturnValueOnce(write.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(write.promise) as PromiseExtended<string>);
 
     const first = useStore.getState().saveRoutine({ ...base, warmup: 'Persist me' });
     let second: RoutineSave | undefined;
@@ -681,7 +682,9 @@ describe('account transitions', () => {
     const base: Routine = { id: 'routine-a', name: 'Original', exercises: [], updatedAt: 1 };
     useStore.setState({ routines: [base] });
     const write = deferred<string>();
-    vi.spyOn(db.routines, 'put').mockReturnValueOnce(write.promise as PromiseExtended<string>);
+    vi.spyOn(db.routines, 'put').mockImplementationOnce(
+      () => Dexie.waitFor(write.promise) as PromiseExtended<string>,
+    );
 
     const first = useStore.getState().saveRoutine({ ...base, warmup: 'Persist me' });
     let second: RoutineSave | undefined;
@@ -722,8 +725,8 @@ describe('account transitions', () => {
     const secondWrite = deferred<string>();
     const putSpy = vi
       .spyOn(db.routines, 'put')
-      .mockReturnValueOnce(firstWrite.promise as PromiseExtended<string>)
-      .mockReturnValueOnce(secondWrite.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(firstWrite.promise) as PromiseExtended<string>)
+      .mockImplementationOnce(() => Dexie.waitFor(secondWrite.promise) as PromiseExtended<string>);
     let first: RoutineSave | undefined;
     let second: RoutineSave | undefined;
     try {
@@ -768,9 +771,12 @@ describe('account transitions', () => {
     const putSpy = vi
       .spyOn(db.routines, 'put')
       .mockImplementationOnce(
-        (routine) => firstWrite.promise.then(() => originalPut(routine)) as PromiseExtended<string>,
+        (routine) =>
+          Dexie.waitFor(firstWrite.promise).then(() =>
+            originalPut(routine),
+          ) as PromiseExtended<string>,
       )
-      .mockReturnValueOnce(secondWrite.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(secondWrite.promise) as PromiseExtended<string>);
     let first: RoutineSave | undefined;
     let second: RoutineSave | undefined;
     try {
@@ -804,7 +810,9 @@ describe('account transitions', () => {
   it('does not restore an optimistic old-account routine after an account switch', async () => {
     await login('account-a');
     const write = deferred<string>();
-    vi.spyOn(db.routines, 'put').mockReturnValueOnce(write.promise as PromiseExtended<string>);
+    vi.spyOn(db.routines, 'put').mockImplementationOnce(
+      () => Dexie.waitFor(write.promise) as PromiseExtended<string>,
+    );
 
     const save = useStore.getState().saveRoutine({
       id: 'routine-a',
@@ -856,7 +864,7 @@ describe('account transitions', () => {
     const write = deferred<string>();
     const putSpy = vi
       .spyOn(db.workouts, 'put')
-      .mockReturnValueOnce(write.promise as PromiseExtended<string>);
+      .mockImplementationOnce(() => Dexie.waitFor(write.promise) as PromiseExtended<string>);
     const clearSpy = vi.spyOn(db.workouts, 'clear');
 
     const finish = useStore.getState().finishWorkout();
@@ -1103,7 +1111,7 @@ describe('backup restore store action', () => {
 
     await useStore.getState().restoreBackup(backup);
 
-    expect(pushRecordStrictMock).toHaveBeenCalledWith('u1', 'notes', existing);
+    expect(pushRecordStrictMock).toHaveBeenCalledWith('u1', 'notes', existing, true);
     expect(useStore.getState().routines[0].exercises[0].note).toBe('Restored technique');
   });
 

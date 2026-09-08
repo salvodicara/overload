@@ -24,7 +24,8 @@
     "loading": "Accesso in corso…",
     "error": "Accesso non riuscito. Controlla la connessione e riprova.",
     "dataError": "Non è stato possibile aprire i dati in sicurezza. Chiudi l'app e riprova.",
-    "reset": "Ricarica l'accesso"
+    "reset": "Ricarica l'accesso",
+    "resetError": "Impossibile ricaricare l’accesso. Riprova o ricarica la pagina."
   },
   "home": {
     "start": "Inizia",
@@ -125,7 +126,8 @@
     "saveError": "Impossibile salvare l’allenamento. La sessione è ancora qui: riprova con Termina.",
     "uncheckedBody_other": "Hai modificato {{count}} serie non spuntate. Terminando salvi solo le serie spuntate. Continua per controllarle oppure termina senza includerle.",
     "uncheckedBody_one": "Hai modificato una serie non spuntata. Terminando salvi solo le serie spuntate. Continua per controllarla oppure termina senza includerla.",
-    "storageError": "Non è stato possibile salvare la sessione sul dispositivo. Tieni l’app aperta e termina l’allenamento per provare a salvarlo nello storico."
+    "storageError": "Non è stato possibile salvare la sessione sul dispositivo. Tieni l’app aperta e termina l’allenamento per provare a salvarlo nello storico.",
+    "invalidSet": "Inserisci un carico non negativo e ripetizioni intere, oppure una durata maggiore di zero."
   },
   "suggest": {
     "start": "Parti da {{weight}}",
@@ -168,7 +170,8 @@
     "reviewChanges": "Controlla cosa cambierà nella scheda per i prossimi allenamenti.",
     "before": "Prima",
     "after": "Dopo",
-    "removed": "Esercizio rimosso"
+    "removed": "Esercizio rimosso",
+    "routineChanged": "La scheda è cambiata dopo questo allenamento. Mantieni le modifiche solo qui, poi modifica la scheda attuale per non sovrascriverle."
   },
   "history": {
     "title": "Storico",
@@ -227,7 +230,8 @@
     "monthScope": "Allenamenti di {{month}}",
     "dayScope": "Allenamenti del {{date}}",
     "resumeCurrentWorkout": "Riprendi allenamento in corso",
-    "activeWorkoutHint": "Hai già un allenamento in corso. Riprendilo prima di ripetere questo allenamento."
+    "activeWorkoutHint": "Hai già un allenamento in corso. Riprendilo prima di ripetere questo allenamento.",
+    "workoutMissing": "Questo allenamento non è più disponibile."
   },
   "progress": {
     "title": "Progressi",
@@ -338,7 +342,8 @@
       "offline": "Offline",
       "error": "Errore di sincronizzazione"
     },
-    "preferences": "Preferenze"
+    "preferences": "Preferenze",
+    "actionError": "Impossibile completare questa azione. Riprova."
   },
   "import": {
     "title": "Importa dati",
@@ -469,7 +474,9 @@
     "saving": "Salvataggio…",
     "error": "Impossibile salvare le modifiche",
     "retrySave": "Riprova",
-    "done": "Fine"
+    "done": "Fine",
+    "invalid": "Non salvato: controlla i valori",
+    "invalidDraft": "Non salvato. Usa 1–100 serie intere, ripetizioni/secondi interi positivi, un massimo almeno uguale al minimo e carichi non negativi. Ritrovi la bozza tornando qui."
   },
   "train": {
     "explorePrograms": "Esplora programmi",
@@ -575,8 +582,10 @@
     "fiber": "Fibre (g)",
     "sugar": "Zuccheri (g)",
     "salt": "Sale (g)",
-    "invalid": "Inserisci un numero maggiore o uguale a 0. Lascia vuoto il campo se non monitorato.",
-    "invalidTarget": "Inserisci un obiettivo di almeno 1. Lascia il campo vuoto per rimuoverlo."
+    "invalid": "Inserisci un numero da 0 a 1.000.000.000. Lascia vuoto il campo se non monitorato.",
+    "invalidTarget": "Inserisci un obiettivo da 1 a 1.000.000.000. Lascia il campo vuoto per rimuoverlo.",
+    "saving": "Salvataggio…",
+    "unsaved": "Modifiche non salvate — esci dal campo per salvarle."
   },
   "activeBar": {
     "resume": "Riprendi"

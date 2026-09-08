@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
@@ -12,13 +13,24 @@ export function Summary({ workoutId }: { workoutId: string }) {
   useCatalog();
   const { settings, workouts, routines } = useStore();
   const nav = useStore((s) => s.nav);
-  const pending = useStore((s) => s.pendingRoutineChanges);
+  const candidate = useStore((s) => s.pendingRoutineChanges);
+  const pending = candidate?.workoutId === workoutId ? candidate : null;
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState('');
+  const applyingRef = useRef(false);
   const applyRoutineChanges = useStore((s) => s.applyRoutineChanges);
   const dismissRoutineChanges = useStore((s) => s.dismissRoutineChanges);
   const w = workouts.find((x) => x.id === workoutId);
   if (!w) {
-    nav({ view: 'home' });
-    return null;
+    return (
+      <div className="screen page">
+        <h1 className="display">{t('summary.title')}</h1>
+        <p role="status">{t('history.workoutMissing')}</p>
+        <button className="btn btn-solid btn-block" onClick={() => nav({ view: 'home' })}>
+          {t('summary.home')}
+        </button>
+      </div>
+    );
   }
   const prev = workouts
     .filter(
@@ -141,15 +153,44 @@ export function Summary({ workoutId }: { workoutId: string }) {
               </p>
             </div>
           ))}
+          {applyError && (
+            <p className="form-error" role="alert">
+              {t(applyError)}
+            </p>
+          )}
+          {applying && <p role="status">{t('train.working')}</p>}
           <div className="row">
             <button
               className="btn btn-accent"
               style={{ flex: 1 }}
-              onClick={() => void applyRoutineChanges()}
+              disabled={applying}
+              onClick={async () => {
+                if (applyingRef.current) return;
+                applyingRef.current = true;
+                setApplying(true);
+                setApplyError('');
+                try {
+                  await applyRoutineChanges();
+                } catch (error) {
+                  setApplyError(
+                    error instanceof Error && error.message === 'summary.routineChanged'
+                      ? 'summary.routineChanged'
+                      : 'train.actionError',
+                  );
+                } finally {
+                  applyingRef.current = false;
+                  setApplying(false);
+                }
+              }}
             >
               {t('summary.updateRoutineYes')}
             </button>
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={dismissRoutineChanges}>
+            <button
+              className="btn btn-ghost"
+              style={{ flex: 1 }}
+              disabled={applying}
+              onClick={dismissRoutineChanges}
+            >
               {t('summary.updateRoutineNo')}
             </button>
           </div>

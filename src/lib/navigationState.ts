@@ -40,10 +40,28 @@ export type SurfaceView = keyof SurfaceStateMap;
 export type HistoryEnvelope = {
   route: Route;
   entryKey: string;
+  owner?: string;
   surfaces?: Partial<SurfaceStateMap>;
 };
 
 const entryScroll = new Map<string, number>();
+let navigationOwner: string | undefined;
+
+export function isNavigationOwnerCurrent(state: unknown): boolean {
+  return !navigationOwner || objectOrEmpty(state).owner === navigationOwner;
+}
+
+export function bindNavigationOwner(uid: string, reset: boolean): void {
+  navigationOwner = uid;
+  if (reset) entryScroll.clear();
+  if (typeof history === 'undefined') return;
+  const current = currentState();
+  const next =
+    reset || (current.owner !== undefined && current.owner !== uid)
+      ? newHistoryEnvelope({ view: 'home' })
+      : { ...current, owner: uid };
+  history.replaceState(next, '');
+}
 
 function objectOrEmpty(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -71,6 +89,7 @@ export function newHistoryEnvelope(
   return {
     route,
     entryKey: createEntryKey(),
+    ...(navigationOwner ? { owner: navigationOwner } : {}),
     ...(surfaces && Object.keys(surfaces).length > 0 ? { surfaces } : {}),
   };
 }
@@ -78,6 +97,7 @@ export function newHistoryEnvelope(
 export function ensureHistoryEnvelope(route: Route, state: unknown): HistoryEnvelope {
   const current = objectOrEmpty(state);
   if (
+    isNavigationOwnerCurrent(current) &&
     current.route &&
     typeof current.entryKey === 'string' &&
     (current.route as Route).view === route.view
@@ -86,6 +106,7 @@ export function ensureHistoryEnvelope(route: Route, state: unknown): HistoryEnve
     return {
       route,
       entryKey: current.entryKey,
+      ...(typeof current.owner === 'string' ? { owner: current.owner } : {}),
       ...(Object.keys(surfaces).length > 0 ? { surfaces } : {}),
     };
   }
@@ -94,11 +115,13 @@ export function ensureHistoryEnvelope(route: Route, state: unknown): HistoryEnve
 
 export function readHistoryEnvelope(): HistoryEnvelope | null {
   const state = currentState();
-  if (!state.route || typeof state.entryKey !== 'string') return null;
+  if (!isNavigationOwnerCurrent(state) || !state.route || typeof state.entryKey !== 'string')
+    return null;
   const surfaces = objectOrEmpty(state.surfaces) as Partial<SurfaceStateMap>;
   return {
     route: state.route as Route,
     entryKey: state.entryKey,
+    ...(typeof state.owner === 'string' ? { owner: state.owner } : {}),
     ...(Object.keys(surfaces).length > 0 ? { surfaces } : {}),
   };
 }
@@ -114,7 +137,8 @@ export function replaceSurfaceState<K extends SurfaceView>(
 }
 
 export function surfaceStateFor<K extends SurfaceView>(view: K): SurfaceStateMap[K] {
-  const surfaces = objectOrEmpty(currentState().surfaces);
+  const state = currentState();
+  const surfaces = isNavigationOwnerCurrent(state) ? objectOrEmpty(state.surfaces) : {};
   return objectOrEmpty(surfaces[view]) as SurfaceStateMap[K];
 }
 

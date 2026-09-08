@@ -65,12 +65,34 @@ export function previousSets(
   workouts: Workout[],
   exerciseId: string,
   routineId?: string,
+  occurrenceId?: string,
+  tracking?: TrackingType,
 ): SetLog[] {
-  return (
-    previousWorkout(workouts, exerciseId, routineId)?.sets.filter(
-      (s) => s.exerciseId === exerciseId && s.done && kindOf(s.kind) === 'working',
-    ) ?? []
+  const candidates = workouts
+    .map((workout) => {
+      let sets = workout.sets.filter(
+        (set) =>
+          set.exerciseId === exerciseId &&
+          set.done &&
+          kindOf(set.kind) === 'working' &&
+          (!tracking || trackingOf(set.tracking) === tracking),
+      );
+      if (
+        occurrenceId &&
+        workout.routineId === routineId &&
+        sets.some((set) => set.exerciseInstanceId)
+      )
+        sets = sets.filter((set) => set.exerciseInstanceId === occurrenceId);
+      return { workout, sets };
+    })
+    .filter((item) => item.sets.length > 0);
+  const preferred = routineId
+    ? candidates.filter((item) => item.workout.routineId === routineId)
+    : [];
+  const ordered = (preferred.length ? preferred : candidates).sort(
+    (a, b) => b.workout.date.localeCompare(a.workout.date) || b.workout.startTs - a.workout.startTs,
   );
+  return ordered[0]?.sets ?? [];
 }
 
 export function formatPreviousSet(

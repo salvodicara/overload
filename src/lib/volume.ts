@@ -16,14 +16,20 @@ export function maxWeightBefore(
   history: Workout[],
   exerciseId: string,
   beforeDate: string,
+  beforeStartTs?: number,
 ): number {
   let max = 0;
   for (const w of history) {
-    if (w.date >= beforeDate) continue;
+    if (
+      w.date > beforeDate ||
+      (w.date === beforeDate && (beforeStartTs === undefined || w.startTs >= beforeStartTs))
+    )
+      continue;
     for (const s of w.sets) {
       if (
         s.done &&
         kindOf(s.kind) === 'working' &&
+        trackingOf(s.tracking) === 'weight_reps' &&
         s.exerciseId === exerciseId &&
         s.weightKg > max
       ) {
@@ -35,13 +41,19 @@ export function maxWeightBefore(
 }
 
 /** Copy of `sets` with `isPr` on completed sets heavier than the previous best (if any). */
-export function flagPrs(sets: SetLog[], history: Workout[], date: string): SetLog[] {
+export function flagPrs(
+  sets: SetLog[],
+  history: Workout[],
+  date: string,
+  startTs?: number,
+): SetLog[] {
   const maxByExercise = new Map<string, number>();
   return sets.map((s) => {
-    if (!s.done || kindOf(s.kind) !== 'working') return { ...s };
+    if (!s.done || kindOf(s.kind) !== 'working' || trackingOf(s.tracking) !== 'weight_reps')
+      return { ...s };
     let previousMax = maxByExercise.get(s.exerciseId);
     if (previousMax === undefined) {
-      previousMax = maxWeightBefore(history, s.exerciseId, date);
+      previousMax = maxWeightBefore(history, s.exerciseId, date, startTs);
       maxByExercise.set(s.exerciseId, previousMax);
     }
     if (previousMax > 0 && s.weightKg > previousMax) return { ...s, isPr: true };

@@ -3027,6 +3027,7 @@ dialog.sheet-scrim::backdrop {
 .body-progress,
 .nutrition-progress {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: var(--space-4);
 }
@@ -3166,6 +3167,7 @@ dialog.sheet-scrim::backdrop {
 }
 
 .measurement-form {
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
@@ -3244,7 +3246,7 @@ dialog.sheet-scrim::backdrop {
 @media (max-width: 359px) {
   .measurement-form,
   .nutrition-fields {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .progress-metrics > div {

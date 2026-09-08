@@ -10,7 +10,7 @@ import type {
   Workout,
 } from './types';
 
-const CSV_HEADER = 'date,day,exercise,weight_kg,reps';
+const CSV_HEADER = 'date,day,exercise,weight_kg,reps,tracking,duration_sec,set_kind';
 
 export type BackupData = {
   workouts: Workout[];
@@ -46,6 +46,9 @@ export function toCsv(workouts: Workout[], exerciseName: (id: string) => string)
           csvField(exerciseName(set.exerciseId)),
           String(set.weightKg),
           String(set.reps),
+          set.tracking ?? 'weight_reps',
+          set.durationSec === undefined ? '' : String(set.durationSec),
+          set.kind ?? 'working',
         ].join(','),
       );
     }

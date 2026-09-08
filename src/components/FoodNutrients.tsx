@@ -29,7 +29,7 @@ export function FoodNutrients({
                   : totals[key]!.toLocaleString(i18n.language, { maximumFractionDigits: 1 })}
               </span>{' '}
               <span className="small">{NUTRIENT_META[key].unit}</span>
-              {!compact && incomplete.includes(key) && (
+              {totals[key] !== undefined && incomplete.includes(key) && (
                 <span className="food-partial">{t('food.partial')}</span>
               )}
             </dd>

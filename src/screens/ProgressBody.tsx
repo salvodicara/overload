@@ -1,3 +1,4 @@
+import { MAX_MEASUREMENT, validDate } from '../lib/recordValidation';
 import { useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -32,6 +33,8 @@ export function ProgressBody() {
   const [dateDraft, setDateDraft] = useState(todayISO());
   const [pendingRemoval, setPendingRemoval] = useState<PendingMeasurementRemoval | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const savingRef = useRef(false);
   const deletingRef = useRef(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const addMeasurementRef = useRef<HTMLButtonElement>(null);
@@ -53,7 +56,10 @@ export function ProgressBody() {
     if (metric !== 'weight' || rows.length === 0) return null;
     const start = new Date(`${todayISO()}T12:00:00`);
     start.setDate(start.getDate() - 6);
-    const recent = rows.filter((measurement) => measurement.date >= start.toLocaleDateString('sv'));
+    const recent = rows.filter(
+      (measurement) =>
+        measurement.date >= start.toLocaleDateString('sv') && measurement.date <= todayISO(),
+    );
     return recent.length
       ? recent.reduce((sum, measurement) => sum + measurement.value, 0) / recent.length
       : null;
@@ -68,13 +74,21 @@ export function ProgressBody() {
   const add = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const value = Number(valueDraft);
-    if (saving || !Number.isFinite(value) || value <= 0) return;
+    if (savingRef.current || !Number.isFinite(value) || value <= 0 || !validDate(dateDraft)) return;
     const canonical = metric === 'weight' ? canonicalWeight(value, selectedUnit) : value;
+    if (canonical > MAX_MEASUREMENT) {
+      setSaveError(true);
+      return;
+    }
+    savingRef.current = true;
     setSaveError(false);
     setSaving(true);
     void continueAccountAction(addMeasurement(metric, canonical, dateDraft), closeForm)
       .catch(() => setSaveError(true))
-      .finally(() => setSaving(false));
+      .finally(() => {
+        savingRef.current = false;
+        setSaving(false);
+      });
   };
 
   const closeDelete = (): void => {
@@ -85,9 +99,9 @@ export function ProgressBody() {
     if (!pendingRemoval || deletingRef.current) return;
     deletingRef.current = true;
     setDeleting(true);
-    setSaveError(false);
+    setDeleteError(false);
     void continueAccountAction(deleteMeasurement(pendingRemoval.id), () => setPendingRemoval(null))
-      .catch(() => setSaveError(true))
+      .catch(() => setDeleteError(true))
       .finally(() => {
         deletingRef.current = false;
         setDeleting(false);
@@ -182,6 +196,11 @@ export function ProgressBody() {
             </span>
             <input
               name={`body-${metric}`}
+              disabled={saving}
+              max={
+                metric === 'weight' ? displayWeight(MAX_MEASUREMENT, selectedUnit) : MAX_MEASUREMENT
+              }
+              required
               type="number"
               inputMode="decimal"
               step={0.1}
@@ -195,6 +214,8 @@ export function ProgressBody() {
             <span className="field-label">{t('body.dateLabel')}</span>
             <input
               name="measurement-date"
+              disabled={saving}
+              required
               type="date"
               autoComplete="off"
               value={dateDraft}
@@ -252,14 +273,15 @@ export function ProgressBody() {
                     <button
                       className="iconbtn muted"
                       aria-label={t('body.delete', { metric: metricName, date })}
-                      onClick={() =>
+                      onClick={() => {
+                        setDeleteError(false);
                         setPendingRemoval({
                           id: measurement.id,
                           date,
                           metric: metricName,
                           value: formatValue(measurement.value),
-                        })
-                      }
+                        });
+                      }}
                     >
                       <IconX />
                     </button>
@@ -299,6 +321,11 @@ export function ProgressBody() {
               value: pendingRemoval.value,
             })}
           </span>
+          {deleteError && (
+            <p role="alert" className="form-feedback form-feedback--error">
+              {t('body.saveError')}
+            </p>
+          )}
           <button className="btn btn-danger btn-block" disabled={deleting} onClick={confirmDelete}>
             {t('history.deleteConfirm')}
           </button>

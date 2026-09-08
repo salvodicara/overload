@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
 import { IconBack, IconDown, IconPlay } from '../components/Icons';
 import { PageHeader } from '../components/PageHeader';
-import { useCatalog } from '../hooks/useCatalog';
+import { useCatalogState } from '../hooks/useCatalog';
 import {
   exerciseName,
   equipmentLabelKey,
@@ -19,7 +19,7 @@ import { useStore } from '../state/useStore';
 
 export function ExerciseSheet({ id }: { id: string }) {
   const { t, i18n } = useTranslation();
-  useCatalog();
+  const catalogStatus = useCatalogState();
   const isIt = i18n.language.startsWith('it');
   const [itInstructionsReady, setItInstructionsReady] = useState(!isIt);
   const catalogReady = useStore((s) => s.catalogReady);
@@ -87,7 +87,7 @@ export function ExerciseSheet({ id }: { id: string }) {
         : formatPreviousSet(bestSet, bestSet.tracking, unit)
     : null;
 
-  if (!catalogReady && !ex) {
+  if (!catalogReady && !ex && !catalogStatus.failed) {
     return (
       <div className="screen exercise-detail">
         <PageHeader
@@ -108,6 +108,15 @@ export function ExerciseSheet({ id }: { id: string }) {
         title={name}
         back={{ label: t('library.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
+
+      {catalogStatus.failed && (
+        <div className="form-feedback form-feedback--error" role="alert">
+          <p>{t('library.loadError')}</p>
+          <button className="btn btn-ghost" onClick={catalogStatus.retry}>
+            {t('library.retry')}
+          </button>
+        </div>
+      )}
 
       {ex && (ex.media?.length ?? 0) > 0 && (
         <div className="exercise-detail__media">

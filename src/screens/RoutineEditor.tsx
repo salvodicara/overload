@@ -1,6 +1,7 @@
 import '../theme/workout-surfaces.css';
 import {
   createRef,
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -14,15 +15,12 @@ import { PageHeader } from '../components/PageHeader';
 import { useCatalog } from '../hooks/useCatalog';
 import { exerciseName } from '../lib/exercises';
 import { fmtDate } from '../lib/format';
+import { routineDraftValid, changeRoutineTracking } from '../lib/routineEditing';
 import { canonicalWeight, displayWeight, weightLabel } from '../lib/units';
 import { trackingOf, type Routine, type RoutineExercise, type TrackingType } from '../lib/types';
-import {
-  continueAccountAction,
-  isAccountActionCurrent,
-  type AccountActionResult,
-  useStore,
-} from '../state/useStore';
+import { isAccountActionCurrent, type AccountActionResult, useStore } from '../state/useStore';
 
+import { recoveryDrafts } from '../lib/routineDrafts';
 const ICON = { width: 44, height: 44 } as const;
 const REST_OPTIONS = [0, 30, 45, 60, 75, 90, 120, 150, 180, 240, 300];
 
@@ -200,7 +198,31 @@ export function RoutineEditor({ id }: { id: string }) {
   const deleteRoutine = useStore((s) => s.deleteRoutine);
   const startWorkout = useStore((s) => s.startWorkout);
   const [rev, setRev] = useState(0);
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
+  const ownerId = useStore((s) => s.user?.uid);
+  const recoveryKey = ownerId + ':' + id;
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error' | 'invalid'>(() =>
+    recoveryDrafts.has(recoveryKey) ? 'error' : 'saved',
+  );
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const deletingRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (saveState !== 'saved') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [saveState]);
   const [expandedIndex, setExpandedIndex] = useState(0);
   const [exerciseMenuIndex, setExerciseMenuIndex] = useState<number | null>(null);
   const [goalTypeIndex, setGoalTypeIndex] = useState<number | null>(null);
@@ -220,29 +242,40 @@ export function RoutineEditor({ id }: { id: string }) {
   const dragStartRef = useRef<{ index: number; x: number; y: number; moved: boolean } | null>(null);
 
   if (storedRoutine && draftRef.current?.id !== id)
-    draftRef.current = structuredClone(storedRoutine);
+    draftRef.current = structuredClone(recoveryDrafts.get(recoveryKey) ?? storedRoutine);
   const routine = draftRef.current ?? storedRoutine;
 
   function commit(mutate: (draft: Routine) => void, structural = false): void {
-    if (!draftRef.current) return;
+    if (!draftRef.current || deletingRef.current) return;
     const draft = structuredClone(draftRef.current);
     mutate(draft);
     draftRef.current = draft;
+    recoveryDrafts.set(recoveryKey, draft);
     if (structural) setRev((v) => v + 1);
+    if (!routineDraftValid(draft)) {
+      latestSaveRef.current = null;
+      setSaveState('invalid');
+      return;
+    }
     setSaveState('saving');
     const save = saveRoutine(draft);
     latestSaveRef.current = save;
     void save.then(
       (result) => {
-        if (latestSaveRef.current === save && isAccountActionCurrent(result)) setSaveState('saved');
+        if (latestSaveRef.current === save && isAccountActionCurrent(result)) {
+          if (recoveryDrafts.get(recoveryKey) === draft) recoveryDrafts.delete(recoveryKey);
+          if (mounted.current) setSaveState('saved');
+        }
       },
       () => {
-        if (latestSaveRef.current === save) setSaveState('error');
+        if (mounted.current && latestSaveRef.current === save) setSaveState('error');
       },
     );
   }
 
   async function startEditedWorkout(): Promise<void> {
+    if (!draftRef.current || !routineDraftValid(draftRef.current) || deletingRef.current) return;
+    const actionRoute = useStore.getState().route;
     try {
       let save = latestSaveRef.current;
       while (save) {
@@ -251,7 +284,14 @@ export function RoutineEditor({ id }: { id: string }) {
         if (save === latestSaveRef.current) break;
         save = latestSaveRef.current;
       }
-      startWorkout(id);
+      if (
+        mounted.current &&
+        draftRef.current &&
+        routineDraftValid(draftRef.current) &&
+        useStore.getState().route === actionRoute &&
+        useStore.getState().user?.uid === ownerId
+      )
+        startWorkout(id);
     } catch {
       setSaveState('error');
     }
@@ -381,7 +421,12 @@ export function RoutineEditor({ id }: { id: string }) {
         action={
           <button
             className="btn btn-accent"
-            disabled={routine.exercises.length === 0}
+            disabled={
+              routine.exercises.length === 0 ||
+              saveState === 'invalid' ||
+              saveState === 'error' ||
+              deleting
+            }
             onClick={() => void startEditedWorkout()}
           >
             {t('home.start')}
@@ -389,6 +434,11 @@ export function RoutineEditor({ id }: { id: string }) {
         }
       />
 
+      {saveState === 'invalid' && (
+        <p className="form-error" role="alert">
+          {t('editor.invalidDraft')}
+        </p>
+      )}
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <span className="small muted" role="status">
           {t('editor.' + saveState)}
@@ -805,7 +855,12 @@ export function RoutineEditor({ id }: { id: string }) {
                 className={`routine-goal-option${selected ? ' is-selected' : ''}`}
                 aria-pressed={selected}
                 onClick={() => {
-                  commit((draft) => void (draft.exercises[goalTypeIndex].tracking = goal), true);
+                  commit((draft) => {
+                    draft.exercises[goalTypeIndex] = changeRoutineTracking(
+                      draft.exercises[goalTypeIndex],
+                      goal,
+                    );
+                  }, true);
                   setExpandedIndex(goalTypeIndex);
                   setGoalTypeIndex(null);
                 }}
@@ -859,19 +914,49 @@ export function RoutineEditor({ id }: { id: string }) {
           open
           title={t('editor.deleteRoutine')}
           initialFocusRef={cancelDeleteRef}
-          onClose={() => setConfirming(false)}
+          onClose={() => {
+            if (!deletingRef.current) setConfirming(false);
+          }}
         >
           <span className="muted small">{t('editor.deleteRoutineBody')}</span>
+          {deleteError && (
+            <p role="alert" className="form-error">
+              {t('train.actionError')}
+            </p>
+          )}
           <button
             className="btn btn-danger btn-block"
-            onClick={() =>
-              void continueAccountAction(deleteRoutine(id), () => nav({ view: 'train' }))
-            }
+            disabled={deleting}
+            onClick={async () => {
+              if (deletingRef.current) return;
+              deletingRef.current = true;
+              setDeleting(true);
+              setDeleteError(false);
+              const actionRoute = useStore.getState().route;
+              try {
+                if (latestSaveRef.current) await latestSaveRef.current.catch(() => undefined);
+                const result = await deleteRoutine(id);
+                if (
+                  mounted.current &&
+                  useStore.getState().route === actionRoute &&
+                  isAccountActionCurrent(result)
+                ) {
+                  recoveryDrafts.delete(recoveryKey);
+                  nav({ view: 'train' });
+                }
+              } catch {
+                if (mounted.current) setDeleteError(true);
+              } finally {
+                deletingRef.current = false;
+                if (mounted.current) setDeleting(false);
+              }
+            }}
           >
             {t('history.deleteConfirm')}
           </button>
           <button
             ref={cancelDeleteRef}
+            disabled={deleting}
             className="btn btn-ghost btn-block"
             onClick={() => setConfirming(false)}
           >

@@ -81,6 +81,21 @@ export function History() {
   const exerciseIds = [
     ...new Set(workouts.flatMap((workout) => workout.sets.map((set) => set.exerciseId))),
   ];
+  useEffect(() => {
+    const routineMissing = Boolean(
+      surface.routineId && !routines.some((row) => row.id === surface.routineId),
+    );
+    const exerciseMissing = Boolean(
+      surface.exerciseId && !exerciseIds.includes(surface.exerciseId),
+    );
+    if (routineMissing || exerciseMissing)
+      setSurface((current) => ({
+        ...current,
+        ...(routineMissing ? { routineId: '' } : {}),
+        ...(exerciseMissing ? { exerciseId: '' } : {}),
+        visibleCount: PAGE_SIZE,
+      }));
+  }, [routines, workouts, surface.routineId, surface.exerciseId, setSurface]);
   const days = monthDays(anchor);
   const locale = i18n.language === 'it' ? 'it-IT' : 'en-GB';
   const firstWeekday = (new Date(`${days[0]}T12:00:00`).getDay() + 6) % 7;

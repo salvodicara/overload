@@ -24,7 +24,8 @@
     "loading": "Signing in…",
     "error": "Sign-in failed. Check your connection and try again.",
     "dataError": "Your data could not be opened safely. Close the app and try again.",
-    "reset": "Reload sign-in"
+    "reset": "Reload sign-in",
+    "resetError": "Could not reload sign-in. Try again or reload the page."
   },
   "home": {
     "start": "Start",
@@ -125,7 +126,8 @@
     "saveError": "Could not save this workout. Your session is still here. Try Finish again.",
     "uncheckedBody_other": "You edited {{count}} unchecked sets. Finishing saves only checked sets. Continue to review them or finish without them.",
     "uncheckedBody_one": "You edited one unchecked set. Finishing saves only checked sets. Continue to review it or finish without it.",
-    "storageError": "This session could not be saved on this device. Keep the app open and finish the workout to try saving it to your history."
+    "storageError": "This session could not be saved on this device. Keep the app open and finish the workout to try saving it to your history.",
+    "invalidSet": "Enter a non-negative load and whole repetitions, or a duration greater than zero."
   },
   "suggest": {
     "start": "Start at {{weight}}",
@@ -168,7 +170,8 @@
     "reviewChanges": "Review what will change in your routine for future workouts.",
     "before": "Before",
     "after": "After",
-    "removed": "Exercise removed"
+    "removed": "Exercise removed",
+    "routineChanged": "The routine changed after this workout. Keep this workout only, then edit the current routine to avoid overwriting those changes."
   },
   "history": {
     "title": "History",
@@ -227,7 +230,8 @@
     "monthScope": "Workouts in {{month}}",
     "dayScope": "Workouts on {{date}}",
     "resumeCurrentWorkout": "Resume current workout",
-    "activeWorkoutHint": "A workout is already in progress. Resume it before repeating this workout."
+    "activeWorkoutHint": "A workout is already in progress. Resume it before repeating this workout.",
+    "workoutMissing": "This workout is no longer available."
   },
   "progress": {
     "title": "Progress",
@@ -338,7 +342,8 @@
       "offline": "Offline",
       "error": "Sync error"
     },
-    "preferences": "Preferences"
+    "preferences": "Preferences",
+    "actionError": "Could not complete this action. Try again."
   },
   "import": {
     "title": "Import data",
@@ -469,7 +474,9 @@
     "saving": "Saving…",
     "error": "Changes could not be saved",
     "retrySave": "Retry save",
-    "done": "Done"
+    "done": "Done",
+    "invalid": "Not saved: check the values",
+    "invalidDraft": "Not saved. Use 1–100 whole working sets, positive whole repetitions/seconds, a maximum at least equal to the minimum, and non-negative weights. Your draft stays here if you return."
   },
   "train": {
     "explorePrograms": "Explore programs",
@@ -575,8 +582,10 @@
     "fiber": "Fibre (g)",
     "sugar": "Sugars (g)",
     "salt": "Salt (g)",
-    "invalid": "Enter a number of 0 or more. Leave the field blank if untracked.",
-    "invalidTarget": "Enter a target of at least 1. Leave it blank to remove the target."
+    "invalid": "Enter a number from 0 to 1,000,000,000. Leave the field blank if untracked.",
+    "invalidTarget": "Enter a target from 1 to 1,000,000,000. Leave it blank to remove the target.",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes — leave this field to save."
   },
   "activeBar": {
     "resume": "Resume"

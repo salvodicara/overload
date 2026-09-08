@@ -60,7 +60,7 @@ export function NoteEditor({
         defaultValue={initial}
         placeholder={placeholder}
         aria-labelledby={labelledBy}
-        disabled={disabled}
+        disabled={disabled || isSubmitting}
         onInput={(e) => {
           const el = e.currentTarget;
           autosize(el);

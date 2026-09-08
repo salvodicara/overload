@@ -1,8 +1,22 @@
+import { recomputeWorkoutFacts } from './workoutEditing';
 import Dexie, { type EntityTable } from 'dexie';
-import { applyDiaryMutation, legacyManualEntry, nutritionDayWithEntries, validateSavedMeals, type DiaryMutation, type FoodEntry } from './foodDiary';
+import {
+  applyDiaryMutation,
+  legacyManualEntry,
+  nutritionDayWithEntries,
+  validateSavedMeals,
+  type DiaryMutation,
+  type FoodEntry,
+} from './foodDiary';
 import { normalizeNutritionDay } from './nutrition';
-import { NUTRIENT_FIELDS, validNutrient, validNutritionDay, type NutritionPatch } from './nutrition';
-import type { BackupV2 } from './importer';
+import {
+  NUTRIENT_FIELDS,
+  validNutrient,
+  validNutritionDay,
+  type NutritionPatch,
+} from './nutrition';
+import { assertBackupRecords, type BackupV2 } from './importer';
+import { assertMeasurement, assertSettings } from './recordValidation';
 import type {
   CustomExercise,
   ExerciseNote,
@@ -14,7 +28,15 @@ import type {
   Workout,
 } from './types';
 
+export type DeletionMarker = {
+  id: string;
+  collection: string;
+  recordId: string;
+  updatedAt: number;
+};
+
 export type OverloadDb = Dexie & {
+  tombstones: EntityTable<DeletionMarker, 'id'>;
   workouts: EntityTable<Workout, 'id'>;
   routines: EntityTable<Routine, 'id'>;
   folders: EntityTable<Folder, 'id'>;
@@ -50,20 +72,88 @@ db.version(5).stores({
   customExercises: 'id, updatedAt',
 });
 
+db.version(6).stores({ tombstones: 'id, collection' });
+
+/** Persist deletion intent atomically; keep it until every device can observe it. */
+async function deleteWithMarker(
+  collection: 'workouts' | 'routines' | 'folders' | 'measurements',
+  id: string,
+): Promise<void> {
+  const table = db[
+    collection as keyof Pick<
+      OverloadDb,
+      | 'workouts'
+      | 'routines'
+      | 'folders'
+      | 'notes'
+      | 'measurements'
+      | 'nutrition'
+      | 'customExercises'
+      | 'settings'
+    >
+  ] as EntityTable<{ id: string; updatedAt: number }, 'id'>;
+  await db.transaction('rw', [table, db.tombstones], async () => {
+    const row = await table.get(id);
+    const previous = await db.tombstones.get(`${collection}/${id}`);
+    await db.tombstones.put({
+      id: `${collection}/${id}`,
+      collection,
+      recordId: id,
+      updatedAt: Math.max(Date.now(), (row?.updatedAt ?? 0) + 1, (previous?.updatedAt ?? 0) + 1),
+    });
+    await table.delete(id);
+  });
+}
+
+/** Local writes must outrank the last revision, including restored/future clocks. */
+async function putLocal<T extends { id: string; updatedAt: number }>(
+  collection: string,
+  row: T,
+): Promise<void> {
+  const table = db[
+    collection as keyof Pick<
+      OverloadDb,
+      | 'workouts'
+      | 'routines'
+      | 'folders'
+      | 'notes'
+      | 'measurements'
+      | 'nutrition'
+      | 'customExercises'
+      | 'settings'
+    >
+  ] as EntityTable<{ id: string; updatedAt: number }, 'id'>;
+  await db.transaction('rw', [table, db.tombstones], async () => {
+    const previous = await table.get(row.id);
+    const marker = await db.tombstones.get(`${collection}/${row.id}`);
+    row.updatedAt = Math.max(
+      Date.now(),
+      row.updatedAt,
+      (previous?.updatedAt ?? -1) + 1,
+      (marker?.updatedAt ?? -1) + 1,
+    );
+    await table.put(row);
+    if (marker) await db.tombstones.delete(marker.id);
+  });
+}
+
 const SETTINGS_ID = 'settings';
 
 export async function saveWorkout(w: Workout): Promise<void> {
-  await db.workouts.put(w);
+  await putLocal('workouts', w);
 }
 
 export async function saveWorkouts(workouts: Workout[]): Promise<void> {
-  await db.transaction('rw', db.workouts, async () => {
-    await db.workouts.bulkPut(workouts);
+  await db.transaction('rw', [db.workouts, db.tombstones], async () => {
+    for (const workout of workouts) await putLocal('workouts', workout);
   });
 }
 
 export async function deleteWorkout(id: string): Promise<void> {
-  await db.workouts.delete(id);
+  await db.transaction('rw', [db.workouts, db.tombstones], async () => {
+    await deleteWithMarker('workouts', id);
+    await db.workouts.bulkPut(recomputeWorkoutFacts(await db.workouts.toArray(), Date.now()));
+  });
 }
 
 /** Newest first: date descending, then startTs descending within a date. */
@@ -78,29 +168,31 @@ export async function getSettings(): Promise<Settings> {
 }
 
 export async function saveSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<Settings> {
-  if (patch.savedMeals !== undefined) patch = { ...patch, savedMeals: validateSavedMeals(patch.savedMeals) };
+  if (patch.savedMeals !== undefined)
+    patch = { ...patch, savedMeals: validateSavedMeals(patch.savedMeals) };
   const current = await getSettings();
   const next: Settings = { ...current, ...patch, id: SETTINGS_ID, updatedAt: Date.now() };
-  await db.settings.put(next);
+  assertSettings(next);
+  await putLocal('settings', next);
   return next;
 }
 
 export async function saveRoutine(r: Routine): Promise<void> {
-  await db.routines.put(r);
+  await putLocal('routines', r);
 }
 
 export async function saveFolder(f: Folder): Promise<void> {
-  await db.folders.put(f);
+  await putLocal('folders', f);
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  await db.folders.delete(id);
+  await deleteWithMarker('folders', id);
 }
 
 export async function deleteFolderWithRoutines(id: string, routineIds: string[]): Promise<void> {
-  await db.transaction('rw', [db.folders, db.routines], async () => {
-    await db.routines.bulkDelete(routineIds);
-    await db.folders.delete(id);
+  await db.transaction('rw', [db.folders, db.routines, db.tombstones], async () => {
+    for (const routineId of routineIds) await deleteWithMarker('routines', routineId);
+    await deleteWithMarker('folders', id);
   });
 }
 
@@ -112,26 +204,29 @@ export async function listFolders(): Promise<Folder[]> {
 export async function importRoutinePlanRecords(
   records: import('./routinePlan').RoutinePlanRecords,
 ): Promise<{ alreadyImported: boolean }> {
-  return db.transaction('rw', [db.folders, db.routines], async () => {
+  return db.transaction('rw', [db.folders, db.routines, db.tombstones], async () => {
     if (await db.folders.get(records.folder.id)) {
       // Cloud collections arrive separately. Fill missing children, but preserve edits.
       const existing = await db.routines.bulkGet(records.routines.map((routine) => routine.id));
       const missing = records.routines.filter((_, index) => !existing[index]);
-      if (missing.length) await db.routines.bulkAdd(missing);
+      for (const routine of missing) await putLocal('routines', routine);
       return { alreadyImported: missing.length === 0 };
     }
-    await db.folders.add(records.folder);
-    await db.routines.bulkAdd(records.routines);
+    if ((await db.routines.bulkGet(records.routines.map((routine) => routine.id))).some(Boolean))
+      throw new Error('import.invalid');
+    await putLocal('folders', records.folder);
+    for (const routine of records.routines) await putLocal('routines', routine);
     return { alreadyImported: false };
   });
 }
 
 export async function saveMeasurement(m: Measurement): Promise<void> {
-  await db.measurements.put(m);
+  assertMeasurement(m);
+  await putLocal('measurements', m);
 }
 
 export async function deleteMeasurement(id: string): Promise<void> {
-  await db.measurements.delete(id);
+  await deleteWithMarker('measurements', id);
 }
 
 export async function listMeasurements(): Promise<Measurement[]> {
@@ -139,21 +234,34 @@ export async function listMeasurements(): Promise<Measurement[]> {
 }
 
 export async function saveNutrition(date: string, patch: NutritionPatch): Promise<NutritionDay> {
-  return db.transaction('rw', db.nutrition, async () => {
+  return db.transaction('rw', [db.nutrition, db.tombstones], async () => {
     const existing = await db.nutrition.get(date);
     if (existing?.entries !== undefined) {
-      const manual = existing.entries.find(entry => entry.id === `manual:${date}` && entry.food.source === 'manual');
+      const manual = existing.entries.find(
+        (entry) => entry.id === `manual:${date}` && entry.food.source === 'manual',
+      );
       const nutrients = { ...manual?.food.nutrients };
       for (const [key, value] of Object.entries(patch)) {
-        if (!NUTRIENT_FIELDS.includes(key as typeof NUTRIENT_FIELDS[number]) || !validNutrient(value)) throw new Error('diet.invalid');
+        if (
+          !NUTRIENT_FIELDS.includes(key as (typeof NUTRIENT_FIELDS)[number]) ||
+          !validNutrient(value)
+        )
+          throw new Error('diet.invalid');
         if (value === null) delete nutrients[key as keyof typeof nutrients];
         else nutrients[key as keyof typeof nutrients] = value;
       }
-      const snapshot = legacyManualEntry({ id: date, date, kcal: null, proteinG: null, ...nutrients, updatedAt: 0 });
-      const entries = existing.entries.filter(entry => entry !== manual);
+      const snapshot = legacyManualEntry({
+        id: date,
+        date,
+        kcal: null,
+        proteinG: null,
+        ...nutrients,
+        updatedAt: 0,
+      });
+      const entries = existing.entries.filter((entry) => entry !== manual);
       if (snapshot) entries.unshift(snapshot);
       const next = nutritionDayWithEntries(date, entries, existing);
-      await db.nutrition.put(next);
+      await putLocal('nutrition', next);
       return next;
     }
     const next: NutritionDay = {
@@ -166,7 +274,7 @@ export async function saveNutrition(date: string, patch: NutritionPatch): Promis
       updatedAt: Date.now(),
     };
     if (!validNutritionDay(next)) throw new Error('diet.invalid');
-    await db.nutrition.put(next);
+    await putLocal('nutrition', next);
     return next;
   });
 }
@@ -175,25 +283,34 @@ export async function listNutrition(): Promise<NutritionDay[]> {
   return (await db.nutrition.toArray()).map(normalizeNutritionDay);
 }
 
-export async function mutateDiaryEntries(date: string, mutation: DiaryMutation): Promise<NutritionDay> {
-  return db.transaction('rw', db.nutrition, async () => {
+export async function mutateDiaryEntries(
+  date: string,
+  mutation: DiaryMutation,
+): Promise<NutritionDay> {
+  return db.transaction('rw', [db.nutrition, db.tombstones], async () => {
     const next = applyDiaryMutation(date, await db.nutrition.get(date), mutation);
-    await db.nutrition.put(next);
+    await putLocal('nutrition', next);
     return next;
   });
 }
 
-export async function importDiaryDays(days: {date:string;entries:FoodEntry[]}[]): Promise<NutritionDay[]> {
+export async function importDiaryDays(
+  days: { date: string; entries: FoodEntry[] }[],
+): Promise<NutritionDay[]> {
   if (days.length > 366) throw new Error('diet.invalid');
-  return db.transaction('rw', db.nutrition, async () => {
-    const changed = new Map<string,NutritionDay>();
-    for (const day of days) changed.set(day.date, await mutateDiaryEntries(day.date, {kind:'add',entries:day.entries}));
+  return db.transaction('rw', [db.nutrition, db.tombstones], async () => {
+    const changed = new Map<string, NutritionDay>();
+    for (const day of days)
+      changed.set(
+        day.date,
+        await mutateDiaryEntries(day.date, { kind: 'add', entries: day.entries }),
+      );
     return [...changed.values()];
   });
 }
 
 export async function saveCustomExercise(x: CustomExercise): Promise<void> {
-  await db.customExercises.put(x);
+  await putLocal('customExercises', x);
 }
 
 export async function listCustomExercises(): Promise<CustomExercise[]> {
@@ -201,7 +318,7 @@ export async function listCustomExercises(): Promise<CustomExercise[]> {
 }
 
 export async function saveNote(n: ExerciseNote): Promise<void> {
-  await db.notes.put(n);
+  await putLocal('notes', n);
 }
 
 export async function listNotes(): Promise<ExerciseNote[]> {
@@ -209,7 +326,7 @@ export async function listNotes(): Promise<ExerciseNote[]> {
 }
 
 export async function deleteRoutine(id: string): Promise<void> {
-  await db.routines.delete(id);
+  await deleteWithMarker('routines', id);
 }
 
 export async function listRoutines(): Promise<Routine[]> {
@@ -218,7 +335,9 @@ export async function listRoutines(): Promise<Routine[]> {
 
 /** Writes an already-deduplicated import batch (see `planImport`). */
 export async function applyImport(fresh: Workout[]): Promise<void> {
-  await db.workouts.bulkPut(fresh);
+  await db.transaction('rw', [db.workouts, db.tombstones], async () => {
+    for (const workout of fresh) await putLocal('workouts', workout);
+  });
 }
 
 /** Removes all data owned by the current account in one atomic transaction. */
@@ -226,6 +345,7 @@ export async function clearAllUserData(): Promise<void> {
   await db.transaction(
     'rw',
     [
+      db.tombstones,
       db.workouts,
       db.routines,
       db.folders,
@@ -237,6 +357,7 @@ export async function clearAllUserData(): Promise<void> {
     ],
     async () => {
       await Promise.all([
+        db.tombstones.clear(),
         db.workouts.clear(),
         db.routines.clear(),
         db.folders.clear(),
@@ -252,12 +373,21 @@ export async function clearAllUserData(): Promise<void> {
 
 /** Restores a complete version 2 backup atomically across every local table. */
 export async function restoreBackupCollections(backup: BackupV2): Promise<void> {
-  backup = { ...backup, nutrition: backup.nutrition.map(normalizeNutritionDay), settings: {
-    ...backup.settings, ...(backup.settings.savedMeals === undefined ? {} : {savedMeals: validateSavedMeals(backup.settings.savedMeals)}),
-  } };
+  assertBackupRecords(backup);
+  backup = {
+    ...backup,
+    nutrition: backup.nutrition.map(normalizeNutritionDay),
+    settings: {
+      ...backup.settings,
+      ...(backup.settings.savedMeals === undefined
+        ? {}
+        : { savedMeals: validateSavedMeals(backup.settings.savedMeals) }),
+    },
+  };
   await db.transaction(
     'rw',
     [
+      db.tombstones,
       db.workouts,
       db.routines,
       db.folders,
@@ -268,14 +398,45 @@ export async function restoreBackupCollections(backup: BackupV2): Promise<void> 
       db.settings,
     ],
     async () => {
-      await db.workouts.bulkPut(backup.workouts);
-      await db.routines.bulkPut(backup.routines);
-      await db.folders.bulkPut(backup.folders);
-      await db.notes.bulkPut(backup.notes);
-      await db.measurements.bulkPut(backup.measurements);
-      await db.nutrition.bulkPut(backup.nutrition);
-      await db.customExercises.bulkPut(backup.customExercises);
-      await db.settings.bulkPut([backup.settings]);
+      const restore = async (collection: string, rows: { id: string; updatedAt: number }[]) => {
+        const table = db[
+          collection as keyof Pick<
+            OverloadDb,
+            | 'workouts'
+            | 'routines'
+            | 'folders'
+            | 'notes'
+            | 'measurements'
+            | 'nutrition'
+            | 'customExercises'
+            | 'settings'
+          >
+        ] as EntityTable<{ id: string; updatedAt: number }, 'id'>;
+        for (const row of rows) {
+          const marker = await db.tombstones.get(`${collection}/${row.id}`);
+          const current = await table.get(row.id);
+          const content = (value: typeof row) => JSON.stringify({ ...value, updatedAt: 0 });
+          const replaces = marker || (current && content(current) !== content(row));
+          const updatedAt = replaces
+            ? Math.max(
+                Date.now(),
+                row.updatedAt,
+                (current?.updatedAt ?? 0) + 1,
+                (marker?.updatedAt ?? 0) + 1,
+              )
+            : Math.max(row.updatedAt, current?.updatedAt ?? 0);
+          await table.put({ ...row, updatedAt });
+          if (marker) await db.tombstones.delete(marker.id);
+        }
+      };
+      await restore('workouts', backup.workouts);
+      await restore('routines', backup.routines);
+      await restore('folders', backup.folders);
+      await restore('notes', backup.notes);
+      await restore('measurements', backup.measurements);
+      await restore('nutrition', backup.nutrition);
+      await restore('customExercises', backup.customExercises);
+      await restore('settings', [backup.settings]);
     },
   );
 }

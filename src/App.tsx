@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { initI18n, setLocale } from './i18n';
 import { onUser } from './lib/firebase';
-import { onToast, registerTranslator, useStore } from './state/useStore';
+import { onToast, registerTranslator, restoreRouteScroll, useStore } from './state/useStore';
 import { Nav } from './components/Nav';
 import { ActiveWorkoutBar } from './components/ActiveWorkoutBar';
 import { RestWatcher } from './components/RestWatcher';
@@ -33,6 +33,7 @@ initI18n();
 
 function Screen() {
   const route = useStore((s) => s.route);
+  useLayoutEffect(() => restoreRouteScroll(), [route]);
   const { t } = useTranslation();
   useEffect(() => {
     const section =

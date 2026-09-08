@@ -43,6 +43,7 @@ export function FoodLogImport() {
     setBusy(true);
     setError('');
     setPreview(null);
+    const actionRoute = useStore.getState().route;
     try {
       if (file && file.size > 2_000_000) throw new Error('large');
       const text = file ? await file.text() : source;
@@ -54,8 +55,10 @@ export function FoodLogImport() {
         foods = [];
       }
       const result = await parseFoodImport(text, foods);
+      if (!mounted.current || useStore.getState().route !== actionRoute) return;
       setPreview(result);
       requestAnimationFrame(() => {
+        if (!mounted.current || useStore.getState().route !== actionRoute) return;
         heading.current?.focus();
         window.scrollTo(0, 0);
       });
@@ -127,7 +130,11 @@ export function FoodLogImport() {
                   </li>
                 ))}
               </ul>
-              <FoodNutrients totals={summarizeEntries(day.entries).totals} compact />
+              <FoodNutrients
+                totals={summarizeEntries(day.entries).totals}
+                incomplete={summarizeEntries(day.entries).incomplete}
+                compact
+              />
               <details>
                 <summary>{t('food.allNutrients')}</summary>
                 <FoodNutrients

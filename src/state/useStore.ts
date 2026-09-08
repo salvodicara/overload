@@ -57,6 +57,7 @@ import { elapsedWorkoutMs, pauseWorkout, resumeWorkout } from '../lib/workoutTim
 import { newOccurrenceId, normalizeRoutineOccurrences } from '../lib/workoutOccurrences';
 import { diffRoutineSession } from '../lib/routineDiff';
 import {
+  validWorkoutSet,
   recomputeWorkoutFacts,
   routineFromWorkout,
   workoutFromDraft,
@@ -64,6 +65,8 @@ import {
 } from '../lib/workoutEditing';
 import { routeMotion, transitionRoute } from '../lib/navigationMotion';
 import {
+  bindNavigationOwner,
+  isNavigationOwnerCurrent,
   ensureHistoryEnvelope,
   newHistoryEnvelope,
   readEntryScroll,
@@ -73,7 +76,6 @@ import {
 import { closeRestNotifications, unlockAudio, requestNotifyPermission } from '../lib/audio';
 import type { NutritionPatch } from '../lib/nutrition';
 import { acquireWakeLock, releaseWakeLock } from '../lib/wakeLock';
-import { todayISO } from '../lib/format';
 import { loadCatalog, registerCustomExercises } from '../lib/exercises';
 import type {
   CustomExercise,
@@ -88,7 +90,7 @@ import type {
   Workout,
 } from '../lib/types';
 import { migrateLegacyRoutines } from '../lib/migrate';
-import type { BackupV2 } from '../lib/importer';
+import { assertBackupRecords, type BackupV2 } from '../lib/importer';
 import type { DiaryMutation, FoodEntry } from '../lib/foodDiary';
 import { normalizeNutritionDay } from '../lib/nutrition';
 import { materializeRoutinePlan, parseRoutinePlan, type RoutinePlan } from '../lib/routinePlan';
@@ -263,16 +265,21 @@ async function withOwnedLocalWrite<T>(
   });
 }
 
-async function commitDiaryMutation(date: string, mutation: DiaryMutation): Promise<AccountActionResult<NutritionDay>> {
+async function commitDiaryMutation(
+  date: string,
+  mutation: DiaryMutation,
+): Promise<AccountActionResult<NutritionDay>> {
   const owner = captureOwner();
   if (!owner) return STALE_ACCOUNT_ACTION;
   const snapshot = structuredClone(mutation);
-  const result = await withOwnedLocalWrite(owner, () => mutateDiaryEntries(date,snapshot));
+  const result = await withOwnedLocalWrite(owner, () => mutateDiaryEntries(date, snapshot));
   if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
   const day = result.value;
-  useStore.setState((state) => ({nutrition:[...state.nutrition.filter(item=>item.id!==date),day]}));
-  if (owns(owner)) await pushRecord(owner.uid,'nutrition',day);
-  return accountActionForOwner(owner,day);
+  useStore.setState((state) => ({
+    nutrition: [...state.nutrition.filter((item) => item.id !== date), day],
+  }));
+  if (owns(owner)) await pushRecord(owner.uid, 'nutrition', day);
+  return accountActionForOwner(owner, day);
 }
 
 // Tab-like views restore their scroll position when you come back (e.g. from
@@ -292,8 +299,18 @@ const RESTORE_SCROLL = new Set<Route['view']>([
 const ROUTE_KEY = 'overload_route';
 const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'profile']);
 
+let activeEntryKey: string | undefined;
+let pendingScroll: number | null = null;
 function applyScroll(view: Route['view'], entryKey?: string): void {
-  const y = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
+  activeEntryKey = entryKey;
+  pendingScroll = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
+}
+
+/** Restore after React commits the destination; a short outgoing page would clamp it. */
+export function restoreRouteScroll(): void {
+  if (pendingScroll === null || typeof window === 'undefined') return;
+  const y = pendingScroll;
+  pendingScroll = null;
   window.scrollTo(0, y);
 }
 
@@ -345,10 +362,13 @@ export type Store = {
   customExercises: CustomExercise[];
   syncState: SyncState;
   active: ActiveSession | null;
+  finishingWorkout: boolean;
   restUntil: number | null;
   restExerciseId: string | null;
   restTotalSec: number | null;
   pendingRoutineChanges: {
+    workoutId?: string;
+    baseUpdatedAt?: number;
     routineId: string;
     items: { exerciseId: string; exerciseIndex: number; restSec?: number; sets?: number }[];
     nextRoutine?: Routine;
@@ -373,8 +393,8 @@ export type Store = {
   setRestOverride(ei: number, sec: number): void;
   addSet(ei: number): void;
   removeSet(ei: number): void;
-  addWorkoutExercise(exerciseId: string): void;
-  replaceWorkoutExercise(instanceId: string, exerciseId: string): void;
+  addWorkoutExercise(exerciseId: string, tracking?: TrackingType): void;
+  replaceWorkoutExercise(instanceId: string, exerciseId: string, tracking?: TrackingType): void;
   removeWorkoutExercise(instanceId: string): void;
   moveWorkoutExercise(instanceId: string, targetIndex: number): void;
   pauseWorkoutClock(): void;
@@ -400,14 +420,11 @@ export type Store = {
   createCustomExercise(name: string, muscleGroup: string): Promise<AccountActionResult<string>>;
   addMeasurement(metric: MeasureMetric, value: number, date: string): Promise<AccountActionResult>;
   deleteMeasurement(id: string): Promise<AccountActionResult>;
-  saveNutritionDay(
-    date: string,
-    patch: NutritionPatch,
-  ): Promise<AccountActionResult>;
+  saveNutritionDay(date: string, patch: NutritionPatch): Promise<AccountActionResult>;
   addDiaryEntries(date: string, entries: FoodEntry[]): Promise<AccountActionResult<NutritionDay>>;
   updateDiaryEntry(date: string, entry: FoodEntry): Promise<AccountActionResult<NutritionDay>>;
   deleteDiaryEntry(date: string, id: string): Promise<AccountActionResult<NutritionDay>>;
-  importDiaryDays(days: {date:string;entries:FoodEntry[]}[]): Promise<AccountActionResult>;
+  importDiaryDays(days: { date: string; entries: FoodEntry[] }[]): Promise<AccountActionResult>;
   deleteWorkout(id: string): Promise<AccountActionResult>;
   updateWorkout(id: string, draft: WorkoutDraft): Promise<AccountActionResult>;
   repeatWorkout(id: string): Promise<AccountActionResult>;
@@ -486,6 +503,7 @@ export const useStore = create<Store>((set, get) => ({
   customExercises: [],
   syncState: 'offline',
   active: initialActive,
+  finishingWorkout: false,
   restUntil:
     initialActive?.restUntil && initialActive.restUntil > Date.now()
       ? initialActive.restUntil
@@ -565,7 +583,13 @@ export const useStore = create<Store>((set, get) => ({
     clearRoutinePushTimers();
     registerCustomExercises([]);
     if (!user || previousOwner) releaseWakeLock();
-    set({ user: undefined, authState: 'loading', syncState: 'offline', catalogReady: false });
+    set({
+      user: undefined,
+      authState: 'loading',
+      syncState: 'offline',
+      catalogReady: false,
+      finishingWorkout: false,
+    });
 
     const boot = async (): Promise<void> => {
       try {
@@ -599,10 +623,17 @@ export const useStore = create<Store>((set, get) => ({
         });
         if (!hydrated || !generationIsCurrent(owner)) return;
 
+        try {
+          bindNavigationOwner(user.uid, changedUid);
+        } catch {
+          /* History unavailable. */
+        }
+        activeEntryKey = readHistoryEnvelope()?.entryKey;
         if (changedUid) {
           persistActive(null);
           registerCustomExercises([]);
           set({
+            route: { view: 'home' },
             active: null,
             restUntil: null,
             restExerciseId: null,
@@ -740,6 +771,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   updateSet(ei, si, patch) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -749,6 +781,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   updateSessionNote(ei, text) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -774,6 +807,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   toggleSetKind(ei, si) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -784,6 +818,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   toggleDone(ei, si) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -793,20 +828,44 @@ export const useStore = create<Store>((set, get) => ({
       toast(i18nToast('workout.enterLoad'));
       return;
     }
-    s.done = !s.done;
-    // Resolve by exercise id, not position: the routine may have been
-    // edited/reordered while this session was in progress.
     const routine = get().routines.find((r) => r.id === active.routineId);
-    const rx = routine?.exercises.find((x) => x.exerciseId === exerciseId);
-    if (s.done && next.ex[ei].tracking !== 'duration' && s.reps == null) {
-      s.reps = rx?.repMin ?? null;
+    const exercise = next.ex[ei];
+    const occurrences = routine ? normalizeRoutineOccurrences(routine).exercises : [];
+    const rx = exercise.routineOccurrenceId
+      ? occurrences.find((item) => item.occurrenceId === exercise.routineOccurrenceId)
+      : occurrences.filter((item) => item.exerciseId === exerciseId).length === 1
+        ? occurrences.find((item) => item.exerciseId === exerciseId)
+        : undefined;
+    if (!s.done) {
+      const workingIndex =
+        exercise.sets.slice(0, si + 1).filter((set) => set.kind === 'working').length - 1;
+      if (exercise.tracking !== 'duration' && s.reps == null)
+        s.reps = s.targetReps ?? rx?.setTargets?.[workingIndex]?.repMin ?? rx?.repMin ?? null;
+      const valid =
+        exercise.tracking === 'duration'
+          ? s.durationSec !== null && Number.isFinite(s.durationSec) && s.durationSec > 0
+          : s.reps !== null &&
+            Number.isSafeInteger(s.reps) &&
+            s.reps >= 0 &&
+            (exercise.tracking === 'reps' ||
+              (s.weightKg !== null && Number.isFinite(s.weightKg) && s.weightKg >= 0));
+      if (!valid) {
+        toast(i18nToast('workout.invalidSet'));
+        return;
+      }
     }
+    s.done = !s.done;
     persistActive(next);
     set({ active: next });
-    if (s.done) get().startRest(next.ex[ei].restOverride ?? rx?.restSec ?? 90, exerciseId);
+    if (s.done)
+      get().startRest(
+        exercise.restOverride ?? exercise.prescribedRestSec ?? rx?.restSec ?? 90,
+        exerciseId,
+      );
   },
 
   setRestOverride(ei, sec) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -816,6 +875,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   addSet(ei) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -827,6 +887,7 @@ export const useStore = create<Store>((set, get) => ({
       reps: exercise.tracking === 'reps' ? (last?.reps ?? null) : null,
       durationSec: exercise.tracking === 'duration' ? (last?.durationSec ?? null) : null,
       kind: 'working',
+      targetReps: last?.targetReps ?? last?.reps ?? undefined,
       done: false,
     });
     persistActive(next);
@@ -834,6 +895,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   removeSet(ei) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = structuredClone(active);
@@ -842,13 +904,15 @@ export const useStore = create<Store>((set, get) => ({
     set({ active: next });
   },
 
-  addWorkoutExercise(exerciseId) {
+  addWorkoutExercise(exerciseId, tracking = 'weight_reps') {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const instanceId = newOccurrenceId();
     const exercise = buildActiveExercise(
       {
         exerciseId,
+        tracking,
         occurrenceId: instanceId,
         sets: 3,
         repMin: 8,
@@ -864,7 +928,8 @@ export const useStore = create<Store>((set, get) => ({
     set({ active: next, route: { view: 'workout' } });
   },
 
-  replaceWorkoutExercise(instanceId, exerciseId) {
+  replaceWorkoutExercise(instanceId, exerciseId, tracking) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const current = active.ex.find((exercise) => exercise.instanceId === instanceId);
@@ -877,7 +942,7 @@ export const useStore = create<Store>((set, get) => ({
         repMin: 8,
         repMax: 12,
         restSec: current.restOverride ?? 90,
-        tracking: current.tracking,
+        tracking: tracking ?? current.tracking,
       },
       get().workouts,
       active.routineId,
@@ -889,6 +954,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   removeWorkoutExercise(instanceId) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active || active.ex.length <= 1) return;
     const next = removeActiveExercise(active, instanceId);
@@ -897,6 +963,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   moveWorkoutExercise(instanceId, targetIndex) {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = moveActiveExercise(active, instanceId, targetIndex);
@@ -905,6 +972,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   pauseWorkoutClock() {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = pauseWorkout(active);
@@ -913,6 +981,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   resumeWorkoutClock() {
+    if (get().finishingWorkout) return;
     const active = get().active;
     if (!active) return;
     const next = resumeWorkout(active);
@@ -921,6 +990,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   abandonWorkout() {
+    if (get().finishingWorkout) return;
     persistActive(null);
     releaseWakeLock();
     set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
@@ -929,86 +999,115 @@ export const useStore = create<Store>((set, get) => ({
   async finishWorkout() {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
+    if (get().finishingWorkout) return STALE_ACCOUNT_ACTION;
+    const actionRoute = get().route;
     const active = get().active;
     if (!active) return appliedAccountAction(owner, null);
-    const routine = get().routines.find((r) => r.id === active.routineId);
-    const date = todayISO();
-    const dayLabel = routine?.name;
-    const doneSets = active.ex.flatMap(completedSets);
-    if (doneSets.length === 0) {
-      // Hevy behavior: an accidental session with nothing logged is discarded,
-      // not recorded and not nagged about.
-      persistActive(null);
-      releaseWakeLock();
-      set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
-      toast(i18nToast('workout.discarded'));
-      return appliedAccountAction(owner, null);
+    set({ finishingWorkout: true });
+    try {
+      const routine = get().routines.find((r) => r.id === active.routineId);
+      const date = new Date(active.startTs).toLocaleDateString('sv');
+      const dayLabel = routine?.name;
+      const doneSets = active.ex.flatMap(completedSets);
+      if (doneSets.length === 0) {
+        // Hevy behavior: an accidental session with nothing logged is discarded,
+        // not recorded and not nagged about.
+        persistActive(null);
+        releaseWakeLock();
+        set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
+        toast(i18nToast('workout.discarded'));
+        return appliedAccountAction(owner, null);
+      }
+      if (
+        doneSets.some((set) => !validWorkoutSet(set)) ||
+        !Number.isFinite(computeVolume(doneSets))
+      )
+        throw new Error('workout.invalidSet');
+      const flagged = flagPrs(doneSets, get().workouts, date, active.startTs);
+      const exerciseNotes = active.ex.flatMap(({ exerciseId, instanceId, sessionNote }) => {
+        const text = sessionNote?.trim();
+        return text ? [{ exerciseId, exerciseInstanceId: instanceId, text }] : [];
+      });
+      const workout: Workout = {
+        id: workoutId('app', date, `${routine?.name ?? 'w'}-${active.startTs}`),
+        routineId: active.routineId,
+        ...(dayLabel ? { dayLabel } : {}),
+        date,
+        startTs: active.startTs,
+        endTs: Date.now(),
+        durationSec: Math.round(elapsedWorkoutMs(active) / 1000),
+        sets: flagged,
+        exerciseOrder: active.ex.map(
+          (exercise, index) =>
+            exercise.instanceId ?? `legacy:${active.routineId}:${index}:${exercise.exerciseId}`,
+        ),
+        volumeKg: computeVolume(flagged),
+        ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
+        updatedAt: Date.now(),
+        source: 'app',
+      };
+      const routineDiff = routine ? diffRoutineSession(routine, active) : null;
+      const items = (routineDiff?.changes ?? []).map((_, exerciseIndex) => ({
+        exerciseId: active.ex[Math.min(exerciseIndex, active.ex.length - 1)]?.exerciseId ?? '',
+        exerciseIndex,
+      }));
+      const result = await withOwnedLocalWrite(owner, async () => {
+        await saveWorkout(workout);
+        return workout;
+      });
+      if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
+      const sameSession = get().active?.startTs === active.startTs;
+      if (sameSession) {
+        persistActive(null);
+        releaseWakeLock();
+      }
+      set({
+        ...(sameSession
+          ? { active: null, restUntil: null, restExerciseId: null, restTotalSec: null }
+          : {}),
+        workouts: [workout, ...get().workouts.filter((item) => item.id !== workout.id)],
+        ...(sameSession && get().route === actionRoute
+          ? { route: { view: 'summary' as const, workoutId: workout.id } }
+          : {}),
+        pendingRoutineChanges:
+          routine && routineDiff && items.length > 0
+            ? {
+                workoutId: workout.id,
+                baseUpdatedAt: routine.updatedAt,
+                routineId: routine.id,
+                items,
+                nextRoutine: routineDiff.nextRoutine,
+              }
+            : null,
+      });
+      if (owns(owner)) await pushRecord(owner.uid, 'workouts', workout);
+      return accountActionForOwner(owner, workout);
+    } finally {
+      if (owns(owner)) set({ finishingWorkout: false });
     }
-    const flagged = flagPrs(doneSets, get().workouts, date);
-    const exerciseNotes = active.ex.flatMap(({ exerciseId, instanceId, sessionNote }) => {
-      const text = sessionNote?.trim();
-      return text ? [{ exerciseId, exerciseInstanceId: instanceId, text }] : [];
-    });
-    const workout: Workout = {
-      id: workoutId('app', date, `${routine?.name ?? 'w'}-${active.startTs}`),
-      routineId: active.routineId,
-      ...(dayLabel ? { dayLabel } : {}),
-      date,
-      startTs: active.startTs,
-      endTs: Date.now(),
-      durationSec: Math.round(elapsedWorkoutMs(active) / 1000),
-      sets: flagged,
-      exerciseOrder: active.ex.map(
-        (exercise, index) =>
-          exercise.instanceId ?? `legacy:${active.routineId}:${index}:${exercise.exerciseId}`,
-      ),
-      volumeKg: computeVolume(flagged),
-      ...(exerciseNotes.length > 0 ? { exerciseNotes } : {}),
-      updatedAt: Date.now(),
-      source: 'app',
-    };
-    const routineDiff = routine ? diffRoutineSession(routine, active) : null;
-    const items = (routineDiff?.changes ?? []).map((_, exerciseIndex) => ({
-      exerciseId: active.ex[Math.min(exerciseIndex, active.ex.length - 1)]?.exerciseId ?? '',
-      exerciseIndex,
-    }));
-    const result = await withOwnedLocalWrite(owner, async () => {
-      await saveWorkout(workout);
-      return workout;
-    });
-    if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    persistActive(null);
-    releaseWakeLock();
-    set({
-      active: null,
-      restUntil: null,
-      restExerciseId: null,
-      workouts: [workout, ...get().workouts],
-      route: { view: 'summary', workoutId: workout.id },
-      pendingRoutineChanges:
-        routine && routineDiff && items.length > 0
-          ? { routineId: routine.id, items, nextRoutine: routineDiff.nextRoutine }
-          : null,
-    });
-    if (owns(owner)) await pushRecord(owner.uid, 'workouts', workout);
-    return accountActionForOwner(owner, workout);
   },
 
   startRest(sec, exerciseId) {
+    if (!Number.isFinite(sec) || sec < 0) return;
     void closeRestNotifications();
-    const restUntil = Date.now() + sec * 1000;
-    set({ restUntil, restExerciseId: exerciseId, restTotalSec: sec });
-    const active = get().active;
-    if (active)
-      persistActive({ ...active, restUntil, restExerciseId: exerciseId, restTotalSec: sec });
+    const timer = {
+      restUntil: Date.now() + sec * 1000,
+      restExerciseId: exerciseId,
+      restTotalSec: sec,
+    };
+    const current = get().active;
+    const active = current ? { ...current, ...timer } : null;
+    set({ ...timer, ...(active ? { active } : {}) });
+    if (active) persistActive(active);
   },
 
   stopRest() {
     void closeRestNotifications();
-    set({ restUntil: null, restExerciseId: null, restTotalSec: null });
-    const active = get().active;
-    if (active)
-      persistActive({ ...active, restUntil: null, restExerciseId: null, restTotalSec: null });
+    const timer = { restUntil: null, restExerciseId: null, restTotalSec: null };
+    const current = get().active;
+    const active = current ? { ...current, ...timer } : null;
+    set({ ...timer, ...(active ? { active } : {}) });
+    if (active) persistActive(active);
   },
 
   async saveRoutine(r) {
@@ -1189,22 +1288,33 @@ export const useStore = create<Store>((set, get) => ({
     return accountActionForOwner(owner, undefined);
   },
 
-  addDiaryEntries(date, entries) { return commitDiaryMutation(date, {kind:'add',entries}); },
-  updateDiaryEntry(date, entry) { return commitDiaryMutation(date, {kind:'update',entry}); },
-  deleteDiaryEntry(date, id) { return commitDiaryMutation(date, {kind:'delete',id}); },
+  addDiaryEntries(date, entries) {
+    return commitDiaryMutation(date, { kind: 'add', entries });
+  },
+  updateDiaryEntry(date, entry) {
+    return commitDiaryMutation(date, { kind: 'update', entry });
+  },
+  deleteDiaryEntry(date, id) {
+    return commitDiaryMutation(date, { kind: 'delete', id });
+  },
   async importDiaryDays(days) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     const snapshot = structuredClone(days);
     const result = await withOwnedLocalWrite(owner, () => dbImportDiaryDays(snapshot));
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    set((state) => ({nutrition:[...state.nutrition.filter(day=>!result.value.some(next=>next.id===day.id)),...result.value]}));
+    set((state) => ({
+      nutrition: [
+        ...state.nutrition.filter((day) => !result.value.some((next) => next.id === day.id)),
+        ...result.value,
+      ],
+    }));
     for (const day of result.value) {
       if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-      const current = get().nutrition.find(item => item.id === day.id);
-      if (current) await pushRecord(owner.uid,'nutrition',current);
+      const current = get().nutrition.find((item) => item.id === day.id);
+      if (current) await pushRecord(owner.uid, 'nutrition', current);
     }
-    return accountActionForOwner(owner,undefined);
+    return accountActionForOwner(owner, undefined);
   },
 
   async saveNutritionDay(date, patch) {
@@ -1228,6 +1338,8 @@ export const useStore = create<Store>((set, get) => ({
       set({ pendingRoutineChanges: null });
       return appliedAccountAction(owner, undefined);
     }
+    if (pending.baseUpdatedAt !== undefined && pending.baseUpdatedAt !== routine.updatedAt)
+      throw new Error('summary.routineChanged');
     const next = pending.nextRoutine
       ? structuredClone(pending.nextRoutine)
       : structuredClone(routine);
@@ -1241,15 +1353,21 @@ export const useStore = create<Store>((set, get) => ({
     }
     next.updatedAt = Date.now();
     const result = await withOwnedLocalWrite(owner, async () => {
+      const current = (await listRoutines()).find((item) => item.id === pending.routineId);
+      if (
+        get().pendingRoutineChanges !== pending ||
+        (pending.baseUpdatedAt !== undefined && current?.updatedAt !== pending.baseUpdatedAt)
+      )
+        throw new Error('summary.routineChanged');
       await saveRoutine(next);
       return next;
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
     set({
-      routines: get().routines.map((routine) => (routine.id === next.id ? next : routine)),
+      routines: get().routines.map((current) => (current === routine ? next : current)),
     });
     debouncedPushRoutine(owner, next.id);
-    set({ pendingRoutineChanges: null });
+    if (get().pendingRoutineChanges === pending) set({ pendingRoutineChanges: null });
     return appliedAccountAction(owner, undefined);
   },
 
@@ -1289,23 +1407,33 @@ export const useStore = create<Store>((set, get) => ({
     if (!owner) return STALE_ACCOUNT_ACTION;
     const result = await withOwnedLocalWrite(owner, async () => {
       await dbDeleteWorkout(id);
+      return listWorkouts();
     });
     if (result.status === 'stale' || !owns(owner)) return STALE_ACCOUNT_ACTION;
-    set({ workouts: get().workouts.filter((w) => w.id !== id) });
+    const before = get().workouts;
+    set({ workouts: result.value });
     if (owns(owner)) await deleteRecord(owner.uid, 'workouts', id);
+    for (const workout of result.value) {
+      if (!owns(owner)) return STALE_ACCOUNT_ACTION;
+      if (before.find((item) => item.id === workout.id)?.updatedAt !== workout.updatedAt)
+        await pushRecord(owner.uid, 'workouts', workout);
+    }
     return accountActionForOwner(owner, undefined);
   },
 
   async updateWorkout(id, draft) {
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    const original = get().workouts.find((workout) => workout.id === id);
-    if (!original) return appliedAccountAction(owner, undefined);
-    const edited = workoutFromDraft(original, draft);
-    const workouts = recomputeWorkoutFacts(
-      get().workouts.map((workout) => (workout.id === id ? edited : workout)),
-    );
+    const snapshot = structuredClone(draft);
     const result = await withOwnedLocalWrite(owner, async () => {
+      const current = await listWorkouts();
+      const original = current.find((workout) => workout.id === id);
+      if (!original) return current;
+      const edited = workoutFromDraft(original, snapshot);
+      const workouts = recomputeWorkoutFacts(
+        current.map((workout) => (workout.id === id ? edited : workout)),
+        Date.now(),
+      );
       await saveWorkouts(workouts);
       return workouts;
     });
@@ -1328,6 +1456,7 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async repeatWorkout(id) {
+    const actionRoute = get().route;
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     const workout = get().workouts.find((item) => item.id === id);
@@ -1335,7 +1464,7 @@ export const useStore = create<Store>((set, get) => ({
     const routine = routineFromWorkout(workout, workout.dayLabel ?? i18nToast('nav.workout'));
     const result = await get().saveRoutine(routine);
     if (!isAccountActionCurrent(result)) return result;
-    get().startWorkout(routine.id);
+    if (get().route === actionRoute) get().startWorkout(routine.id);
     return accountActionForOwner(owner, undefined);
   },
 
@@ -1359,9 +1488,10 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   async restoreBackup(backup) {
+    assertBackupRecords(backup);
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
-    backup = {...backup,nutrition:backup.nutrition.map(normalizeNutritionDay)};
+    backup = { ...backup, nutrition: backup.nutrition.map(normalizeNutritionDay) };
     const result = await withOwnedLocalWrite(owner, async () => {
       await restoreBackupCollections(backup);
       await migrateLegacyRoutines();
@@ -1371,37 +1501,61 @@ export const useStore = create<Store>((set, get) => ({
     const collections = result.value;
     registerCustomExercises(collections.customExercises);
     set(collections);
+    // Restore may supersede deletion markers; publish the actual committed revisions.
+    backup = {
+      ...backup,
+      workouts: collections.workouts.filter((row) =>
+        backup.workouts.some((item) => item.id === row.id),
+      ),
+      routines: collections.routines.filter((row) =>
+        backup.routines.some((item) => item.id === row.id),
+      ),
+      folders: collections.folders.filter((row) =>
+        backup.folders.some((item) => item.id === row.id),
+      ),
+      notes: collections.notes.filter((row) => backup.notes.some((item) => item.id === row.id)),
+      measurements: collections.measurements.filter((row) =>
+        backup.measurements.some((item) => item.id === row.id),
+      ),
+      nutrition: collections.nutrition.filter((row) =>
+        backup.nutrition.some((item) => item.id === row.id),
+      ),
+      customExercises: collections.customExercises.filter((row) =>
+        backup.customExercises.some((item) => item.id === row.id),
+      ),
+      settings: collections.settings,
+    };
     try {
       for (const record of backup.workouts) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'workouts', record);
+        await pushRecordStrict(owner.uid, 'workouts', record, true);
       }
       for (const record of backup.routines) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'routines', record);
+        await pushRecordStrict(owner.uid, 'routines', record, true);
       }
       for (const record of backup.folders) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'folders', record);
+        await pushRecordStrict(owner.uid, 'folders', record, true);
       }
       for (const record of backup.notes) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'notes', record);
+        await pushRecordStrict(owner.uid, 'notes', record, true);
       }
       for (const record of backup.measurements) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'measurements', record);
+        await pushRecordStrict(owner.uid, 'measurements', record, true);
       }
       for (const record of backup.nutrition) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'nutrition', record);
+        await pushRecordStrict(owner.uid, 'nutrition', record, true);
       }
       for (const record of backup.customExercises) {
         if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-        await pushRecordStrict(owner.uid, 'customExercises', record);
+        await pushRecordStrict(owner.uid, 'customExercises', record, true);
       }
       if (!owns(owner)) return STALE_ACCOUNT_ACTION;
-      await pushRecordStrict(owner.uid, 'settings', backup.settings);
+      await pushRecordStrict(owner.uid, 'settings', backup.settings, true);
       return accountActionForOwner(owner, undefined);
     } catch (error) {
       if (!owns(owner)) return STALE_ACCOUNT_ACTION;
@@ -1414,13 +1568,15 @@ if (typeof window !== 'undefined') {
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   try {
     history.replaceState(ensureHistoryEnvelope(useStore.getState().route, history.state), '');
+    activeEntryKey = readHistoryEnvelope()?.entryKey;
   } catch {
     /* history unavailable */
   }
   window.addEventListener('popstate', (event) => {
-    const route = (event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route);
-    const currentEnvelope = readHistoryEnvelope();
-    writeEntryScroll(useStore.getState().route.view, window.scrollY, currentEnvelope?.entryKey);
+    const route = isNavigationOwnerCurrent(event.state)
+      ? ((event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route))
+      : ({ view: 'home' } as Route);
+    writeEntryScroll(useStore.getState().route.view, window.scrollY, activeEntryKey);
     const targetEnvelope = ensureHistoryEnvelope(route, event.state);
     transitionRoute('back', () => {
       try {

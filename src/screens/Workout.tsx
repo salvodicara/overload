@@ -80,8 +80,10 @@ export function Workout() {
   const resumeWorkoutClock = useStore((s) => s.resumeWorkoutClock);
   const [confirming, setConfirming] = useState(false);
   const [reviewFinish, setReviewFinish] = useState(false);
-  const [finishing, setFinishing] = useState(false);
-  const [finishError, setFinishError] = useState(false);
+  const [localFinishing, setFinishing] = useState(false);
+  const globalFinishing = useStore((s) => s.finishingWorkout);
+  const finishing = localFinishing || globalFinishing;
+  const [finishError, setFinishError] = useState('');
   const finishingRef = useRef(false);
   const [pendingExerciseChange, setPendingExerciseChange] = useState<{
     action: 'remove' | 'replace';
@@ -127,11 +129,15 @@ export function Workout() {
     if (finishingRef.current) return;
     finishingRef.current = true;
     setFinishing(true);
-    setFinishError(false);
+    setFinishError('');
     try {
       await finish();
-    } catch {
-      setFinishError(true);
+    } catch (error) {
+      setFinishError(
+        error instanceof Error && error.message === 'workout.invalidSet'
+          ? 'workout.invalidSet'
+          : 'workout.saveError',
+      );
       setReviewFinish(false);
     } finally {
       finishingRef.current = false;
@@ -159,650 +165,660 @@ export function Workout() {
 
   return (
     <div className="screen workout-screen">
-      <PageHeader
-        className="workout-header"
-        sticky
-        title={<span className="workout-header__title">{routine.name}</span>}
-        eyebrow={
-          <button
-            type="button"
-            className="workout-header__clock"
-            aria-label={t(active.pausedAt ? 'workout.resumeClock' : 'workout.pauseClock')}
-            aria-pressed={Boolean(active.pausedAt)}
-            onClick={active.pausedAt ? resumeWorkoutClock : pauseWorkoutClock}
-          >
-            {active.pausedAt ? <IconPlay width={14} /> : <IconPause width={14} />}
-            <span className="workout-header__elapsed">
-              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-            </span>
-          </button>
-        }
-        back={{
-          label: t('workout.minimize'),
-          icon: <IconDown />,
-          onClick: () => nav({ view: 'train' }),
-        }}
-        action={
-          <button
-            className="btn btn-accent workout-header__finish"
-            aria-label={t('workout.finish')}
-            disabled={finishing}
-            onClick={() => (uncheckedEdited ? setReviewFinish(true) : void finishReviewed())}
-          >
-            {t('workout.finishShort')}
-          </button>
-        }
-      />
+      {finishing && <p role="status">{t('history.savingWorkout')}</p>}
+      <fieldset disabled={finishing} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <PageHeader
+          className="workout-header"
+          sticky
+          title={<span className="workout-header__title">{routine.name}</span>}
+          eyebrow={
+            <button
+              type="button"
+              className="workout-header__clock"
+              aria-label={t(active.pausedAt ? 'workout.resumeClock' : 'workout.pauseClock')}
+              aria-pressed={Boolean(active.pausedAt)}
+              onClick={active.pausedAt ? resumeWorkoutClock : pauseWorkoutClock}
+            >
+              {active.pausedAt ? <IconPlay width={14} /> : <IconPause width={14} />}
+              <span className="workout-header__elapsed">
+                {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+              </span>
+            </button>
+          }
+          back={{
+            label: t('workout.minimize'),
+            icon: <IconDown />,
+            onClick: () => nav({ view: 'train' }),
+          }}
+          action={
+            <button
+              className="btn btn-accent workout-header__finish"
+              aria-label={t('workout.finish')}
+              disabled={finishing}
+              onClick={() => (uncheckedEdited ? setReviewFinish(true) : void finishReviewed())}
+            >
+              {t('workout.finishShort')}
+            </button>
+          }
+        />
 
-      {persistence === 'error' && (
-        <p className="banner banner-warn" role="alert">
-          {t('workout.storageError')}
-        </p>
-      )}
-      {finishError && (
-        <p role="alert" className="banner banner-warn">
-          {t('workout.saveError')}
-        </p>
-      )}
-      {routine.warmup && (
-        <details className="workout-preparation">
-          <summary>{t('workout.warmup')}</summary>
-          <p>{routine.warmup}</p>
-        </details>
-      )}
+        {persistence === 'error' && (
+          <p className="banner banner-warn" role="alert">
+            {t('workout.storageError')}
+          </p>
+        )}
+        {finishError && (
+          <p role="alert" className="banner banner-warn">
+            {t(finishError)}
+          </p>
+        )}
+        {routine.warmup && (
+          <details className="workout-preparation">
+            <summary>{t('workout.warmup')}</summary>
+            <p>{routine.warmup}</p>
+          </details>
+        )}
 
-      <div className="stack workout-exercises">
-        {active.ex.map((exercise, exerciseIndex) => {
-          // Active exercises preserve routine order, so the index identifies the exact
-          // prescription even when the same catalog exercise appears more than once.
-          const instanceId =
-            exercise.instanceId ??
-            `legacy:${active.routineId}:${exerciseIndex}:${exercise.exerciseId}`;
-          const prescription =
-            routine.exercises.find((item) => item.occurrenceId === exercise.routineOccurrenceId) ??
-            routine.exercises[exerciseIndex];
-          const name = exerciseName(exercise.exerciseId, i18n.language);
-          const priorWorkingSets = previousSets(workouts, exercise.exerciseId, routine.id);
-          const firstWorkingWeight =
-            exercise.sets.find((set) => set.kind === 'working')?.weightKg ?? 0;
-          const target = prescription
-            ? prescription.setTargets?.length
-              ? prescription.setTargets
-                  .map(
-                    (setTarget) =>
-                      `${rangeLabel(setTarget.repMin, setTarget.repMax)}${
-                        exercise.tracking === 'duration' ? 's' : ''
-                      }`,
-                  )
-                  .join(' / ')
-              : `${prescription.sets} × ${rangeLabel(prescription.repMin, prescription.repMax)}${
-                  exercise.tracking === 'duration' ? 's' : ''
-                }`
-            : null;
-          const progression =
-            exercise.tracking === 'weight_reps'
-              ? t(exercise.hintKey, {
-                  kg: firstWorkingWeight,
-                  weight: formatWeight(firstWorkingWeight, unit, i18n.language),
-                })
-              : exercise.tracking === 'duration'
-                ? t('workout.durationTarget')
-                : t('workout.repsTarget');
-          const addSetRef =
-            addSetRefs.current[exerciseIndex] ??
-            (addSetRefs.current[exerciseIndex] = createRef<HTMLButtonElement>());
-          const optionRef =
-            exerciseOptionRefs.current[instanceId] ??
-            (exerciseOptionRefs.current[instanceId] = createRef<HTMLButtonElement>());
-          let workingIndex = 0;
+        <div className="stack workout-exercises">
+          {active.ex.map((exercise, exerciseIndex) => {
+            // Active exercises preserve routine order, so the index identifies the exact
+            // prescription even when the same catalog exercise appears more than once.
+            const instanceId =
+              exercise.instanceId ??
+              `legacy:${active.routineId}:${exerciseIndex}:${exercise.exerciseId}`;
+            const prescription = routine.exercises.find(
+              (item) =>
+                item.occurrenceId === exercise.routineOccurrenceId &&
+                item.exerciseId === exercise.exerciseId,
+            );
+            const restSec =
+              exercise.restOverride ?? exercise.prescribedRestSec ?? prescription?.restSec ?? 90;
+            const name = exerciseName(exercise.exerciseId, i18n.language);
+            const priorWorkingSets = previousSets(
+              workouts,
+              exercise.exerciseId,
+              routine.id,
+              exercise.routineOccurrenceId,
+              exercise.tracking,
+            );
+            const firstWorkingWeight =
+              exercise.sets.find((set) => set.kind === 'working')?.weightKg ?? 0;
+            const target = prescription
+              ? prescription.setTargets?.length
+                ? prescription.setTargets
+                    .map(
+                      (setTarget) =>
+                        `${rangeLabel(setTarget.repMin, setTarget.repMax)}${
+                          exercise.tracking === 'duration' ? 's' : ''
+                        }`,
+                    )
+                    .join(' / ')
+                : `${prescription.sets} × ${rangeLabel(prescription.repMin, prescription.repMax)}${
+                    exercise.tracking === 'duration' ? 's' : ''
+                  }`
+              : null;
+            const progression =
+              exercise.tracking === 'weight_reps'
+                ? t(exercise.hintKey, {
+                    kg: firstWorkingWeight,
+                    weight: formatWeight(firstWorkingWeight, unit, i18n.language),
+                  })
+                : exercise.tracking === 'duration'
+                  ? t('workout.durationTarget')
+                  : t('workout.repsTarget');
+            const addSetRef =
+              addSetRefs.current[exerciseIndex] ??
+              (addSetRefs.current[exerciseIndex] = createRef<HTMLButtonElement>());
+            const optionRef =
+              exerciseOptionRefs.current[instanceId] ??
+              (exerciseOptionRefs.current[instanceId] = createRef<HTMLButtonElement>());
+            let workingIndex = 0;
 
-          return (
-            <section key={instanceId} className="exercise-block card">
-              <div className="card-pad exercise-block__header">
-                <div className="exercise-block__title-row">
-                  <button
-                    className="exercise-block__name"
-                    onClick={() =>
-                      nav({ view: 'exercise', id: exercise.exerciseId, from: 'workout' })
-                    }
-                  >
-                    {name}
-                  </button>
-                  <button
-                    type="button"
-                    className="iconbtn exercise-block__options"
-                    ref={optionRef}
-                    aria-label={t('workout.exerciseOptions')}
-                    onClick={() => setExerciseOptions({ instanceId, name, index: exerciseIndex })}
-                  >
-                    <IconMore />
-                  </button>
-                </div>
-                <div className="exercise-block__meta">
-                  {target && <span className="exercise-block__target">{target}</span>}
-                  {prescription && (
+            return (
+              <section key={instanceId} className="exercise-block card">
+                <div className="card-pad exercise-block__header">
+                  <div className="exercise-block__title-row">
                     <button
-                      className="exercise-block__rest"
-                      aria-expanded={editingRest === exerciseIndex}
+                      className="exercise-block__name"
                       onClick={() =>
-                        setEditingRest(editingRest === exerciseIndex ? null : exerciseIndex)
+                        nav({ view: 'exercise', id: exercise.exerciseId, from: 'workout' })
                       }
                     >
-                      {t('workout.rest', {
-                        time: fmtRest(exercise.restOverride ?? prescription.restSec),
-                      })}{' '}
-                      ▾
-                    </button>
-                  )}
-                  <span className="exercise-block__progression">{progression}</span>
-                </div>
-
-                {editingRest === exerciseIndex && prescription && (
-                  <div className="exercise-block__rest-editor">
-                    <button
-                      className="iconbtn rest-adjust"
-                      aria-label={t('workout.restLess')}
-                      disabled={(exercise.restOverride ?? prescription.restSec) <= 15}
-                      onClick={() =>
-                        setRestOverride(
-                          exerciseIndex,
-                          Math.max(15, (exercise.restOverride ?? prescription.restSec) - 15),
-                        )
-                      }
-                    >
-                      <IconMinus width={14} height={14} />
-                    </button>
-                    <span className="mono exercise-block__rest-value">
-                      {fmtRest(exercise.restOverride ?? prescription.restSec)}
-                    </span>
-                    <button
-                      className="iconbtn rest-adjust"
-                      aria-label={t('workout.restMore')}
-                      onClick={() =>
-                        setRestOverride(
-                          exerciseIndex,
-                          (exercise.restOverride ?? prescription.restSec) + 15,
-                        )
-                      }
-                    >
-                      +
+                      {name}
                     </button>
                     <button
-                      className="btn btn-ghost rest-adjust-done"
-                      onClick={() => setEditingRest(null)}
+                      type="button"
+                      className="iconbtn exercise-block__options"
+                      ref={optionRef}
+                      aria-label={t('workout.exerciseOptions')}
+                      onClick={() => setExerciseOptions({ instanceId, name, index: exerciseIndex })}
                     >
-                      {t('common.done')}
+                      <IconMore />
                     </button>
                   </div>
-                )}
+                  <div className="exercise-block__meta">
+                    {target && <span className="exercise-block__target">{target}</span>}
+                    {
+                      <button
+                        className="exercise-block__rest"
+                        aria-expanded={editingRest === exerciseIndex}
+                        onClick={() =>
+                          setEditingRest(editingRest === exerciseIndex ? null : exerciseIndex)
+                        }
+                      >
+                        {t('workout.rest', {
+                          time: fmtRest(restSec),
+                        })}{' '}
+                        ▾
+                      </button>
+                    }
+                    <span className="exercise-block__progression">{progression}</span>
+                  </div>
 
-                {(() => {
-                  const note = notes.find((item) => item.id === exercise.exerciseId);
-                  const techniqueKey = `${instanceId}:technique`;
-                  const notePanelKey = `${instanceId}:notes`;
-                  const sessionKey = `${instanceId}:session`;
-                  const editingTechnique = expandedNotes[techniqueKey] ?? false;
-                  const notePanelExpanded = expandedNotes[notePanelKey] ?? false;
-                  const editingSession = expandedNotes[sessionKey] ?? false;
-                  const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
-                  const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
-                  const noteContentId = `workout-note-${exerciseIndex}-content`;
-                  const previousSession = exerciseJournal(workouts, note, exercise.exerciseId).find(
-                    (entry) => entry.id.startsWith('workout:'),
-                  );
-                  const toggleNote = (key: string) =>
-                    setExpandedNotes((current) => ({ ...current, [key]: !current[key] }));
-                  return (
-                    <div className="workout-notes">
-                      <section className="workout-note">
-                        <button
-                          type="button"
-                          className="workout-note__trigger"
-                          aria-expanded={notePanelExpanded}
-                          aria-controls={noteContentId}
-                          onClick={() => toggleNote(notePanelKey)}
-                        >
-                          <IconNote width={16} height={16} aria-hidden />
-                          <span className="workout-note__copy">
-                            <span className="workout-note__scope">
-                              {t('notes.techniqueAndNotes')}
-                            </span>
-                            {(exercise.sessionNote || prescription?.note) && (
-                              <span className="workout-note__summary">
-                                {exercise.sessionNote || prescription?.note}
-                              </span>
-                            )}
-                          </span>
-                          <span className="workout-note__chevron" aria-hidden="true">
-                            ▾
-                          </span>
-                        </button>
-                        <div
-                          id={noteContentId}
-                          className="workout-note__content"
-                          role="group"
-                          hidden={!notePanelExpanded}
-                        >
-                          {notePanelExpanded && (
-                            <>
-                              <section className="workout-coach-note workout-note-scope">
-                                <div className="workout-note-scope__heading">
-                                  <span id={techniqueLabelId} className="workout-note-scope__label">
-                                    {t('notes.routineTechnique')}
-                                  </span>
-                                  {!editingTechnique && (
-                                    <button
-                                      type="button"
-                                      className="workout-note-scope__action"
-                                      onClick={() => toggleNote(techniqueKey)}
-                                    >
-                                      {t('workout.editTechnique')}
-                                    </button>
-                                  )}
-                                </div>
-                                {!editingTechnique && (
-                                  <p className="workout-note-scope__text">
-                                    {prescription?.note || t('workout.techniqueEmpty')}
-                                  </p>
-                                )}
-                                {editingTechnique && (
-                                  <NoteEditor
-                                    key={`technique:${instanceId}`}
-                                    initial={
-                                      techniqueDrafts[instanceId] ?? prescription?.note ?? ''
-                                    }
-                                    placeholder={t('workout.techniquePlaceholder')}
-                                    labelledBy={techniqueLabelId}
-                                    doneLabel={t('notes.done')}
-                                    onChangeText={(text) =>
-                                      setTechniqueDrafts((current) => ({
-                                        ...current,
-                                        [instanceId]: text,
-                                      }))
-                                    }
-                                    onDone={async (text) => {
-                                      await updateRoutineTechnique(
-                                        prescription?.occurrenceId ??
-                                          exercise.routineOccurrenceId ??
-                                          instanceId,
-                                        text,
-                                      );
-                                      toggleNote(techniqueKey);
-                                    }}
-                                  />
-                                )}
-                              </section>
-                              <section className="workout-note-scope workout-note-scope--session">
-                                <div className="workout-note-scope__heading">
-                                  <span id={sessionLabelId} className="workout-note-scope__label">
-                                    {t('notes.todayNote')}
-                                  </span>
-                                  {!editingSession && (
-                                    <button
-                                      type="button"
-                                      className="workout-note-scope__action"
-                                      onClick={() => toggleNote(sessionKey)}
-                                    >
-                                      {t('notes.editTodayNote')}
-                                    </button>
-                                  )}
-                                </div>
-                                {!editingSession && (
-                                  <p className="workout-note-scope__text">
-                                    {exercise.sessionNote || t('notes.sessionPlaceholder')}
-                                  </p>
-                                )}
-                                {editingSession && (
-                                  <NoteEditor
-                                    key={`session:${exerciseIndex}`}
-                                    initial={exercise.sessionNote ?? ''}
-                                    placeholder={t('notes.sessionPlaceholder')}
-                                    labelledBy={sessionLabelId}
-                                    doneLabel={t('notes.done')}
-                                    onChangeText={(text) => updateSessionNote(exerciseIndex, text)}
-                                    onDone={() => toggleNote(sessionKey)}
-                                  />
-                                )}
-                                {previousSession && (
-                                  <p className="workout-note__context">
-                                    <span>
-                                      {t('notes.previousSession', {
-                                        date: fmtDate(previousSession.date, i18n.language),
-                                      })}
-                                    </span>
-                                    <span>{previousSession.text}</span>
-                                  </p>
-                                )}
-                              </section>
-                            </>
-                          )}
-                        </div>
-                      </section>
+                  {editingRest === exerciseIndex && (
+                    <div className="exercise-block__rest-editor">
+                      <button
+                        className="iconbtn rest-adjust"
+                        aria-label={t('workout.restLess')}
+                        disabled={restSec <= 0}
+                        onClick={() => setRestOverride(exerciseIndex, Math.max(0, restSec - 15))}
+                      >
+                        <IconMinus width={14} height={14} />
+                      </button>
+                      <span className="mono exercise-block__rest-value">{fmtRest(restSec)}</span>
+                      <button
+                        className="iconbtn rest-adjust"
+                        aria-label={t('workout.restMore')}
+                        onClick={() => setRestOverride(exerciseIndex, restSec + 15)}
+                      >
+                        +
+                      </button>
+                      <button
+                        className="btn btn-ghost rest-adjust-done"
+                        onClick={() => setEditingRest(null)}
+                      >
+                        {t('common.done')}
+                      </button>
                     </div>
-                  );
-                })()}
-              </div>
+                  )}
 
-              <div
-                className={`set-table set-table--${tableMode(exercise.tracking)}`}
-                aria-label={t('workout.setsFor', { exercise: name })}
-              >
-                <div className="set-grid set-table__header mono muted" aria-hidden="true">
-                  <span>{t('workout.set')}</span>
-                  <span>{t('workout.previous')}</span>
-                  {exercise.tracking === 'weight_reps' && <span>{weightLabel(unit)}</span>}
-                  {exercise.tracking !== 'duration' && <span>{t('workout.reps')}</span>}
-                  {exercise.tracking === 'duration' && <span>{t('workout.seconds')}</span>}
-                  <span>
-                    <IconCheck width={13} height={13} />
-                  </span>
+                  {(() => {
+                    const note = notes.find((item) => item.id === exercise.exerciseId);
+                    const techniqueKey = `${instanceId}:technique`;
+                    const notePanelKey = `${instanceId}:notes`;
+                    const sessionKey = `${instanceId}:session`;
+                    const editingTechnique = expandedNotes[techniqueKey] ?? false;
+                    const notePanelExpanded = expandedNotes[notePanelKey] ?? false;
+                    const editingSession = expandedNotes[sessionKey] ?? false;
+                    const techniqueLabelId = `workout-note-${exerciseIndex}-technique-label`;
+                    const sessionLabelId = `workout-note-${exerciseIndex}-session-label`;
+                    const noteContentId = `workout-note-${exerciseIndex}-content`;
+                    const previousSession = exerciseJournal(
+                      workouts,
+                      note,
+                      exercise.exerciseId,
+                    ).find((entry) => entry.id.startsWith('workout:'));
+                    const toggleNote = (key: string) =>
+                      setExpandedNotes((current) => ({ ...current, [key]: !current[key] }));
+                    return (
+                      <div className="workout-notes">
+                        <section className="workout-note">
+                          <button
+                            type="button"
+                            className="workout-note__trigger"
+                            aria-expanded={notePanelExpanded}
+                            aria-controls={noteContentId}
+                            onClick={() => toggleNote(notePanelKey)}
+                          >
+                            <IconNote width={16} height={16} aria-hidden />
+                            <span className="workout-note__copy">
+                              <span className="workout-note__scope">
+                                {t('notes.techniqueAndNotes')}
+                              </span>
+                              {(exercise.sessionNote || prescription?.note) && (
+                                <span className="workout-note__summary">
+                                  {exercise.sessionNote || prescription?.note}
+                                </span>
+                              )}
+                            </span>
+                            <span className="workout-note__chevron" aria-hidden="true">
+                              ▾
+                            </span>
+                          </button>
+                          <div
+                            id={noteContentId}
+                            className="workout-note__content"
+                            role="group"
+                            hidden={!notePanelExpanded}
+                          >
+                            {notePanelExpanded && (
+                              <>
+                                {prescription && (
+                                  <section className="workout-coach-note workout-note-scope">
+                                    <div className="workout-note-scope__heading">
+                                      <span
+                                        id={techniqueLabelId}
+                                        className="workout-note-scope__label"
+                                      >
+                                        {t('notes.routineTechnique')}
+                                      </span>
+                                      {!editingTechnique && (
+                                        <button
+                                          type="button"
+                                          className="workout-note-scope__action"
+                                          onClick={() => toggleNote(techniqueKey)}
+                                        >
+                                          {t('workout.editTechnique')}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {!editingTechnique && (
+                                      <p className="workout-note-scope__text">
+                                        {prescription?.note || t('workout.techniqueEmpty')}
+                                      </p>
+                                    )}
+                                    {editingTechnique && (
+                                      <NoteEditor
+                                        key={`technique:${instanceId}`}
+                                        initial={
+                                          techniqueDrafts[instanceId] ?? prescription?.note ?? ''
+                                        }
+                                        placeholder={t('workout.techniquePlaceholder')}
+                                        labelledBy={techniqueLabelId}
+                                        doneLabel={t('notes.done')}
+                                        onChangeText={(text) =>
+                                          setTechniqueDrafts((current) => ({
+                                            ...current,
+                                            [instanceId]: text,
+                                          }))
+                                        }
+                                        onDone={async (text) => {
+                                          await updateRoutineTechnique(
+                                            prescription?.occurrenceId ??
+                                              exercise.routineOccurrenceId ??
+                                              instanceId,
+                                            text,
+                                          );
+                                          toggleNote(techniqueKey);
+                                        }}
+                                      />
+                                    )}
+                                  </section>
+                                )}
+                                <section className="workout-note-scope workout-note-scope--session">
+                                  <div className="workout-note-scope__heading">
+                                    <span id={sessionLabelId} className="workout-note-scope__label">
+                                      {t('notes.todayNote')}
+                                    </span>
+                                    {!editingSession && (
+                                      <button
+                                        type="button"
+                                        className="workout-note-scope__action"
+                                        onClick={() => toggleNote(sessionKey)}
+                                      >
+                                        {t('notes.editTodayNote')}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {!editingSession && (
+                                    <p className="workout-note-scope__text">
+                                      {exercise.sessionNote || t('notes.sessionPlaceholder')}
+                                    </p>
+                                  )}
+                                  {editingSession && (
+                                    <NoteEditor
+                                      key={`session:${exerciseIndex}`}
+                                      initial={exercise.sessionNote ?? ''}
+                                      placeholder={t('notes.sessionPlaceholder')}
+                                      labelledBy={sessionLabelId}
+                                      doneLabel={t('notes.done')}
+                                      onChangeText={(text) =>
+                                        updateSessionNote(exerciseIndex, text)
+                                      }
+                                      onDone={() => toggleNote(sessionKey)}
+                                    />
+                                  )}
+                                  {previousSession && (
+                                    <p className="workout-note__context">
+                                      <span>
+                                        {t('notes.previousSession', {
+                                          date: fmtDate(previousSession.date, i18n.language),
+                                        })}
+                                      </span>
+                                      <span>{previousSession.text}</span>
+                                    </p>
+                                  )}
+                                </section>
+                              </>
+                            )}
+                          </div>
+                        </section>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {exercise.sets.map((set, setIndex) => {
-                  const isWarmup = set.kind === 'warmup';
-                  const workingNumber = workingIndex + 1;
-                  const previous = isWarmup ? undefined : priorWorkingSets[workingIndex];
-                  const previousValue = previous
-                    ? formatPreviousSet(previous, exercise.tracking, unit, false)
-                    : t('workout.noPrevious');
-                  if (!isWarmup) workingIndex += 1;
-                  const setNumber = setIndex + 1;
-                  return (
-                    <div
-                      key={setIndex}
-                      className={`set-grid set-row setrow${set.done ? ' done' : ''}`}
-                      role="group"
-                      aria-label={t('workout.setRow', { set: setNumber, exercise: name })}
-                    >
-                      <button
-                        className="set-kind-toggle mono"
-                        aria-pressed={isWarmup}
-                        aria-label={
-                          isWarmup
-                            ? t('workout.markWorking', { set: setNumber })
-                            : t('workout.markWarmup', { set: setNumber })
-                        }
-                        onClick={() => toggleSetKind(exerciseIndex, setIndex)}
+                <div
+                  className={`set-table set-table--${tableMode(exercise.tracking)}`}
+                  aria-label={t('workout.setsFor', { exercise: name })}
+                >
+                  <div className="set-grid set-table__header mono muted" aria-hidden="true">
+                    <span>{t('workout.set')}</span>
+                    <span>{t('workout.previous')}</span>
+                    {exercise.tracking === 'weight_reps' && <span>{weightLabel(unit)}</span>}
+                    {exercise.tracking !== 'duration' && <span>{t('workout.reps')}</span>}
+                    {exercise.tracking === 'duration' && <span>{t('workout.seconds')}</span>}
+                    <span>
+                      <IconCheck width={13} height={13} />
+                    </span>
+                  </div>
+
+                  {exercise.sets.map((set, setIndex) => {
+                    const isWarmup = set.kind === 'warmup';
+                    const workingNumber = workingIndex + 1;
+                    const previous = isWarmup ? undefined : priorWorkingSets[workingIndex];
+                    const previousValue = previous
+                      ? formatPreviousSet(previous, exercise.tracking, unit, false)
+                      : t('workout.noPrevious');
+                    if (!isWarmup) workingIndex += 1;
+                    const setNumber = setIndex + 1;
+                    return (
+                      <div
+                        key={setIndex}
+                        className={`set-grid set-row setrow${set.done ? ' done' : ''}`}
+                        role="group"
+                        aria-label={t('workout.setRow', { set: setNumber, exercise: name })}
                       >
-                        {isWarmup ? 'W' : workingNumber}
-                      </button>
-                      <span
-                        className="set-previous mono"
-                        aria-label={t('workout.previousValue', {
-                          set: setNumber,
-                          value: previousValue,
-                        })}
-                      >
-                        {previous ? previousValue : '—'}
-                      </span>
-                      {exercise.tracking === 'weight_reps' && (
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          step={unit === 'kg' ? 0.5 : 1}
-                          min={0}
-                          aria-label={t('workout.loadInput', {
+                        <button
+                          className="set-kind-toggle mono"
+                          aria-pressed={isWarmup}
+                          aria-label={
+                            isWarmup
+                              ? t('workout.markWorking', { set: setNumber })
+                              : t('workout.markWarmup', { set: setNumber })
+                          }
+                          onClick={() => toggleSetKind(exerciseIndex, setIndex)}
+                        >
+                          {isWarmup ? 'W' : workingNumber}
+                        </button>
+                        <span
+                          className="set-previous mono"
+                          aria-label={t('workout.previousValue', {
                             set: setNumber,
-                            unit: weightLabel(unit),
+                            value: previousValue,
                           })}
-                          placeholder="—"
-                          value={set.weightKg === null ? '' : displayWeight(set.weightKg, unit)}
-                          onFocus={selectNumericValue}
-                          onChange={(event) =>
-                            updateSet(exerciseIndex, setIndex, {
-                              weightKg:
-                                event.target.value === ''
-                                  ? null
-                                  : canonicalWeight(Number(event.target.value), unit),
-                            })
-                          }
-                        />
-                      )}
-                      {exercise.tracking !== 'duration' && (
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          step={1}
-                          min={0}
-                          aria-label={t('workout.repsInput', { set: setNumber })}
-                          placeholder="—"
-                          value={set.reps ?? ''}
-                          onFocus={selectNumericValue}
-                          onChange={(event) =>
-                            updateSet(exerciseIndex, setIndex, {
-                              reps: event.target.value === '' ? null : Number(event.target.value),
-                            })
-                          }
-                        />
-                      )}
-                      {exercise.tracking === 'duration' && (
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          step={1}
-                          min={0}
-                          aria-label={t('workout.secondsInput', { set: setNumber })}
-                          placeholder="—"
-                          value={set.durationSec ?? ''}
-                          onFocus={selectNumericValue}
-                          onChange={(event) =>
-                            updateSet(exerciseIndex, setIndex, {
-                              durationSec:
-                                event.target.value === '' ? null : Number(event.target.value),
-                            })
-                          }
-                        />
-                      )}
-                      <button
-                        className="setcheck"
-                        aria-pressed={set.done}
-                        aria-label={`${t('workout.set')} ${setNumber}`}
-                        onClick={() => toggleDone(exerciseIndex, setIndex)}
-                      >
-                        <IconCheck />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                        >
+                          {previous ? previousValue : '—'}
+                        </span>
+                        {exercise.tracking === 'weight_reps' && (
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            step={unit === 'kg' ? 0.5 : 1}
+                            min={0}
+                            aria-label={t('workout.loadInput', {
+                              set: setNumber,
+                              unit: weightLabel(unit),
+                            })}
+                            placeholder="—"
+                            value={set.weightKg === null ? '' : displayWeight(set.weightKg, unit)}
+                            onFocus={selectNumericValue}
+                            onChange={(event) =>
+                              updateSet(exerciseIndex, setIndex, {
+                                weightKg:
+                                  event.target.value === ''
+                                    ? null
+                                    : canonicalWeight(Number(event.target.value), unit),
+                              })
+                            }
+                          />
+                        )}
+                        {exercise.tracking !== 'duration' && (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            step={1}
+                            min={0}
+                            aria-label={t('workout.repsInput', { set: setNumber })}
+                            placeholder="—"
+                            value={set.reps ?? ''}
+                            onFocus={selectNumericValue}
+                            onChange={(event) =>
+                              updateSet(exerciseIndex, setIndex, {
+                                reps: event.target.value === '' ? null : Number(event.target.value),
+                              })
+                            }
+                          />
+                        )}
+                        {exercise.tracking === 'duration' && (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            step={1}
+                            min={0}
+                            aria-label={t('workout.secondsInput', { set: setNumber })}
+                            placeholder="—"
+                            value={set.durationSec ?? ''}
+                            onFocus={selectNumericValue}
+                            onChange={(event) =>
+                              updateSet(exerciseIndex, setIndex, {
+                                durationSec:
+                                  event.target.value === '' ? null : Number(event.target.value),
+                              })
+                            }
+                          />
+                        )}
+                        <button
+                          className="setcheck"
+                          aria-pressed={set.done}
+                          aria-label={`${t('workout.set')} ${setNumber}`}
+                          onClick={() => toggleDone(exerciseIndex, setIndex)}
+                        >
+                          <IconCheck />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
 
-              <div className="exercise-block__set-actions">
-                <button ref={addSetRef} className="addset" onClick={() => addSet(exerciseIndex)}>
-                  {t('workout.addSet')}
-                </button>
-                {exercise.sets.length > 1 && (
-                  <button
-                    className="addset exercise-block__remove-set"
-                    onClick={() => {
-                      setRemovalCommittedRef.current = false;
-                      setPendingSetRemoval({
-                        exercise: name,
-                        exerciseIndex,
-                        setNumber: exercise.sets.length,
-                      });
-                    }}
-                    aria-label={t('workout.removeSet')}
-                  >
-                    <IconMinus />
+                <div className="exercise-block__set-actions">
+                  <button ref={addSetRef} className="addset" onClick={() => addSet(exerciseIndex)}>
+                    {t('workout.addSet')}
                   </button>
-                )}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-
-      <button
-        type="button"
-        className="btn btn-ghost btn-block workout-add-exercise"
-        onClick={() => nav({ view: 'library', pickFor: { activeWorkout: true } })}
-      >
-        {t('workout.addExercise')}
-      </button>
-
-      <details className="workout-actions">
-        <summary>{t('workout.moreActions')}</summary>
-        <button className="btn btn-danger btn-block" onClick={() => setConfirming(true)}>
-          {t('workout.abandonConfirm')}
-        </button>
-      </details>
-
-      {pendingSetRemoval && (
-        <BottomSheet
-          open
-          title={t('workout.removeSetTitle', {
-            set: pendingSetRemoval.setNumber,
-            exercise: pendingSetRemoval.exercise,
+                  {exercise.sets.length > 1 && (
+                    <button
+                      className="addset exercise-block__remove-set"
+                      onClick={() => {
+                        setRemovalCommittedRef.current = false;
+                        setPendingSetRemoval({
+                          exercise: name,
+                          exerciseIndex,
+                          setNumber: exercise.sets.length,
+                        });
+                      }}
+                      aria-label={t('workout.removeSet')}
+                    >
+                      <IconMinus />
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
           })}
-          initialFocusRef={cancelSetRemovalRef}
-          fallbackFocusRef={addSetRefs.current[pendingSetRemoval.exerciseIndex]}
-          onClose={() => setPendingSetRemoval(null)}
-        >
-          <span className="muted small">{t('workout.removeSetBody')}</span>
-          <button
-            className="btn btn-danger btn-block"
-            onClick={() => {
-              if (setRemovalCommittedRef.current) return;
-              setRemovalCommittedRef.current = true;
-              const exerciseIndex = pendingSetRemoval.exerciseIndex;
-              setPendingSetRemoval(null);
-              removeSet(exerciseIndex);
-            }}
-          >
-            {t('workout.removeSet')}
-          </button>
-          <button
-            ref={cancelSetRemovalRef}
-            className="btn btn-ghost btn-block"
-            onClick={() => setPendingSetRemoval(null)}
-          >
-            {t('workout.cancel')}
-          </button>
-        </BottomSheet>
-      )}
+        </div>
 
-      {exerciseOptions && (
-        <BottomSheet open title={exerciseOptions.name} onClose={() => setExerciseOptions(null)}>
-          <div className="workout-exercise-options">
-            <button
-              className="btn btn-ghost"
-              disabled={exerciseOptions.index === 0}
-              onClick={() => {
-                moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index - 1);
-                setExerciseOptions(null);
-              }}
-            >
-              {t('editor.moveUp')}
-            </button>
-            <button
-              className="btn btn-ghost"
-              disabled={exerciseOptions.index === active.ex.length - 1}
-              onClick={() => {
-                moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index + 1);
-                setExerciseOptions(null);
-              }}
-            >
-              {t('editor.moveDown')}
-            </button>
-            <button className="btn btn-ghost" onClick={() => requestExerciseChange('replace')}>
-              {t('workout.replaceExercise')}
-            </button>
-            <button
-              className="btn btn-danger"
-              disabled={active.ex.length <= 1}
-              onClick={() => {
-                requestExerciseChange('remove');
-              }}
-            >
-              {t('workout.removeExercise')}
-            </button>
-          </div>
-        </BottomSheet>
-      )}
+        <button
+          type="button"
+          className="btn btn-ghost btn-block workout-add-exercise"
+          onClick={() => nav({ view: 'library', pickFor: { activeWorkout: true } })}
+        >
+          {t('workout.addExercise')}
+        </button>
 
-      {reviewFinish && (
-        <BottomSheet
-          open
-          title={t('workout.uncheckedTitle')}
-          initialFocusRef={continueWorkoutRef}
-          onClose={() => {
-            if (!finishing) setReviewFinish(false);
-          }}
-        >
-          <p>{t('workout.uncheckedBody', { count: uncheckedEdited })}</p>
-          <button
-            ref={continueWorkoutRef}
-            className="btn btn-accent btn-block"
-            disabled={finishing}
-            onClick={() => setReviewFinish(false)}
-          >
-            {t('workout.continueWorkout')}
-          </button>
-          <button
-            className="btn btn-ghost btn-block"
-            disabled={finishing}
-            onClick={() => void finishReviewed()}
-          >
-            {t('workout.finishCompleted')}
-          </button>
-        </BottomSheet>
-      )}
-      {pendingExerciseChange && (
-        <BottomSheet
-          open
-          title={t(
-            pendingExerciseChange.action === 'remove'
-              ? 'workout.removeLoggedTitle'
-              : 'workout.replaceLoggedTitle',
-          )}
-          initialFocusRef={cancelExerciseChangeRef}
-          fallbackFocusRef={exerciseOptionRefs.current[pendingExerciseChange.instanceId]}
-          onClose={() => setPendingExerciseChange(null)}
-        >
-          <p>{t('workout.loggedChangeBody', { name: pendingExerciseChange.name })}</p>
-          <button
-            className="btn btn-danger btn-block"
-            onClick={() => {
-              changeExercise(pendingExerciseChange.action, pendingExerciseChange.instanceId);
-              setPendingExerciseChange(null);
-            }}
-          >
-            {t(
-              pendingExerciseChange.action === 'remove'
-                ? 'workout.removeExercise'
-                : 'workout.replaceExercise',
-            )}
-          </button>
-          <button
-            ref={cancelExerciseChangeRef}
-            className="btn btn-ghost btn-block"
-            onClick={() => setPendingExerciseChange(null)}
-          >
-            {t('workout.cancel')}
-          </button>
-        </BottomSheet>
-      )}
-
-      {confirming && (
-        <BottomSheet
-          open
-          title={t('workout.abandonTitle')}
-          initialFocusRef={cancelAbandonRef}
-          onClose={() => setConfirming(false)}
-        >
-          <span className="muted small">{t('workout.abandonBody')}</span>
-          <button className="btn btn-danger btn-block" onClick={abandon}>
+        <details className="workout-actions">
+          <summary>{t('workout.moreActions')}</summary>
+          <button className="btn btn-danger btn-block" onClick={() => setConfirming(true)}>
             {t('workout.abandonConfirm')}
           </button>
-          <button
-            ref={cancelAbandonRef}
-            className="btn btn-ghost btn-block"
-            onClick={() => setConfirming(false)}
+        </details>
+
+        {pendingSetRemoval && (
+          <BottomSheet
+            open
+            title={t('workout.removeSetTitle', {
+              set: pendingSetRemoval.setNumber,
+              exercise: pendingSetRemoval.exercise,
+            })}
+            initialFocusRef={cancelSetRemovalRef}
+            fallbackFocusRef={addSetRefs.current[pendingSetRemoval.exerciseIndex]}
+            onClose={() => setPendingSetRemoval(null)}
           >
-            {t('workout.cancel')}
-          </button>
-        </BottomSheet>
-      )}
+            <span className="muted small">{t('workout.removeSetBody')}</span>
+            <button
+              className="btn btn-danger btn-block"
+              onClick={() => {
+                if (setRemovalCommittedRef.current) return;
+                setRemovalCommittedRef.current = true;
+                const exerciseIndex = pendingSetRemoval.exerciseIndex;
+                setPendingSetRemoval(null);
+                removeSet(exerciseIndex);
+              }}
+            >
+              {t('workout.removeSet')}
+            </button>
+            <button
+              ref={cancelSetRemovalRef}
+              className="btn btn-ghost btn-block"
+              onClick={() => setPendingSetRemoval(null)}
+            >
+              {t('workout.cancel')}
+            </button>
+          </BottomSheet>
+        )}
+
+        {exerciseOptions && (
+          <BottomSheet open title={exerciseOptions.name} onClose={() => setExerciseOptions(null)}>
+            <div className="workout-exercise-options">
+              <button
+                className="btn btn-ghost"
+                disabled={exerciseOptions.index === 0}
+                onClick={() => {
+                  moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index - 1);
+                  setExerciseOptions(null);
+                }}
+              >
+                {t('editor.moveUp')}
+              </button>
+              <button
+                className="btn btn-ghost"
+                disabled={exerciseOptions.index === active.ex.length - 1}
+                onClick={() => {
+                  moveWorkoutExercise(exerciseOptions.instanceId, exerciseOptions.index + 1);
+                  setExerciseOptions(null);
+                }}
+              >
+                {t('editor.moveDown')}
+              </button>
+              <button className="btn btn-ghost" onClick={() => requestExerciseChange('replace')}>
+                {t('workout.replaceExercise')}
+              </button>
+              <button
+                className="btn btn-danger"
+                disabled={active.ex.length <= 1}
+                onClick={() => {
+                  requestExerciseChange('remove');
+                }}
+              >
+                {t('workout.removeExercise')}
+              </button>
+            </div>
+          </BottomSheet>
+        )}
+
+        {reviewFinish && (
+          <BottomSheet
+            open
+            title={t('workout.uncheckedTitle')}
+            initialFocusRef={continueWorkoutRef}
+            onClose={() => {
+              if (!finishing) setReviewFinish(false);
+            }}
+          >
+            <p>{t('workout.uncheckedBody', { count: uncheckedEdited })}</p>
+            <button
+              ref={continueWorkoutRef}
+              className="btn btn-accent btn-block"
+              disabled={finishing}
+              onClick={() => setReviewFinish(false)}
+            >
+              {t('workout.continueWorkout')}
+            </button>
+            <button
+              className="btn btn-ghost btn-block"
+              disabled={finishing}
+              onClick={() => void finishReviewed()}
+            >
+              {t('workout.finishCompleted')}
+            </button>
+          </BottomSheet>
+        )}
+        {pendingExerciseChange && (
+          <BottomSheet
+            open
+            title={t(
+              pendingExerciseChange.action === 'remove'
+                ? 'workout.removeLoggedTitle'
+                : 'workout.replaceLoggedTitle',
+            )}
+            initialFocusRef={cancelExerciseChangeRef}
+            fallbackFocusRef={exerciseOptionRefs.current[pendingExerciseChange.instanceId]}
+            onClose={() => setPendingExerciseChange(null)}
+          >
+            <p>{t('workout.loggedChangeBody', { name: pendingExerciseChange.name })}</p>
+            <button
+              className="btn btn-danger btn-block"
+              onClick={() => {
+                changeExercise(pendingExerciseChange.action, pendingExerciseChange.instanceId);
+                setPendingExerciseChange(null);
+              }}
+            >
+              {t(
+                pendingExerciseChange.action === 'remove'
+                  ? 'workout.removeExercise'
+                  : 'workout.replaceExercise',
+              )}
+            </button>
+            <button
+              ref={cancelExerciseChangeRef}
+              className="btn btn-ghost btn-block"
+              onClick={() => setPendingExerciseChange(null)}
+            >
+              {t('workout.cancel')}
+            </button>
+          </BottomSheet>
+        )}
+
+        {confirming && (
+          <BottomSheet
+            open
+            title={t('workout.abandonTitle')}
+            initialFocusRef={cancelAbandonRef}
+            onClose={() => setConfirming(false)}
+          >
+            <span className="muted small">{t('workout.abandonBody')}</span>
+            <button className="btn btn-danger btn-block" onClick={abandon}>
+              {t('workout.abandonConfirm')}
+            </button>
+            <button
+              ref={cancelAbandonRef}
+              className="btn btn-ghost btn-block"
+              onClick={() => setConfirming(false)}
+            >
+              {t('workout.cancel')}
+            </button>
+          </BottomSheet>
+        )}
+      </fieldset>
     </div>
   );
 }

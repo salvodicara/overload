@@ -1,3 +1,13 @@
+import {
+  assertCollection,
+  assertWorkout,
+  assertRoutine,
+  assertFolder,
+  assertExerciseNote,
+  assertMeasurement,
+  assertCustomExercise,
+  assertSettings,
+} from './recordValidation';
 import { normalizeNutritionDay, validNutritionDay } from './nutrition';
 import { validateSavedMeals } from './foodDiary';
 import type {
@@ -65,6 +75,29 @@ export function planImport(
 
 /** Parses a JSON backup file, throwing the i18n key `import.invalid` on any shape mismatch. */
 export function parseBackup(json: string): Backup {
+  try {
+    return parseBackupValue(json);
+  } catch {
+    throw new Error('import.invalid');
+  }
+}
+
+export function assertBackupRecords(backup: Backup): void {
+  assertCollection(backup.workouts, assertWorkout);
+  assertCollection(backup.routines, assertRoutine);
+  if (backup.settings !== undefined) assertSettings(backup.settings);
+  if (backup.version === 2) {
+    assertCollection(backup.folders, assertFolder);
+    assertCollection(backup.notes, assertExerciseNote);
+    assertCollection(backup.measurements, assertMeasurement);
+    assertCollection(backup.customExercises, assertCustomExercise);
+    assertCollection(backup.nutrition, (value) => {
+      if (!validNutritionDay(value)) throw new Error('import.invalid');
+    });
+  }
+}
+
+function parseBackupValue(json: string): Backup {
   let data: unknown;
   try {
     data = JSON.parse(json);
@@ -86,8 +119,13 @@ export function parseBackup(json: string): Backup {
     };
     if (candidate.settings !== undefined) {
       backup.settings = candidate.settings as Settings;
-      if (backup.settings.savedMeals !== undefined) backup.settings = {...backup.settings,savedMeals:validateSavedMeals(backup.settings.savedMeals)};
+      if (backup.settings.savedMeals !== undefined)
+        backup.settings = {
+          ...backup.settings,
+          savedMeals: validateSavedMeals(backup.settings.savedMeals),
+        };
     }
+    assertBackupRecords(backup);
     return backup;
   }
 
@@ -114,5 +152,15 @@ export function parseBackup(json: string): Backup {
   }
 
   const backup = candidate as BackupV2;
-  return {...backup,nutrition:backup.nutrition.map(normalizeNutritionDay),settings:{...backup.settings,...(backup.settings.savedMeals===undefined?{}:{savedMeals:validateSavedMeals(backup.settings.savedMeals)})}};
+  assertBackupRecords(backup);
+  return {
+    ...backup,
+    nutrition: backup.nutrition.map(normalizeNutritionDay),
+    settings: {
+      ...backup.settings,
+      ...(backup.settings.savedMeals === undefined
+        ? {}
+        : { savedMeals: validateSavedMeals(backup.settings.savedMeals) }),
+    },
+  };
 }

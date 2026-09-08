@@ -334,3 +334,64 @@ describe('account-owned screen workflows', () => {
     expect(continuation).not.toHaveBeenCalled();
   });
 });
+
+it('restores missing template days without overwriting customized retained days or folder', async () => {
+  const cleanup = await signInForCurrentReceipt();
+  try {
+    const pack = TEMPLATES[0];
+    await installTemplatePack(pack, useStore.getState());
+    await useStore.getState().saveRoutine({
+      ...useStore.getState().routines.find((r) => r.id === pack.routines[0].id)!,
+      name: 'My edited day',
+    });
+    await useStore.getState().saveFolder({ ...pack.folder, name: 'My program' });
+    await useStore.getState().deleteRoutine(pack.routines[1].id);
+    await installTemplatePack(pack, useStore.getState());
+    expect(useStore.getState().routines.find((r) => r.id === pack.routines[0].id)?.name).toBe(
+      'My edited day',
+    );
+    expect(useStore.getState().folders.find((f) => f.id === pack.folder.id)?.name).toBe(
+      'My program',
+    );
+    expect(useStore.getState().routines.some((r) => r.id === pack.routines[1].id)).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
+it('forwards duration and reps tracking when custom exercise joins an active workout', async () => {
+  const cleanUp = await signInForCurrentReceipt();
+  try {
+    const created = await useStore.getState().createCustomExercise('Timed carry', 'core');
+    for (const replacement of [false, true]) {
+      const addWorkoutExercise = vi.fn();
+      const replaceWorkoutExercise = vi.fn();
+      await createCustomExerciseFlow(
+        {
+          name: 'Timed carry',
+          muscleGroup: 'core',
+          tracking: 'duration',
+          pickFor: {
+            activeWorkout: true,
+            ...(replacement ? { replaceInstanceId: 'instance' } : {}),
+          },
+        },
+        {
+          createCustomExercise: async () => created,
+          addExerciseToRoutine: vi.fn(),
+          addWorkoutExercise,
+          replaceWorkoutExercise,
+          nav: vi.fn(),
+          close: vi.fn(),
+          isUiCurrent: () => true,
+        },
+      );
+      if (created.status !== 'applied') throw new Error('missing receipt');
+      if (replacement)
+        expect(replaceWorkoutExercise).toHaveBeenCalledWith('instance', created.value, 'duration');
+      else expect(addWorkoutExercise).toHaveBeenCalledWith(created.value, 'duration');
+    }
+  } finally {
+    await cleanUp();
+  }
+});

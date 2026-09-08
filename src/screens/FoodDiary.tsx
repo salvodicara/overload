@@ -67,7 +67,7 @@ export function FoodDiary() {
         />
       </label>
       <section aria-label={t('food.dailySummary')} className="food-summary">
-        <FoodNutrients totals={summary.totals} compact />
+        <FoodNutrients totals={summary.totals} incomplete={summary.incomplete} compact />
         {settings.kcalTarget && (
           <p className="small muted">{t('food.target', { value: settings.kcalTarget })}</p>
         )}
@@ -97,6 +97,7 @@ export function FoodDiary() {
                 <button
                   className="btn btn-ghost"
                   onClick={() => {
+                    setError(false);
                     setMealName(t('food.meals.' + meal));
                     setSavingMeal(meal);
                   }}
@@ -201,6 +202,7 @@ export function FoodDiary() {
           <label className="field">
             <span>{t('food.mealName')}</span>
             <input
+              disabled={busy}
               value={mealName}
               maxLength={120}
               onChange={(event) => setMealName(event.target.value)}

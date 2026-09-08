@@ -155,3 +155,17 @@ describe('completed workout editing', () => {
     expect(facts[0].sets[0].isPr).toBe(true);
   });
 });
+
+it('does not invent a PR from increasing sets within a first-ever workout', () => {
+  const first = {
+    ...workout,
+    sets: [
+      { ...workout.sets[0], weightKg: 20 },
+      { ...workout.sets[0], weightKg: 30 },
+    ],
+  };
+  expect(recomputeWorkoutFacts([first])[0].sets.map((s) => Boolean(s.isPr))).toEqual([
+    false,
+    false,
+  ]);
+});

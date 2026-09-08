@@ -163,3 +163,26 @@ describe('previousSets', () => {
     ]);
   });
 });
+
+it('keeps repeated occurrence history and tracking separate', () => {
+  const history = [
+    workout(
+      'repeat',
+      '2026-06-01',
+      [
+        { ...set(60, 8), exerciseInstanceId: 'first' },
+        { ...set(20, 8), exerciseInstanceId: 'second' },
+      ],
+      { routineId: 'r' },
+    ),
+  ];
+  expect(suggest(rx({ sets: 1, occurrenceId: 'second' }), history, 'r').weights).toEqual([20]);
+  expect(previousSets(history, BENCH, 'r', 'second', 'weight_reps').map((s) => s.weightKg)).toEqual(
+    [20],
+  );
+  expect(suggest(rx({ sets: 1, occurrenceId: 'new' }), history, 'r').weights).toEqual([20]);
+  const timed = [
+    workout('time', '2026-06-02', [{ ...set(0, 0), tracking: 'duration', durationSec: 30 }]),
+  ];
+  expect(suggest(rx({ sets: 1 }), timed).hintKey).toBe('suggest.start');
+});

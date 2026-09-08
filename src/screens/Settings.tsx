@@ -1,5 +1,5 @@
 import { RestAlertSettings } from '../components/RestAlertSettings';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { version } from '../../package.json';
 import { ExportRows } from '../components/ExportRows';
@@ -26,6 +26,39 @@ export function Settings() {
   const updateSettings = useStore((state) => state.updateSettings);
   const locale = settings.locale ?? (i18n.language.startsWith('it') ? 'it' : 'en');
   const unit = settings.unit ?? 'kg';
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(false);
+  const pending = useRef(false);
+  const mounted = useRef(true);
+  const retryAction = useRef<(() => Promise<unknown>) | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  async function run(action: () => Promise<unknown>) {
+    if (pending.current) return;
+    const uid = useStore.getState().user?.uid;
+    const route = useStore.getState().route;
+    pending.current = true;
+    setBusy(true);
+    setActionError(false);
+    retryAction.current = action;
+    try {
+      await action();
+    } catch {
+      if (
+        mounted.current &&
+        useStore.getState().user?.uid === uid &&
+        useStore.getState().route === route
+      )
+        setActionError(true);
+    } finally {
+      pending.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
 
   return (
     <div className="screen">
@@ -35,6 +68,21 @@ export function Settings() {
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
       />
 
+      {actionError && (
+        <div className="form-feedback form-feedback--error" role="alert">
+          {t('settings.actionError')}
+          <button
+            className="btn btn-ghost"
+            disabled={busy}
+            onClick={() => {
+              if (retryAction.current) void run(retryAction.current);
+            }}
+          >
+            {t('library.retry')}
+          </button>
+        </div>
+      )}
+      {busy && <p role="status">{t('food.working')}</p>}
       <Section id="profile-preferences" title={t('settings.preferences')}>
         <div className="settings-row settings-row--control">
           <strong id="profile-language-label">{t('settings.language')}</strong>
@@ -48,7 +96,8 @@ export function Settings() {
                 key={language}
                 className={`seg-btn ${locale === language ? 'on' : ''}`}
                 aria-pressed={locale === language}
-                onClick={() => void updateSettings({ locale: language })}
+                disabled={busy}
+                onClick={() => void run(() => updateSettings({ locale: language }))}
               >
                 {t(`settings.${language}`)}
               </button>
@@ -63,7 +112,8 @@ export function Settings() {
                 key={weightUnit}
                 className={`seg-btn ${unit === weightUnit ? 'on' : ''}`}
                 aria-pressed={unit === weightUnit}
-                onClick={() => void updateSettings({ unit: weightUnit })}
+                disabled={busy}
+                onClick={() => void run(() => updateSettings({ unit: weightUnit }))}
               >
                 {t(`settings.${weightUnit}`)}
               </button>
@@ -105,7 +155,8 @@ export function Settings() {
 
       <button
         className="btn btn-danger btn-block profile-sign-out"
-        onClick={() => void signOutUser()}
+        disabled={busy}
+        onClick={() => void run(signOutUser)}
       >
         {t('settings.signOut')}
       </button>

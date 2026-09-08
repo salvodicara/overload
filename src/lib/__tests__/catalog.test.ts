@@ -195,6 +195,8 @@ it('cancels overlapping retry timers when the catalog consumer unmounts', async 
   });
   vi.resetModules();
   vi.doMock('react', () => ({
+    useState: (value: unknown) => [value, () => {}],
+    useCallback: (callback: unknown) => callback,
     useEffect: (effect: () => void | (() => void)) => {
       cleanup = effect() ?? (() => {});
     },

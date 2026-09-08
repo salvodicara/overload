@@ -189,7 +189,6 @@ describe('active Workout note API contract', () => {
     expect(workoutSource).not.toContain('addNoteEntry');
     expect(workoutSource).not.toContain('queueTechniqueNote');
     expect(workoutSource).not.toContain('saveTechniqueNote');
-    expect(workoutSource).toContain('routine.exercises[exerciseIndex]');
     expect(workoutSource).toContain('prescription?.note');
     expect(workoutSource).toContain('updateSessionNote');
     expect(workoutSource).toContain('e.sessionNote');

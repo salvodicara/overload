@@ -10,6 +10,7 @@ import {
 } from './types';
 
 export type ActiveSet = {
+  targetReps?: number;
   edited?: boolean;
   weightKg: number | null;
   reps: number | null;
@@ -19,6 +20,7 @@ export type ActiveSet = {
 };
 
 export type ActiveExercise = {
+  prescribedRestSec?: number;
   exerciseId: string;
   instanceId?: string;
   routineOccurrenceId?: string;
@@ -56,7 +58,8 @@ export function normalizeActiveSession(active: PersistedActiveSession): ActiveSe
     ...active,
     ex: active.ex.map((exercise, index) => ({
       ...exercise,
-      instanceId: exercise.instanceId ?? `legacy:${active.routineId}:${index}:${exercise.exerciseId}`,
+      instanceId:
+        exercise.instanceId ?? `legacy:${active.routineId}:${index}:${exercise.exerciseId}`,
       tracking: trackingOf(exercise.tracking),
       sets: exercise.sets.map((set) => ({
         ...set,
@@ -91,14 +94,18 @@ export function buildActiveExercise(
   const warmups = (rx.warmupSets ?? []).map((target) => activeSet(tracking, 'warmup', target));
   const working = suggestion.weights.map((weightKg, index) => {
     const target = rx.setTargets?.[index];
-    return activeSet(tracking, 'working', {
-      weightKg,
-      reps: tracking === 'reps' ? (target?.repMin ?? rx.repMin) : undefined,
-      durationSec: tracking === 'duration' ? (target?.repMin ?? rx.repMin) : undefined,
-    });
+    return {
+      ...activeSet(tracking, 'working', {
+        weightKg,
+        reps: tracking === 'reps' ? (target?.repMin ?? rx.repMin) : undefined,
+        durationSec: tracking === 'duration' ? (target?.repMin ?? rx.repMin) : undefined,
+      }),
+      targetReps: target?.repMin ?? rx.repMin,
+    };
   });
 
   return {
+    prescribedRestSec: rx.restSec,
     exerciseId: rx.exerciseId,
     instanceId: rx.occurrenceId ?? `ax:${crypto.randomUUID()}`,
     ...(rx.occurrenceId ? { routineOccurrenceId: rx.occurrenceId } : {}),

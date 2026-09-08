@@ -133,3 +133,35 @@ describe('exercise notes extraction', () => {
     ]);
   });
 });
+
+it('preserves timed, reps-only and warmup sets instead of dropping or counting them as working volume', () => {
+  const parsed = parseHevyCsv(
+    [
+      HEADER,
+      '"A","8 set 2026, 09:00","","","Plank","","","0","normal","","","","90",""',
+      '"A","8 set 2026, 09:00","","","Pushups","","","0","normal","","12","","",""',
+      '"A","8 set 2026, 09:00","","","Squat","","","0","warmup","20","10","","",""',
+    ].join('\n'),
+    ALIASES,
+  );
+  expect(parsed.workouts[0].sets).toHaveLength(3);
+  expect(parsed.workouts[0].sets[0]).toMatchObject({ tracking: 'duration', durationSec: 90 });
+  expect(parsed.workouts[0].sets[1]).toMatchObject({ tracking: 'reps', reps: 12 });
+  expect(parsed.workouts[0].sets[2].kind).toBe('warmup');
+  expect(parsed.workouts[0].volumeKg).toBe(0);
+});
+it('accepts English month names and rejects normalized impossible dates', () => {
+  const row = (date: string) =>
+    `"A","${date}, 09:00","","","Squat","","","0","normal","20","10","","",""`;
+  expect(parseHevyCsv([HEADER, row('8 Sep 2026')].join('\n'), ALIASES).workouts).toHaveLength(1);
+  expect(parseHevyCsv([HEADER, row('31 feb 2026')].join('\n'), ALIASES).workouts).toHaveLength(0);
+});
+
+it('keeps the workout but ignores an impossible end before its start', () => {
+  const result = parseHevyCsv(
+    'title,start_time,end_time,exercise_title,weight_kg,reps\nTest,8 Sep 2026 10:00,8 Sep 2026 09:00,Squat,40,8',
+    ALIASES,
+  );
+  expect(result.workouts).toHaveLength(1);
+  expect(result.workouts[0].endTs).toBeUndefined();
+});

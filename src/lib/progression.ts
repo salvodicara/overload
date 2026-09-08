@@ -1,32 +1,9 @@
-import { kindOf, type RoutineExercise, type Workout } from './types';
+import { trackingOf, type RoutineExercise, type Workout } from './types';
+import { previousSets } from './format';
 
 export type Suggestion = { weights: Array<number | null>; hintKey: string };
 
 const DEFAULT_INCREMENT_KG = 2.5;
-
-/** Most recent workout holding the exercise, preferring the current routine when it has history. */
-function lastWorkoutWith(
-  history: Workout[],
-  exerciseId: string,
-  routineId?: string,
-): Workout | null {
-  const matching = history.filter((workout) =>
-    workout.sets.some(
-      (set) => set.done && kindOf(set.kind) === 'working' && set.exerciseId === exerciseId,
-    ),
-  );
-  const sameRoutine = routineId
-    ? matching.filter((workout) => workout.routineId === routineId)
-    : [];
-  const candidates = sameRoutine.length > 0 ? sameRoutine : matching;
-  let best: Workout | null = null;
-  for (const w of candidates) {
-    if (best === null || w.date > best.date || (w.date === best.date && w.startTs > best.startTs)) {
-      best = w;
-    }
-  }
-  return best;
-}
 
 /** Stretches or trims `weights` to exactly `count` entries, repeating the last one. */
 function fitToSets(weights: number[], count: number): number[] {
@@ -47,17 +24,20 @@ export function suggest(rx: RoutineExercise, history: Workout[], routineId?: str
         startWeightKg: rx.startWeightKg,
       }));
   const startWeights = targets.map((target) => target.startWeightKg ?? rx.startWeightKg ?? null);
-  const last = lastWorkoutWith(history, rx.exerciseId, routineId);
-  if (!last) {
+  const lastSets = previousSets(
+    history,
+    rx.exerciseId,
+    routineId,
+    rx.occurrenceId,
+    trackingOf(rx.tracking),
+  );
+  if (!lastSets.length) {
     return {
       weights: startWeights,
       hintKey: startWeights.some((weight) => weight === null) ? 'suggest.choose' : 'suggest.start',
     };
   }
 
-  const lastSets = last.sets.filter(
-    (s) => s.done && kindOf(s.kind) === 'working' && s.exerciseId === rx.exerciseId,
-  );
   const lastWeights = fitToSets(
     lastSets.map((s) => s.weightKg),
     targets.length,

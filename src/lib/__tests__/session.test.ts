@@ -320,6 +320,7 @@ describe('active session helpers', () => {
 
     rehydratedStore.getState().addSet(0);
     expect(rehydratedStore.getState().active?.ex[0].sets[1]).toEqual({
+      targetReps: 5,
       weightKg: 60,
       reps: null,
       durationSec: null,
@@ -396,4 +397,23 @@ it('opening another routine never overwrites a workout already in progress', () 
   expect(useStore.getState().active).toEqual(existing);
   expect(storage.get('overload_active')).toBe(storedBefore);
   expect(useStore.getState().route).toEqual({ view: 'workout' });
+});
+
+it('snapshots heterogeneous working reps and rest for completion after routine edits', () => {
+  const active = buildActiveExercise(
+    {
+      exerciseId: 'squat',
+      sets: 2,
+      repMin: 5,
+      repMax: 8,
+      restSec: 150,
+      setTargets: [
+        { repMin: 5, repMax: 5 },
+        { repMin: 12, repMax: 12 },
+      ],
+    },
+    [],
+  );
+  expect(active.prescribedRestSec).toBe(150);
+  expect(active.sets.map((set) => set.targetReps)).toEqual([5, 12]);
 });

@@ -5,7 +5,8 @@ import { signInWithGoogle } from '../lib/firebase';
 export function Login() {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<'signin' | 'reset' | null>(null);
+  const [resetting, setResetting] = useState(false);
   return (
     <div className="screen page login-screen">
       <div className="login-copy">
@@ -15,12 +16,12 @@ export function Login() {
       <div className="login-actions">
         <button
           className="btn btn-accent btn-block btn-big login-primary"
-          disabled={busy}
+          disabled={busy || resetting}
           onClick={() => {
             setBusy(true);
-            setError(false);
+            setError(null);
             signInWithGoogle()
-              .catch(() => setError(true))
+              .catch(() => setError('signin'))
               .finally(() => setBusy(false));
           }}
         >
@@ -28,21 +29,26 @@ export function Login() {
         </button>
         {error && (
           <div className="banner banner-warn login-error" role="alert">
-            {t('login.error')}
+            {t(error === 'reset' ? 'login.resetError' : 'login.error')}
           </div>
         )}
         <button
           className="meta muted action-link login-recovery"
+          disabled={busy || resetting}
           onClick={() => {
+            setResetting(true);
+            setError(null);
             void (async () => {
               const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
               await Promise.all(regs.map((r) => r.unregister()));
               await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
               location.reload();
-            })();
+            })()
+              .catch(() => setError('reset'))
+              .finally(() => setResetting(false));
           }}
         >
-          {t('login.reset')}
+          {t(resetting ? 'login.loading' : 'login.reset')}
         </button>
       </div>
     </div>

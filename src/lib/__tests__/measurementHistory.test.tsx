@@ -32,3 +32,15 @@ it('keeps older measurements discoverable when the first page is full', () => {
   expect(html).toContain('library.showMore');
   expect((html.match(/aria-label="body.delete"/g) ?? []).length).toBe(10);
 });
+
+it('excludes future records from the current seven-day average', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-08T12:00:00'));
+  state.measurements = [
+    { id: 'today', date: '2026-09-08', metric: 'weight', value: 70 },
+    { id: 'future', date: '2027-01-01', metric: 'weight', value: 150 },
+  ];
+  const html = renderToStaticMarkup(<ProgressBody />);
+  expect(html).toContain('body.weeklyAvg</dt><dd>70 kg');
+  vi.useRealTimers();
+});

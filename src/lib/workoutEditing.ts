@@ -121,10 +121,11 @@ export function workoutFromDraft(
   };
 }
 
-export function recomputeWorkoutFacts(workouts: Workout[]): Workout[] {
+export function recomputeWorkoutFacts(workouts: Workout[], now?: number): Workout[] {
   const chronological = [...workouts].sort((left, right) => -newestWorkoutFirst(left, right));
   const maxWeight = new Map<string, number>();
   const recomputed = chronological.map((workout) => {
+    const sessionMax = new Map<string, number>();
     const sets = workout.sets.map((set) => {
       const clean = { ...set, isPr: undefined };
       if (
@@ -136,10 +137,22 @@ export function recomputeWorkoutFacts(workouts: Workout[]): Workout[] {
       }
       const previous = maxWeight.get(set.exerciseId) ?? 0;
       const isPr = previous > 0 && set.weightKg > previous;
-      maxWeight.set(set.exerciseId, Math.max(previous, set.weightKg));
+      sessionMax.set(
+        set.exerciseId,
+        Math.max(sessionMax.get(set.exerciseId) ?? previous, set.weightKg),
+      );
       return isPr ? { ...clean, isPr: true } : clean;
     });
-    return { ...workout, sets, volumeKg: computeVolume(sets) };
+    for (const [id, weight] of sessionMax) maxWeight.set(id, weight);
+    const volumeKg = computeVolume(sets);
+    const changed =
+      volumeKg !== workout.volumeKg || JSON.stringify(sets) !== JSON.stringify(workout.sets);
+    return {
+      ...workout,
+      sets,
+      volumeKg,
+      ...(changed && now !== undefined ? { updatedAt: Math.max(now, workout.updatedAt + 1) } : {}),
+    };
   });
   return recomputed.sort(newestWorkoutFirst);
 }

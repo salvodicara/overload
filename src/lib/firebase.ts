@@ -36,10 +36,11 @@ export async function signInWithGoogle(): Promise<void> {
   try {
     await signInWithPopup(auth, provider);
   } catch (err) {
-    // Only a blocked/closed popup falls back to the redirect flow; real
+    // Only a blocked popup falls back to redirect; deliberate cancellation stops. Real
     // errors must surface to the login screen instead of dying silently.
     const code = (err as { code?: string }).code ?? '';
-    if (code.includes('popup')) await signInWithRedirect(auth, provider);
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+    if (code === 'auth/popup-blocked') await signInWithRedirect(auth, provider);
     else throw err;
   }
 }

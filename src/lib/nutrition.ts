@@ -15,7 +15,10 @@ export type NutrientField = (typeof NUTRIENT_FIELDS)[number];
 export type NutritionPatch = Partial<Pick<NutritionDay, NutrientField>>;
 
 export function validNutrient(value: unknown): boolean {
-  return value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
+  return (
+    value === null ||
+    (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e9)
+  );
 }
 
 export function validNutritionDay(value: unknown): value is NutritionDay {
@@ -39,13 +42,33 @@ export function validNutritionDay(value: unknown): value is NutritionDay {
     NUTRIENT_FIELDS.every(
       (field) =>
         (field !== 'kcal' && field !== 'proteinG' && day[field] === undefined) ||
-        validNutrient(day[field]),
+        (day.entries === undefined
+          ? validNutrient(day[field])
+          : day[field] === null ||
+            (typeof day[field] === 'number' && Number.isFinite(day[field]) && day[field] >= 0)),
     )
   );
 }
 
 export function normalizeNutritionDay(day: NutritionDay): NutritionDay {
-  if (!validNutritionDay(day)) throw new Error('diet.invalid');
+  if (!validNutritionDay({ ...day })) {
+    const repairableLegacy =
+      day &&
+      day.entries === undefined &&
+      validNutritionDay({
+        ...day,
+        ...Object.fromEntries(
+          NUTRIENT_FIELDS.map((key) => [
+            key,
+            typeof day[key] === 'number' && Number.isFinite(day[key])
+              ? Math.min(day[key]!, 1e9)
+              : day[key],
+          ]),
+        ),
+      });
+    if (repairableLegacy) return day;
+    throw new Error('diet.invalid');
+  }
   return day.entries === undefined
     ? day
     : {

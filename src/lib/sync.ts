@@ -11,7 +11,7 @@ import {
 } from './db';
 
 /** Every synced record carries an id and a last-write timestamp (epoch ms). */
-export type Synced = { id: string; updatedAt: number };
+export type Synced = { id: string; updatedAt: number; deleted?: boolean };
 
 export type SyncState = 'synced' | 'pending' | 'offline' | 'error';
 
@@ -66,7 +66,7 @@ async function syncAll(
   isActive: () => boolean,
   enterLocalWrite: (write: () => Promise<unknown>) => Promise<unknown>,
 ): Promise<{ pulled: number; pushFailures: number }> {
-  const { getFirestore, collection, getDocs, setDoc, doc } = await import('firebase/firestore');
+  const { getFirestore, collection, getDocs } = await import('firebase/firestore');
   if (!isActive()) return { pulled: 0, pushFailures: 0 };
   const fs = getFirestore();
   let pulled = 0;
@@ -78,24 +78,47 @@ async function syncAll(
     writeLocal: (rows: T[]) => Promise<unknown>,
   ): Promise<void> => {
     if (!isActive()) return;
-    const local = await readLocal();
-    if (!isActive()) return;
     const snapshot = await getDocs(collection(fs, 'users', uid, name));
     if (!isActive()) return;
     const remote = snapshot.docs.map((d) => d.data() as T);
-    const { push, pull } = diffForSync(local, remote);
-
-    if (pull.length > 0) {
-      if (!isActive()) return;
-      await enterLocalWrite(() => writeLocal(pull));
-      if (!isActive()) return;
-      pulled += pull.length;
-    }
+    // Re-read and reconcile in one local transaction after network latency.
+    // Otherwise an edit made while getDocs was pending can be overwritten.
+    let push: T[] = [];
+    await enterLocalWrite(() =>
+      db.transaction('rw', [db.table(name), db.tombstones], async () => {
+        if (!isActive()) return;
+        const live = await readLocal();
+        const markers = await db.tombstones.where('collection').equals(name).toArray();
+        const local = [...live];
+        for (const marker of markers) {
+          const index = local.findIndex((row) => row.id === marker.recordId);
+          if (index < 0 || local[index].updatedAt <= marker.updatedAt) {
+            if (index >= 0) local.splice(index, 1);
+            local.push({ id: marker.recordId, updatedAt: marker.updatedAt, deleted: true } as T);
+          }
+        }
+        const changes = diffForSync(local, remote);
+        push = changes.push;
+        const incoming = changes.pull.filter((row) => !row.deleted);
+        if (incoming.length) await writeLocal(incoming);
+        for (const row of changes.pull.filter((record) => record.deleted)) {
+          await db.table(name).delete(row.id);
+          await db.tombstones.put({
+            id: `${name}/${row.id}`,
+            collection: name,
+            recordId: row.id,
+            updatedAt: row.updatedAt,
+          });
+        }
+        pulled += changes.pull.length;
+      }),
+    );
+    if (!isActive()) return;
     // One unwritable record must not block the rest of the queue.
     for (const record of push) {
       if (!isActive()) return;
       try {
-        await setDoc(doc(fs, 'users', uid, name, record.id), sanitize(record));
+        await pushRecordStrict(uid, name, record);
         if (!isActive()) return;
       } catch (err) {
         if (!isActive()) return;
@@ -227,9 +250,22 @@ export async function pushRecordStrict(
   uid: string,
   col: SyncCollection,
   rec: Synced,
+  requireRemoteWrite = false,
 ): Promise<void> {
-  const { getFirestore, setDoc, doc } = await import('firebase/firestore');
-  await setDoc(doc(getFirestore(), 'users', uid, col, rec.id), sanitize(rec));
+  const { getFirestore, runTransaction, doc } = await import('firebase/firestore');
+  const fs = getFirestore();
+  const reference = doc(fs, 'users', uid, col, rec.id);
+  // The queue can outlive newer edits or deletions on this or another device.
+  // Compare atomically so a delayed older request cannot undo that revision.
+  await runTransaction(fs, async (transaction) => {
+    const current = await transaction.get(reference);
+    if (current.exists() && current.data().updatedAt >= rec.updatedAt) {
+      if (requireRemoteWrite && current.data().updatedAt > rec.updatedAt)
+        throw new Error('A newer cloud revision prevented this restore');
+      return;
+    }
+    transaction.set(reference, sanitize(rec));
+  });
 }
 
 /**
@@ -237,19 +273,16 @@ export async function pushRecordStrict(
  * IndexedDB stays authoritative and the next `startSync` run reconciles.
  */
 export async function pushRecord(uid: string, col: SyncCollection, rec: Synced): Promise<void> {
-  try {
-    await pushRecordStrict(uid, col, rec);
-  } catch {
+  // Local commits must resolve even when Firestore is waiting for connectivity.
+  // Every record remains in IndexedDB for the next reconciliation.
+  void pushRecordStrict(uid, col, rec).catch(() => {
     console.warn(`sync pending: ${col}/${rec.id}`);
-  }
+  });
 }
 
-/** Fire-and-forget remote delete mirroring a local delete. */
+/** Mirror a durable local deletion marker rather than erasing synchronization evidence. */
 export async function deleteRecord(uid: string, col: SyncCollection, id: string): Promise<void> {
-  try {
-    const { getFirestore, deleteDoc, doc } = await import('firebase/firestore');
-    await deleteDoc(doc(getFirestore(), 'users', uid, col, id));
-  } catch {
-    console.warn(`remote delete pending: ${col}/${id}`);
-  }
+  const marker = await db.tombstones.get(`${col}/${id}`);
+  if (!marker) return;
+  void pushRecord(uid, col, { id, updatedAt: marker.updatedAt, deleted: true });
 }
