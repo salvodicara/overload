@@ -21,3 +21,7 @@ The refinement preserves the established interaction model and Overload identity
 Local evidence: `~/Workspace/Codex/overload-qa/mobile-craft/`, `mobile-craft-confirm/`; logs `~/Workspace/Codex/mobile-craft-*.log`. The automated screenshot helper initially clicked away keyboard focus; the confirmation helper now preserves focus for that capture. This was a harness correction, not an additional product defect.
 
 The quality objective is a coherent, carefully verified mobile interface. These results do not establish absolute perfection or replace a physical-device test.
+
+## Release
+
+Implementation `f2bf739` pushed to main and deployed to Firebase Hosting. Read-only production smoke passed: published assets match the final build, login renders, service worker is active,7,793 foods load online/offline, no document overflow or JavaScript errors. No personal training data was mutated.
