@@ -153,3 +153,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+.training-overview .week-metric strong {
+  font-family: var(--font-body);
+  font-variation-settings: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  text-transform: none;
+  line-height: 1.2;
+}

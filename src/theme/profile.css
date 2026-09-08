@@ -1,50 +1,62 @@
 /* Personal training hub: compact identity, direct destinations, canonical log preview. */
 .profile-hub .profile-shortcuts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2);
   margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  overflow: hidden;
 }
-
 .profile-hub .profile-shortcut {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  min-height: 64px;
-  padding: var(--space-3);
-  text-align: left;
-  font-weight: 650;
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
-}
-
-.profile-hub .profile-shortcut svg,
-.profile-hub .profile-nutrition svg,
-.profile-hub .profile-history-link svg {
-  flex: none;
-}
-
-.profile-hub .profile-shortcut svg {
-  color: var(--accent-text);
-}
-
-.profile-hub .profile-nutrition {
-  display: flex;
-  width: 100%;
-  align-items: center;
   gap: var(--space-3);
-  min-height: 52px;
-  padding: var(--space-3);
-  margin-top: var(--space-2);
+  min-width: 0;
+  min-height: 60px;
+  padding: var(--space-3) var(--space-4);
   text-align: left;
-  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+  font-size: var(--text-base);
 }
-
-.profile-hub .profile-nutrition span {
+.profile-hub .profile-shortcut + .profile-shortcut {
+  border-top: 1px solid var(--line);
+}
+.profile-hub .profile-shortcut span {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.profile-hub .profile-shortcut svg {
+  flex: none;
+}
+.profile-hub .profile-shortcut > svg:first-child {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  border-radius: 8px;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.profile-hub .profile-shortcut > svg:last-child {
+  color: var(--muted);
+  width: 16px;
+  height: 16px;
+}
+.profile-hub .profile-identity {
+  padding: var(--space-2) 0 var(--space-3);
+  gap: var(--space-4);
+}
+.profile-hub .profile-identity__name {
+  font-size: var(--text-lg);
+}
+.profile-hub .profile-identity__avatar {
+  width: 52px;
+  height: 52px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.profile-hub .profile-summary {
+  font-variant-numeric: tabular-nums;
 }
 
 .profile-hub .profile-recent {
@@ -83,4 +95,8 @@
 .profile-hub .profile-shortcut:active,
 .profile-hub .profile-nutrition:active {
   background: var(--surface2);
+}
+
+.profile-hub .profile-shortcut:focus-visible {
+  outline-offset: -3px;
 }

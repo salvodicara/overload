@@ -55,14 +55,14 @@ export function Profile() {
         }
       />
 
-      <div className="card profile-identity">
+      <div className="profile-identity">
         <span className="account-avatar profile-identity__avatar" aria-hidden="true">
           {name.charAt(0).toUpperCase()}
         </span>
         <div className="profile-identity__copy">
           <strong className="profile-identity__name">{name}</strong>
           <div
-            className="profile-summary mono small muted"
+            className="profile-summary small muted"
             role="group"
             aria-label={t('profile.trainingSummary')}
           >
@@ -74,20 +74,23 @@ export function Profile() {
       </div>
 
       <nav className="profile-shortcuts" aria-label={t('profile.trainingSummary')}>
-        <button className="card profile-shortcut" onClick={() => nav({ view: 'progress' })}>
+        <button className="profile-shortcut" onClick={() => nav({ view: 'progress' })}>
           <IconChart />
           <span>{t('profile.statistics')}</span>
+          <IconForward />
         </button>
-        <button className="card profile-shortcut" onClick={() => nav({ view: 'library' })}>
+        <button className="profile-shortcut" onClick={() => nav({ view: 'library' })}>
           <IconLibrary />
           <span>{t('nav.library')}</span>
+          <IconForward />
         </button>
-        <button className="card profile-shortcut" onClick={() => nav({ view: 'body' })}>
+        <button className="profile-shortcut" onClick={() => nav({ view: 'body' })}>
           <IconUser />
           <span>{t('profile.measurements')}</span>
+          <IconForward />
         </button>
         <button
-          className="card profile-shortcut"
+          className="profile-shortcut"
           onClick={() => nav({ view: 'history', mode: 'calendar' })}
         >
           <ProfileIcon>
@@ -95,13 +98,17 @@ export function Profile() {
             <path d="M7 3v4M17 3v4M3 11h18M8 15h2M14 15h2" />
           </ProfileIcon>
           <span>{t('history.calendar')}</span>
+          <IconForward />
+        </button>
+        <button
+          className="profile-shortcut profile-nutrition"
+          onClick={() => nav({ view: 'diet' })}
+        >
+          <IconNote />
+          <span>{t('progress.seg.diet')}</span>
+          <IconForward />
         </button>
       </nav>
-      <button className="profile-nutrition" onClick={() => nav({ view: 'diet' })}>
-        <IconNote />
-        <span>{t('progress.seg.diet')}</span>
-        <IconForward />
-      </button>
 
       <section className="profile-recent" aria-labelledby="profile-recent-title">
         <div className="profile-recent__heading">

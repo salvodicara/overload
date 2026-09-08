@@ -221,11 +221,7 @@ export function Train() {
         }
       />
 
-      <button
-        className="btn btn-ghost"
-        style={{ marginBottom: 16 }}
-        onClick={() => nav({ view: 'routineImport' })}
-      >
+      <button className="train-import" onClick={() => nav({ view: 'routineImport' })}>
         {t('plan.title')}
       </button>
       {routines.length === 0 && folders.length === 0 && (

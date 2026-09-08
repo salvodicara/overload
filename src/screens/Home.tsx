@@ -114,6 +114,7 @@ export function Home() {
                     count: next.exercises.length,
                   })}
                 </span>
+                <IconForward />
               </button>
               <button
                 className="btn btn-block home-primary-action__button"
@@ -140,7 +141,7 @@ export function Home() {
 
         <section className="home-week home-current-week" aria-labelledby="current-week-title">
           <div className="home-week-heading">
-            <h2 id="current-week-title" className="display section-title">
+            <h2 id="current-week-title" className="section-title">
               {t(isCurrentWeek ? 'home.thisWeek' : 'home.selectedWeek')}
             </h2>
             {!isCurrentWeek && (

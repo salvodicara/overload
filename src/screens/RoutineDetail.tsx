@@ -22,7 +22,7 @@ export function RoutineDetail({ id }: { id: string }) {
   return (
     <div className="screen routine-preview">
       <PageHeader
-        className="detail-page-header"
+        className="routine-preview__header"
         title={routine.name}
         back={{ label: t('common.back'), icon: <IconBack />, onClick: () => history.back() }}
         action={
@@ -31,7 +31,9 @@ export function RoutineDetail({ id }: { id: string }) {
           </button>
         }
       />
-      <p className="muted">{t('home.exercises', { count: routine.exercises.length })}</p>
+      <p className="muted routine-preview__count">
+        {t('home.exercises', { count: routine.exercises.length })}
+      </p>
       <button
         className="btn btn-accent btn-block btn-big"
         disabled={!active && routine.exercises.length === 0}

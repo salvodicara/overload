@@ -54,3 +54,69 @@
 .home-week .period-pager__page {
   padding: 0 2px;
 }
+
+.home-screen .home-primary-action__routine {
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: var(--space-2) var(--space-3);
+}
+.home-primary-action__routine > strong,
+.home-primary-action__routine > span {
+  grid-column: 1;
+}
+.home-primary-action__routine > svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--muted);
+}
+.home-screen .home-primary-action__routine strong {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.home-current-week .section-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.home-current-week .home-shortcuts {
+  grid-template-columns: 1fr;
+}
+.home-current-week .week-days {
+  gap: 0;
+}
+.home-current-week .week-day {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-family: var(--font-body);
+}
+.home-current-week .week-day strong {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  max-width: 100%;
+  height: 32px;
+  border-radius: 50%;
+  font-weight: 600;
+}
+.home-current-week .week-day--trained strong {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.home-current-week .week-day[aria-current='date'] strong {
+  outline: 1px solid var(--accent-text);
+  outline-offset: 2px;
+  color: var(--ink);
+}
+.home-current-week .week-day--trained[aria-current='date'] strong {
+  color: var(--accent-ink);
+}
+.home-current-week .home-week-totals dd {
+  font-family: var(--font-body);
+  font-variation-settings: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
