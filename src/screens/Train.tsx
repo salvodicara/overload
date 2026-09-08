@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -82,8 +83,10 @@ export function Train() {
   const saveRoutine = useStore((s) => s.saveRoutine);
   const saveFolder = useStore((s) => s.saveFolder);
   const deleteFolder = useStore((s) => s.deleteFolder);
-  const [sheet, setSheet] = useState<SheetState>(null);
-  const [nameDraft, setNameDraft] = useState('');
+  const [sheet, setSheet] = useEntryState<SheetState>('Train.sheet', null, (value) =>
+    value?.kind === 'deleteProgram' ? { kind: 'program', folder: value.folder } : value,
+  );
+  const [nameDraft, setNameDraft] = useEntryState('Train.nameDraft', '');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(false);
   const pending = useRef(false);

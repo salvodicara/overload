@@ -1,3 +1,5 @@
+import { returnToCaller } from '../lib/navigationState';
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -62,7 +64,7 @@ export async function createCustomExerciseFlow(
     );
     if (!isAccountActionCurrent(added) || !actions.isUiCurrent()) return STALE_ACCOUNT_ACTION;
     actions.close();
-    actions.nav({ view: 'routineEditor', id: input.pickFor.routineId });
+    returnToCaller({ view: 'routineEditor', id: input.pickFor.routineId }, actions.nav);
   } else {
     actions.close();
     actions.nav({ view: 'exercise', id });
@@ -132,10 +134,13 @@ export function Library({
     ? (surface.group as MuscleGroup)
     : null;
   const visibleCount = surface.visibleCount ?? MAX_RESULTS;
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newGroup, setNewGroup] = useState<MuscleGroup>('chest');
-  const [newTracking, setNewTracking] = useState<TrackingType>('weight_reps');
+  const [creating, setCreating] = useEntryState('Library.creating', false);
+  const [newName, setNewName] = useEntryState('Library.newName', '');
+  const [newGroup, setNewGroup] = useEntryState<MuscleGroup>('Library.newGroup', 'chest');
+  const [newTracking, setNewTracking] = useEntryState<TrackingType>(
+    'Library.newTracking',
+    'weight_reps',
+  );
   const [pendingPick, setPendingPick] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -210,7 +215,7 @@ export function Library({
     try {
       const result = await addExerciseToRoutine(pickFor.routineId, id);
       if (!mountedRef.current || !isAccountActionCurrent(result)) return;
-      nav({ view: 'routineEditor', id: pickFor.routineId });
+      returnToCaller({ view: 'routineEditor', id: pickFor.routineId }, nav);
     } catch {
       if (mountedRef.current) setOperationError(t('library.addError'));
     } finally {
@@ -413,7 +418,7 @@ export function Library({
             const muscle = t(`library.muscle.${muscleGroup(exercise)}`);
             const equipmentId = `equipment-${exercise.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
             return (
-              <li key={exercise.id}>
+              <li key={exercise.id} data-navigation-key={exercise.id}>
                 <button
                   type="button"
                   className="library-result"

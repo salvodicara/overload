@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +7,7 @@ type Props = Omit<
   'value' | 'defaultValue' | 'onChange' | 'onBlur'
 > & {
   value: number | null | undefined;
+  draftKey?: string;
   validate(value: number | null): boolean;
   onSave(value: number | null): Promise<unknown>;
   invalidMessage: string;
@@ -14,6 +16,7 @@ type Props = Omit<
 /** A store acknowledgement must never replace text entered after that request began. */
 export function BlurNumberInput({
   value,
+  draftKey,
   validate,
   onSave,
   invalidMessage,
@@ -21,9 +24,13 @@ export function BlurNumberInput({
   ...props
 }: Props) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(value == null ? '' : String(value));
+  const [saved, setSaved] = useEntryState(
+    'number:' + (draftKey ?? props.name ?? props['aria-label']),
+    { text: value == null ? '' : String(value), dirty: false },
+  );
+  const [draft, setDraft] = useState(saved.text);
   const draftRef = useRef(draft);
-  const dirty = useRef(false);
+  const dirty = useRef(saved.dirty);
   const mounted = useRef(true);
   const version = useRef(0);
   const pendingText = useRef<string | null>(null);
@@ -58,8 +65,10 @@ export function BlurNumberInput({
     setError(null);
     try {
       await onSave(amount);
-      if (mounted.current && request === version.current && draftRef.current === submitted)
+      if (mounted.current && request === version.current && draftRef.current === submitted) {
         dirty.current = false;
+        setSaved({ text: submitted, dirty: false });
+      }
     } catch {
       if (mounted.current && request === version.current) setError('save');
     } finally {
@@ -79,6 +88,7 @@ export function BlurNumberInput({
           dirty.current = true;
           draftRef.current = event.target.value;
           setDraft(event.target.value);
+          setSaved({ text: event.target.value, dirty: true });
           setError(null);
         }}
         onBlur={() => void save()}

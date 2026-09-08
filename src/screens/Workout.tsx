@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { activePersistenceStatus, subscribeActivePersistence } from '../lib/activePersistence';
 import '../theme/workout-surfaces.css';
 import {
@@ -93,14 +94,20 @@ export function Workout() {
   const continueWorkoutRef = useRef<HTMLButtonElement>(null);
   const cancelExerciseChangeRef = useRef<HTMLButtonElement>(null);
   const [pendingSetRemoval, setPendingSetRemoval] = useState<PendingSetRemoval | null>(null);
-  const [editingRest, setEditingRest] = useState<number | null>(null);
-  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
-  const [techniqueDrafts, setTechniqueDrafts] = useState<Record<string, string>>({});
-  const [exerciseOptions, setExerciseOptions] = useState<{
+  const [editingRest, setEditingRest] = useEntryState<number | null>('Workout.editingRest', null);
+  const [expandedNotes, setExpandedNotes] = useEntryState<Record<string, boolean>>(
+    'Workout.expandedNotes',
+    {},
+  );
+  const [techniqueDrafts, setTechniqueDrafts] = useEntryState<Record<string, string>>(
+    'Workout.techniqueDrafts',
+    {},
+  );
+  const [exerciseOptions, setExerciseOptions] = useEntryState<{
     instanceId: string;
     name: string;
     index: number;
-  } | null>(null);
+  } | null>('Workout.exerciseOptions', null);
   const cancelAbandonRef = useRef<HTMLButtonElement>(null);
   const cancelSetRemovalRef = useRef<HTMLButtonElement>(null);
   const addSetRefs = useRef<Array<RefObject<HTMLButtonElement | null>>>([]);
@@ -275,7 +282,11 @@ export function Workout() {
             let workingIndex = 0;
 
             return (
-              <section key={instanceId} className="exercise-block card">
+              <section
+                key={instanceId}
+                data-navigation-key={instanceId}
+                className="exercise-block card"
+              >
                 <div className="card-pad exercise-block__header">
                   <div className="exercise-block__title-row">
                     <button

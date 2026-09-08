@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import '../theme/workout-surfaces.css';
 import {
   createRef,
@@ -221,9 +222,15 @@ export function RoutineEditor({ id }: { id: string }) {
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [saveState]);
-  const [expandedIndex, setExpandedIndex] = useState(0);
-  const [exerciseMenuIndex, setExerciseMenuIndex] = useState<number | null>(null);
-  const [goalTypeIndex, setGoalTypeIndex] = useState<number | null>(null);
+  const [expandedIndex, setExpandedIndex] = useEntryState('RoutineEditor.expandedIndex', 0);
+  const [exerciseMenuIndex, setExerciseMenuIndex] = useEntryState<number | null>(
+    'RoutineEditor.exerciseMenuIndex',
+    null,
+  );
+  const [goalTypeIndex, setGoalTypeIndex] = useEntryState<number | null>(
+    'RoutineEditor.goalTypeIndex',
+    null,
+  );
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [reorderAnnouncement, setReorderAnnouncement] = useState('');

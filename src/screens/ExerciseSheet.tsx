@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExerciseMedia } from '../components/ExerciseMedia';
@@ -28,8 +29,11 @@ export function ExerciseSheet({ id }: { id: string }) {
   const unit = useStore((s) => s.settings.unit ?? 'kg');
   const nav = useStore((s) => s.nav);
   const [showVideo, setShowVideo] = useState(false);
-  const [journalOpen, setJournalOpen] = useState(false);
-  const [visibleJournalEntries, setVisibleJournalEntries] = useState(5);
+  const [journalOpen, setJournalOpen] = useEntryState('ExerciseSheet.journalOpen', false);
+  const [visibleJournalEntries, setVisibleJournalEntries] = useEntryState(
+    'ExerciseSheet.visibleJournalEntries',
+    5,
+  );
 
   useEffect(() => {
     if (!isIt) {

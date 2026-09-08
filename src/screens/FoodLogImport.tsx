@@ -1,3 +1,5 @@
+import { clearEntryDrafts, readHistoryEnvelope } from '../lib/navigationState';
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
@@ -16,8 +18,11 @@ import { isAccountActionCurrent, toast, useStore } from '../state/useStore';
 export function FoodLogImport() {
   const { t, i18n } = useTranslation();
   const importDiaryDays = useStore((state) => state.importDiaryDays);
-  const [source, setSource] = useState('');
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof parseFoodImport>> | null>(null);
+  const [source, setSource] = useEntryState('FoodLogImport.source', '');
+  const [preview, setPreview] = useEntryState<Awaited<ReturnType<typeof parseFoodImport>> | null>(
+    'FoodLogImport.preview',
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
@@ -82,8 +87,10 @@ export function FoodLogImport() {
     setBusy(true);
     setError('');
     const actionRoute = useStore.getState().route;
+    const actionEntry = readHistoryEnvelope()?.entryKey;
     try {
       const result = await importDiaryDays(preview.days);
+      if (isAccountActionCurrent(result)) clearEntryDrafts(actionEntry);
       if (
         mounted.current &&
         useStore.getState().route === actionRoute &&

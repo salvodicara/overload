@@ -1,3 +1,4 @@
+import { isRestoringNavigation } from '../lib/navigationPresentation';
 import { useEffect, useRef, useState } from 'react';
 
 function autosize(field: HTMLTextAreaElement): void {
@@ -34,8 +35,10 @@ export function NoteEditor({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
+    if (!isRestoringNavigation()) {
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
     autosize(el);
   }, []);
 

@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BottomSheet } from '../components/BottomSheet';
@@ -23,8 +24,11 @@ export function FoodDiary() {
         ) as Food['nutrients'],
         incomplete: [],
       };
-  const [savingMeal, setSavingMeal] = useState<FoodEntry['meal'] | null>(null);
-  const [mealName, setMealName] = useState('');
+  const [savingMeal, setSavingMeal] = useEntryState<FoodEntry['meal'] | null>(
+    'FoodDiary.savingMeal',
+    null,
+  );
+  const [mealName, setMealName] = useEntryState('FoodDiary.mealName', '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const setDate = (value: string) => setSurface({ date: value });

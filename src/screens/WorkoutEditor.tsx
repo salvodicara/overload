@@ -1,3 +1,5 @@
+import { clearEntryDrafts, readHistoryEnvelope } from '../lib/navigationState';
+import { useEntryState } from '../hooks/useEntryState';
 import '../theme/workout-surfaces.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -59,13 +61,19 @@ export function WorkoutEditor({ id }: { id: string }) {
   const workouts = useStore((state) => state.workouts);
   const unit = useStore((state) => state.settings.unit ?? 'kg');
   const updateWorkout = useStore((state) => state.updateWorkout);
-  const [draft, setDraft] = useState<WorkoutDraft | null>(() =>
+  const [draft, setDraft] = useEntryState<WorkoutDraft | null>('WorkoutEditor.draft', () =>
     workout ? draftFromWorkout(workout) : null,
   );
-  const [adding, setAdding] = useState(false);
-  const [newTracking, setNewTracking] = useState<TrackingType>('weight_reps');
-  const [exerciseOptions, setExerciseOptions] = useState<DraftGroup | null>(null);
-  const [query, setQuery] = useState('');
+  const [adding, setAdding] = useEntryState('WorkoutEditor.adding', false);
+  const [newTracking, setNewTracking] = useEntryState<TrackingType>(
+    'WorkoutEditor.newTracking',
+    'weight_reps',
+  );
+  const [exerciseOptions, setExerciseOptions] = useEntryState<DraftGroup | null>(
+    'WorkoutEditor.exerciseOptions',
+    null,
+  );
+  const [query, setQuery] = useEntryState('WorkoutEditor.query', '');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const pending = useRef(false);
@@ -101,18 +109,21 @@ export function WorkoutEditor({ id }: { id: string }) {
     if (!draft || pending.current || validateWorkoutDraft(draft).length) return;
     const state = useStore.getState();
     const actionRoute = state.route;
+    const actionEntry = readHistoryEnvelope()?.entryKey;
     const uid = state.user?.uid;
     pending.current = true;
     setSaving(true);
     setSaveError(false);
     try {
       const result = await updateWorkout(id, structuredClone(draft));
+      if (isAccountActionCurrent(result)) clearEntryDrafts(actionEntry);
       if (
         mounted.current &&
         useStore.getState().route === actionRoute &&
         isAccountActionCurrent(result)
-      )
+      ) {
         history.back();
+      }
     } catch {
       if (
         mounted.current &&

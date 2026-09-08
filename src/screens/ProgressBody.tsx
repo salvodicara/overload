@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { MAX_MEASUREMENT, validDate } from '../lib/recordValidation';
 import { useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,13 +25,16 @@ export function ProgressBody() {
   const settings = useStore((state) => state.settings);
   const addMeasurement = useStore((state) => state.addMeasurement);
   const deleteMeasurement = useStore((state) => state.deleteMeasurement);
-  const [metric, setMetric] = useState<MeasureMetric>('weight');
-  const [visibleMeasurements, setVisibleMeasurements] = useState(10);
-  const [adding, setAdding] = useState(false);
+  const [metric, setMetric] = useEntryState<MeasureMetric>('ProgressBody.metric', 'weight');
+  const [visibleMeasurements, setVisibleMeasurements] = useEntryState(
+    'ProgressBody.visibleMeasurements',
+    10,
+  );
+  const [adding, setAdding] = useEntryState('ProgressBody.adding', false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  const [valueDraft, setValueDraft] = useState('');
-  const [dateDraft, setDateDraft] = useState(todayISO());
+  const [valueDraft, setValueDraft] = useEntryState('ProgressBody.valueDraft', '');
+  const [dateDraft, setDateDraft] = useEntryState('ProgressBody.dateDraft', todayISO());
   const [pendingRemoval, setPendingRemoval] = useState<PendingMeasurementRemoval | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);

@@ -1225,7 +1225,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('app shell exposes landmarks and skip navigation', async ({ page }) => {
+  // Use a fresh screen: revisiting Train now correctly restores its previous focused control.
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: /^home$/i })
+    .click();
   await page.reload();
+  await expect(page.getByRole('navigation')).toBeVisible();
 
   const main = page.getByRole('main');
   await expect(main).toHaveCount(1);
@@ -4392,6 +4398,15 @@ test('active Home clears fixed navigation at 320px without a persistent Resume b
   await page.getByRole('button', { name: /^home$/i }).click();
   await page.setViewportSize({ width: 320, height: 700 });
 
+  // Native user scrolling takes precedence over pending route restoration.
+  await page.keyboard.press('End');
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight)),
+      ),
+    )
+    .toBeLessThanOrEqual(1);
   const bounds = await page.evaluate(async () => {
     await document.fonts.ready;
     window.scrollTo(0, document.documentElement.scrollHeight);

@@ -1,3 +1,5 @@
+import { clearEntryDrafts, readHistoryEnvelope } from '../lib/navigationState';
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconBack } from '../components/Icons';
@@ -32,26 +34,45 @@ export function FoodEntryEditor({
   const existing = nutrition
     .find((day) => day.date === date)
     ?.entries?.find((entry) => entry.id === entryId);
-  const [picked, setPicked] = useState<Food | null>(existing?.food ?? null);
-  const [quantity, setQuantity] = useState(String(existing?.quantity ?? 100));
-  const [group, setGroup] = useState<FoodEntry['meal']>(existing?.meal ?? meal);
-  const [tab, setTab] = useState<'search' | 'recent' | 'saved'>('search');
-  const [query, setQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(20);
-  useEffect(() => setVisibleCount(20), [query, tab]);
+  const [picked, setPicked] = useEntryState<Food | null>(
+    'FoodEntryEditor.picked',
+    existing?.food ?? null,
+  );
+  const [quantity, setQuantity] = useEntryState(
+    'FoodEntryEditor.quantity',
+    String(existing?.quantity ?? 100),
+  );
+  const [group, setGroup] = useEntryState<FoodEntry['meal']>(
+    'FoodEntryEditor.group',
+    existing?.meal ?? meal,
+  );
+  const [tab, setTab] = useEntryState<'search' | 'recent' | 'saved'>(
+    'FoodEntryEditor.tab',
+    'search',
+  );
+  const [query, setQuery] = useEntryState('FoodEntryEditor.query', '');
+  const [visibleCount, setVisibleCount] = useEntryState('FoodEntryEditor.visibleCount', 20);
+  const lastSearch = useRef({ query, tab });
+  useEffect(() => {
+    if (lastSearch.current.query !== query || lastSearch.current.tab !== tab) setVisibleCount(20);
+    lastSearch.current = { query, tab };
+  }, [query, tab, setVisibleCount]);
   const [results, setResults] = useState<Food[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState('');
-  const [barcode, setBarcode] = useState('');
+  const [barcode, setBarcode] = useEntryState('FoodEntryEditor.barcode', '');
   const [camera, setCamera] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [customName, setCustomName] = useState('');
-  const [basis, setBasis] = useState<'g' | 'ml'>('g');
-  const [values, setValues] = useState<Partial<Record<NutrientKey, string>>>({});
-  const [saved, setSaved] = useState<SavedMeal | null>(null);
-  const [portions, setPortions] = useState('1');
+  const [creating, setCreating] = useEntryState('FoodEntryEditor.creating', false);
+  const [customName, setCustomName] = useEntryState('FoodEntryEditor.customName', '');
+  const [basis, setBasis] = useEntryState<'g' | 'ml'>('FoodEntryEditor.basis', 'g');
+  const [values, setValues] = useEntryState<Partial<Record<NutrientKey, string>>>(
+    'FoodEntryEditor.values',
+    {},
+  );
+  const [saved, setSaved] = useEntryState<SavedMeal | null>('FoodEntryEditor.saved', null);
+  const [portions, setPortions] = useEntryState('FoodEntryEditor.portions', '1');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [removeSaved, setRemoveSaved] = useState<{ meal: SavedMeal; uid: string } | null>(null);
   const [removeSavedError, setRemoveSavedError] = useState('');
@@ -146,6 +167,7 @@ export function FoodEntryEditor({
     setBusy(true);
     setError('');
     const actionRoute = useStore.getState().route;
+    const actionEntry = readHistoryEnvelope()?.entryKey;
     try {
       let result;
       if (saved) {
@@ -169,13 +191,15 @@ export function FoodEntryEditor({
           ? await updateDiaryEntry(date, entry)
           : await addDiaryEntries(date, [entry]);
       }
+      if (result && isAccountActionCurrent(result)) clearEntryDrafts(actionEntry);
       if (
         result &&
         mounted.current &&
         useStore.getState().route === actionRoute &&
         isAccountActionCurrent(result)
-      )
+      ) {
         history.back();
+      }
     } catch {
       setError(t('food.saveError'));
     } finally {
@@ -189,14 +213,17 @@ export function FoodEntryEditor({
     setBusy(true);
     setError('');
     const actionRoute = useStore.getState().route;
+    const actionEntry = readHistoryEnvelope()?.entryKey;
     try {
       const result = await deleteDiaryEntry(date, entryId);
+      if (isAccountActionCurrent(result)) clearEntryDrafts(actionEntry);
       if (
         mounted.current &&
         useStore.getState().route === actionRoute &&
         isAccountActionCurrent(result)
-      )
+      ) {
         history.back();
+      }
     } catch {
       setError(t('food.saveError'));
     } finally {

@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExportRows } from '../components/ExportRows';
@@ -70,7 +71,7 @@ export function ImportExport() {
   const restoreBackup = useStore((state) => state.restoreBackup);
   const importNotes = useStore((state) => state.importNotes);
   const saveRoutine = useStore((state) => state.saveRoutine);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [preview, setPreview] = useEntryState<Preview | null>('ImportExport.preview', null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);

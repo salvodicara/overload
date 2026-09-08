@@ -1,3 +1,6 @@
+import { clearEntryDrafts, readHistoryEnvelope } from '../lib/navigationState';
+import { isRestoringNavigation } from '../lib/navigationPresentation';
+import { useEntryState } from '../hooks/useEntryState';
 import { RoutinePrescription } from '../components/RoutinePrescription';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,16 +20,17 @@ export function RoutineImport() {
   const { t, i18n } = useTranslation();
   useCatalog();
   const { ensureCatalog, importRoutinePlan, nav } = useStore();
-  const [source, setSource] = useState('');
-  const [preview, setPreview] = useState<RoutinePlan | null>(null);
+  const [source, setSource] = useEntryState('RoutineImport.source', '');
+  const [preview, setPreview] = useEntryState<RoutinePlan | null>('RoutineImport.preview', null);
   const [error, setError] = useState<string | null>(null);
-  const [unknown, setUnknown] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [unknown, setUnknown] = useEntryState<string | null>('RoutineImport.unknown', null);
+  const [query, setQuery] = useEntryState('RoutineImport.query', '');
   const [busy, setBusy] = useState(false);
   const previewHeading = useRef<HTMLHeadingElement>(null);
   const sourceHeading = useRef<HTMLHeadingElement>(null);
   const wasReviewed = useRef(false);
   useEffect(() => {
+    if (isRestoringNavigation()) return;
     if (preview) {
       wasReviewed.current = true;
       previewHeading.current?.focus();
@@ -142,8 +146,10 @@ export function RoutineImport() {
     setBusy(true);
     setError(null);
     const actionRoute = useStore.getState().route;
+    const actionEntry = readHistoryEnvelope()?.entryKey;
     try {
       const result = await importRoutinePlan(preview);
+      if (isAccountActionCurrent(result)) clearEntryDrafts(actionEntry);
       if (
         !mounted.current ||
         useStore.getState().route !== actionRoute ||
@@ -151,7 +157,7 @@ export function RoutineImport() {
       )
         return;
       toast(t(result.value.alreadyImported ? 'plan.alreadyImported' : 'plan.imported'));
-      nav({ view: 'train' });
+      nav({ view: 'train' }, true);
     } catch {
       setError(t('plan.saveError'));
     } finally {

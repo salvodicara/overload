@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { readHistoryEnvelope } from './lib/navigationState';
+import { Fragment, useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { initI18n, setLocale } from './i18n';
 import { onUser } from './lib/firebase';
@@ -62,6 +63,10 @@ function Screen() {
                       : t('nav.library');
     document.title = `${section} · ${t('app.name')}`;
   }, [route.view, t]);
+  return <Fragment key={readHistoryEnvelope()?.entryKey}>{renderScreen(route)}</Fragment>;
+}
+
+function renderScreen(route: import('./state/useStore').Route) {
   switch (route.view) {
     case 'home':
       return <Home />;

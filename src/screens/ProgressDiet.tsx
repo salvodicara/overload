@@ -1,5 +1,6 @@
+import { useEntryState } from '../hooks/useEntryState';
 import { BlurNumberInput } from '../components/BlurNumberInput';
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fmtDate, todayISO } from '../lib/format';
 import { NUTRIENT_FIELDS, validNutrient, type NutrientField } from '../lib/nutrition';
@@ -61,8 +62,11 @@ export function ProgressDiet({ initialDate }: { initialDate?: string } = {}) {
   const settings = useStore((state) => state.settings);
   const saveNutritionDay = useStore((state) => state.saveNutritionDay);
   const updateSettings = useStore((state) => state.updateSettings);
-  const [editTargets, setEditTargets] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(initialDate ?? todayISO);
+  const [editTargets, setEditTargets] = useEntryState('ProgressDiet.editTargets', false);
+  const [selectedDate, setSelectedDate] = useEntryState(
+    'ProgressDiet.selectedDate',
+    initialDate ?? todayISO,
+  );
   const targetsId = useId();
   const today = todayISO();
   const storedRow = nutrition.find((day) => day.id === selectedDate);
@@ -178,6 +182,7 @@ export function ProgressDiet({ initialDate }: { initialDate?: string } = {}) {
               <span className="field-label">{t(nutrientLabels[field])}</span>
               <BlurNumberInput
                 key={`${selectedDate}-${field}`}
+                draftKey={`${selectedDate}-${field}`}
                 aria-label={t(nutrientLabels[field])}
                 name={field === 'kcal' ? 'calories' : field === 'proteinG' ? 'protein' : field}
                 type="number"

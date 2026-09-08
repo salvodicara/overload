@@ -1,3 +1,17 @@
+import {
+  returnToCaller,
+  readEntryValue,
+  writeEntryValue,
+  validRoute,
+} from '../lib/navigationState';
+import {
+  captureRoutePresentation,
+  captureContainerScroll,
+  captureDisclosure,
+  prepareRoutePresentation,
+  restoreRoutePresentation,
+  isRestoringNavigation,
+} from '../lib/navigationPresentation';
 import { persistActiveSession } from '../lib/activePersistence';
 import { create } from 'zustand';
 import {
@@ -282,20 +296,6 @@ async function commitDiaryMutation(
   return accountActionForOwner(owner, day);
 }
 
-// Tab-like views restore their scroll position when you come back (e.g. from
-// an exercise's technique page straight back to where you were in the workout).
-const RESTORE_SCROLL = new Set<Route['view']>([
-  'home',
-  'history',
-  'train',
-  'library',
-  'progress',
-  'profile',
-  'settings',
-  'body',
-  'diet',
-  'workout',
-]);
 const ROUTE_KEY = 'overload_route';
 const TAB_VIEWS = new Set<Route['view']>(['home', 'train', 'profile']);
 
@@ -303,7 +303,8 @@ let activeEntryKey: string | undefined;
 let pendingScroll: number | null = null;
 function applyScroll(view: Route['view'], entryKey?: string): void {
   activeEntryKey = entryKey;
-  pendingScroll = RESTORE_SCROLL.has(view) ? readEntryScroll(view, entryKey) : 0;
+  pendingScroll = readEntryScroll(view, entryKey);
+  prepareRoutePresentation(entryKey);
 }
 
 /** Restore after React commits the destination; a short outgoing page would clamp it. */
@@ -311,10 +312,12 @@ export function restoreRouteScroll(): void {
   if (pendingScroll === null || typeof window === 'undefined') return;
   const y = pendingScroll;
   pendingScroll = null;
-  window.scrollTo(0, y);
+  restoreRoutePresentation(y, activeEntryKey);
 }
 
 function savedRoute(): Route {
+  const saved = readHistoryEnvelope();
+  if (saved) return saved.route;
   try {
     const v = localStorage.getItem(ROUTE_KEY) as Route['view'] | null;
     if (v && TAB_VIEWS.has(v)) return { view: v } as Route;
@@ -375,7 +378,7 @@ export type Store = {
   } | null;
   catalogReady: boolean;
 
-  nav(route: Route): void;
+  nav(route: Route, replaceEntry?: boolean): void;
   ensureCatalog(): Promise<void>;
   importRoutinePlan(
     plan: RoutinePlan,
@@ -513,9 +516,15 @@ export const useStore = create<Store>((set, get) => ({
   pendingRoutineChanges: null,
   catalogReady: false,
 
-  nav(route) {
+  nav(route, replaceEntry = false) {
+    if (typeof window === 'undefined') {
+      set({ route });
+      return;
+    }
     const previous = get().route;
     const previousEnvelope = readHistoryEnvelope();
+    if (JSON.stringify(previous) === JSON.stringify(route)) return;
+    captureRoutePresentation(previousEnvelope?.entryKey);
     writeEntryScroll(previous.view, window.scrollY, previousEnvelope?.entryKey);
     if (TAB_VIEWS.has(route.view)) {
       try {
@@ -526,8 +535,10 @@ export const useStore = create<Store>((set, get) => ({
     }
     // Hardware/browser back works everywhere: detail screens stack on the
     // history, switching tabs replaces the entry (Android convention).
-    const replace = TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view);
+    const replace = replaceEntry || (TAB_VIEWS.has(route.view) && TAB_VIEWS.has(previous.view));
     const nextEnvelope = newHistoryEnvelope(route, previousEnvelope?.surfaces);
+    if (previousEnvelope)
+      nextEnvelope.parent = { route: previous, entryKey: previousEnvelope.entryKey };
     if (route.view === 'history' && route.mode) {
       nextEnvelope.surfaces = {
         ...nextEnvelope.surfaces,
@@ -546,6 +557,8 @@ export const useStore = create<Store>((set, get) => ({
     } catch {
       /* history unavailable */
     }
+    if (route.view === 'summary')
+      writeEntryValue('summary.changes', get().pendingRoutineChanges, nextEnvelope.entryKey);
     transitionRoute(routeMotion(previous, route), () => {
       set({ route });
       applyScroll(route.view, nextEnvelope.entryKey);
@@ -609,7 +622,9 @@ export const useStore = create<Store>((set, get) => ({
         } catch {
           /* storage unavailable */
         }
+        const historyOwner = readHistoryEnvelope()?.owner;
         const changedUid =
+          (historyOwner !== undefined && historyOwner !== user.uid) ||
           (storedUid !== null && storedUid !== user.uid) ||
           (previousOwner !== null && previousOwner.uid !== user.uid);
 
@@ -629,6 +644,7 @@ export const useStore = create<Store>((set, get) => ({
           /* History unavailable. */
         }
         activeEntryKey = readHistoryEnvelope()?.entryKey;
+        applyScroll(changedUid ? 'home' : get().route.view, activeEntryKey);
         if (changedUid) {
           persistActive(null);
           registerCustomExercises([]);
@@ -655,7 +671,11 @@ export const useStore = create<Store>((set, get) => ({
           ...collections,
           user: readyUser,
           authState: 'ready',
-          route: get().active ? { view: 'workout' } : get().route,
+          route: get().route,
+          pendingRoutineChanges:
+            get().route.view === 'summary'
+              ? (readEntryValue<Store['pendingRoutineChanges']>('summary.changes') ?? null)
+              : get().pendingRoutineChanges,
         });
         if (get().active) acquireWakeLock();
         if (import.meta.env.VITE_E2E !== '1' && owns(owner)) {
@@ -751,7 +771,7 @@ export const useStore = create<Store>((set, get) => ({
 
   startWorkout(routineId) {
     if (get().active) {
-      set({ route: { view: 'workout' } });
+      get().nav({ view: 'workout' });
       return;
     }
     const storedRoutine = get().routines.find((r) => r.id === routineId);
@@ -767,7 +787,8 @@ export const useStore = create<Store>((set, get) => ({
       ex: routine.exercises.map((rx) => buildActiveExercise(rx, history, routine.id)),
     };
     persistActive(active);
-    set({ active, route: { view: 'workout' } });
+    set({ active });
+    get().nav({ view: 'workout' });
   },
 
   updateSet(ei, si, patch) {
@@ -925,7 +946,8 @@ export const useStore = create<Store>((set, get) => ({
     exercise.routineOccurrenceId = undefined;
     const next = addActiveExercise(active, exercise);
     persistActive(next);
-    set({ active: next, route: { view: 'workout' } });
+    set({ active: next });
+    returnToCaller({ view: 'workout' }, (route) => get().nav(route, true));
   },
 
   replaceWorkoutExercise(instanceId, exerciseId, tracking) {
@@ -950,7 +972,8 @@ export const useStore = create<Store>((set, get) => ({
     replacement.routineOccurrenceId = undefined;
     const next = replaceActiveExercise(active, instanceId, replacement);
     persistActive(next);
-    set({ active: next, route: { view: 'workout' } });
+    set({ active: next });
+    returnToCaller({ view: 'workout' }, (route) => get().nav(route, true));
   },
 
   removeWorkoutExercise(instanceId) {
@@ -993,7 +1016,8 @@ export const useStore = create<Store>((set, get) => ({
     if (get().finishingWorkout) return;
     persistActive(null);
     releaseWakeLock();
-    set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
+    set({ active: null, restUntil: null, restExerciseId: null });
+    get().nav({ view: 'home' }, true);
   },
 
   async finishWorkout() {
@@ -1014,7 +1038,8 @@ export const useStore = create<Store>((set, get) => ({
         // not recorded and not nagged about.
         persistActive(null);
         releaseWakeLock();
-        set({ active: null, restUntil: null, restExerciseId: null, route: { view: 'home' } });
+        set({ active: null, restUntil: null, restExerciseId: null });
+        get().nav({ view: 'home' }, true);
         toast(i18nToast('workout.discarded'));
         return appliedAccountAction(owner, null);
       }
@@ -1066,9 +1091,7 @@ export const useStore = create<Store>((set, get) => ({
           ? { active: null, restUntil: null, restExerciseId: null, restTotalSec: null }
           : {}),
         workouts: [workout, ...get().workouts.filter((item) => item.id !== workout.id)],
-        ...(sameSession && get().route === actionRoute
-          ? { route: { view: 'summary' as const, workoutId: workout.id } }
-          : {}),
+
         pendingRoutineChanges:
           routine && routineDiff && items.length > 0
             ? {
@@ -1080,6 +1103,8 @@ export const useStore = create<Store>((set, get) => ({
               }
             : null,
       });
+      if (sameSession && get().route === actionRoute)
+        get().nav({ view: 'summary', workoutId: workout.id }, true);
       if (owns(owner)) await pushRecord(owner.uid, 'workouts', workout);
       return accountActionForOwner(owner, workout);
     } finally {
@@ -1332,6 +1357,7 @@ export const useStore = create<Store>((set, get) => ({
     const owner = captureOwner();
     if (!owner) return STALE_ACCOUNT_ACTION;
     const pending = get().pendingRoutineChanges;
+    const summaryEntry = readHistoryEnvelope()?.entryKey;
     if (!pending) return appliedAccountAction(owner, undefined);
     const routine = get().routines.find((r) => r.id === pending.routineId);
     if (!routine) {
@@ -1367,11 +1393,15 @@ export const useStore = create<Store>((set, get) => ({
       routines: get().routines.map((current) => (current === routine ? next : current)),
     });
     debouncedPushRoutine(owner, next.id);
-    if (get().pendingRoutineChanges === pending) set({ pendingRoutineChanges: null });
+    if (get().pendingRoutineChanges === pending) {
+      set({ pendingRoutineChanges: null });
+      writeEntryValue('summary.changes', null, summaryEntry);
+    }
     return appliedAccountAction(owner, undefined);
   },
 
   dismissRoutineChanges() {
+    writeEntryValue('summary.changes', null);
     set({ pendingRoutineChanges: null });
   },
 
@@ -1568,15 +1598,32 @@ if (typeof window !== 'undefined') {
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   try {
     history.replaceState(ensureHistoryEnvelope(useStore.getState().route, history.state), '');
-    activeEntryKey = readHistoryEnvelope()?.entryKey;
+    applyScroll(useStore.getState().route.view, readHistoryEnvelope()?.entryKey);
   } catch {
     /* history unavailable */
   }
+  const savePosition = () => {
+    if (!isRestoringNavigation() && activeEntryKey === readHistoryEnvelope()?.entryKey) {
+      writeEntryScroll(useStore.getState().route.view, window.scrollY, activeEntryKey);
+      captureRoutePresentation(activeEntryKey);
+    }
+  };
+  window.addEventListener('scroll', savePosition, { passive: true });
+  document.addEventListener('scroll', captureContainerScroll, { capture: true, passive: true });
+  document.addEventListener('toggle', captureDisclosure, true);
+  window.addEventListener('pagehide', savePosition);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') savePosition();
+  });
+  for (const event of ['focusin', 'selectionchange', 'input', 'keyup', 'pointerup']) {
+    document.addEventListener(event, () => captureRoutePresentation(activeEntryKey));
+  }
   window.addEventListener('popstate', (event) => {
-    const route = isNavigationOwnerCurrent(event.state)
-      ? ((event.state as { route?: Route } | null)?.route ?? ({ view: 'home' } as Route))
-      : ({ view: 'home' } as Route);
-    writeEntryScroll(useStore.getState().route.view, window.scrollY, activeEntryKey);
+    const candidate = (event.state as { route?: unknown } | null)?.route;
+    const route: Route =
+      isNavigationOwnerCurrent(event.state) && validRoute(candidate) ? candidate : { view: 'home' };
+    if (!isRestoringNavigation())
+      writeEntryScroll(useStore.getState().route.view, window.scrollY, activeEntryKey);
     const targetEnvelope = ensureHistoryEnvelope(route, event.state);
     transitionRoute('back', () => {
       try {
@@ -1584,7 +1631,18 @@ if (typeof window !== 'undefined') {
       } catch {
         /* history unavailable */
       }
-      useStore.setState({ route });
+      useStore.setState({
+        route,
+        ...(route.view === 'summary'
+          ? {
+              pendingRoutineChanges:
+                readEntryValue<Store['pendingRoutineChanges']>(
+                  'summary.changes',
+                  targetEnvelope.entryKey,
+                ) ?? null,
+            }
+          : {}),
+      });
       applyScroll(route.view, targetEnvelope.entryKey);
     });
   });

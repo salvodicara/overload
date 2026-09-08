@@ -1,4 +1,10 @@
 import {
+  describeNavigationTarget,
+  findNavigationTarget,
+  isRestoringNavigation,
+} from '../lib/navigationPresentation';
+import { readEntryValue, writeEntryValue } from '../lib/navigationState';
+import {
   useId,
   useLayoutEffect,
   useRef,
@@ -102,7 +108,11 @@ export function BottomSheet({
       restoreFrameRef.current = null;
     }
     if (!scrollLockRef.current) {
-      const active = document.activeElement;
+      const active = isRestoringNavigation()
+        ? findNavigationTarget(readEntryValue('sheet.trigger'))
+        : document.activeElement;
+      if (!isRestoringNavigation())
+        writeEntryValue('sheet.trigger', describeNavigationTarget(active));
       const root = document.documentElement;
       const body = document.body;
       scrollLockRef.current = {
@@ -115,7 +125,9 @@ export function BottomSheet({
           saveInlineStyle(body, property),
         ),
         scrollX: window.scrollX,
-        scrollY: window.scrollY,
+        scrollY: isRestoringNavigation()
+          ? (readEntryValue<number>('scrollY') ?? 0)
+          : window.scrollY,
         trigger: active instanceof HTMLElement && active !== body ? active : null,
       };
     }

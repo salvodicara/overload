@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEntryState } from '../hooks/useEntryState';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../components/PageHeader';
 import { BottomSheet } from '../components/BottomSheet';
@@ -39,7 +40,7 @@ export function History() {
     selectedDay: null,
   });
   const sentinel = useRef<HTMLDivElement>(null);
-  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [openDay, setOpenDay] = useEntryState<string | null>('History.openDay', null);
   const mode = surface.mode ?? 'list';
   const today = new Date().toLocaleDateString('sv');
   const anchor = surface.anchor ?? today.slice(0, 7);

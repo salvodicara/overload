@@ -1,3 +1,4 @@
+import { useEntryState } from '../hooks/useEntryState';
 import '../theme/workout-surfaces.css';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -54,8 +55,8 @@ export function WorkoutDetail({ id }: { id: string }) {
   const repeatWorkout = useStore((s) => s.repeatWorkout);
   const saveWorkoutAsRoutine = useStore((s) => s.saveWorkoutAsRoutine);
   const [confirming, setConfirming] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const [routineName, setRoutineName] = useState('');
+  const [optionsOpen, setOptionsOpen] = useEntryState('WorkoutDetail.optionsOpen', false);
+  const [routineName, setRoutineName] = useEntryState('WorkoutDetail.routineName', '');
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState('');
   const busyRef = useRef(false);

@@ -25,7 +25,11 @@ export function RoutinePrescription({
       {routine.exercises.length === 0 && <p className="muted">{t('routines.emptyPreview')}</p>}
       <ol className="routine-preview__list">
         {routine.exercises.map((exercise, index) => (
-          <li className="card card-pad" key={exercise.occurrenceId ?? index}>
+          <li
+            className="card card-pad"
+            key={exercise.occurrenceId ?? index}
+            data-navigation-key={exercise.occurrenceId ?? String(index)}
+          >
             {onExercise ? (
               <button
                 className="routine-preview__exercise"
