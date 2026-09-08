@@ -39,3 +39,7 @@ Release verification results are recorded below after completion.
 - Visual confirmation:124 captures across31 states and four locale/theme/width combinations, plus8 settled viewport pager captures. No document overflow, JavaScript errors, unresolved translation keys or harness failures. Changed surfaces visually inspected; not every capture received individual visual judgment.
 - Full-page screenshots with animation disabling produced incorrect native pager paint; normal settled viewport captures confirmed correct calendar geometry and display. Use the latter as evidence.
 - Remaining nonblocking composition limit: a deliberately long routine title at IT320 spans five lines but remains readable. Physical Android PWA interaction and background alarms remain device checks.
+
+## Release receipt
+
+Implementation `d6fa26d` fast-forwarded and pushed to main; Firebase Hosting deployment completed at https://overload-sdc.web.app. Read-only production smoke passed: published assets match the verified build, login visible, service worker active,7,793 foods available online and offline, no document overflow or JavaScript errors. No personal account data was modified by the smoke.
